@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Records DApp</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Kendo UI CSS -->
+    <link href="https://kendo.cdn.telerik.com/2022.2.607/styles/kendo.common.min.css" rel="stylesheet">
+    <link href="https://kendo.cdn.telerik.com/2022.2.607/styles/kendo.default.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container mt-4">
+        <h2 class="mb-4">Medical Records DApp</h2>
+
+        <!-- Add Patient Form -->
+        <form id="addPatientForm">
+            <div class="form-group">
+                <label for="patientName">Patient Name:</label>
+                <input type="text" class="form-control" id="patientName" required>
+            </div>
+            <div class="form-group">
+                <label for="patientAge">Patient Age:</label>
+                <input type="number" class="form-control" id="patientAge" required>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="addPatient()">Add Patient</button>
+        </form>
+    </div>
+
+
+
+<!-- Bootstrap JS and Popper.js (for Bootstrap components) -->
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+
+<!-- Kendo UI JS -->
+<script src="https://kendo.cdn.telerik.com/2022.2.607/js/kendo.all.min.js"></script>
+
+<!-- Your JavaScript file -->
+<script src="/Users/juliaflorea/MedicalRecordsProject/src/js/main.js"></script>
+
+</body>
+</html>
