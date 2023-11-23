@@ -1,0 +1,20 @@
+{
+  "name": "medicalrecordsproject",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "compile": "truffle compile",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ipfs": "^0.66.1",
+    "ipfs-http-client": "^50.1.2",
+    "lite": "^4.0.5",
+    "server": "^1.0.38",
+    "web3": "^4.2.2"
+  }
+}
