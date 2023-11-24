@@ -2,7 +2,7 @@
 
 
 
-const contractAddress = "0xa3917Fab5eB4C803fF1495CB881f0359Be65715B";
+const contractAddress = "0x72a89768Ef233FA9faEe2801cCCf31eF77e19086";
 const contractAbi = [
     {
       "inputs": [
@@ -227,7 +227,7 @@ const contractAbi = [
 
 // Create a web3 instance
 
-const Web3 = require('web3');
+const {Web3} = require('web3');
 const Web3HttpProvider = require('web3-providers-http');
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
