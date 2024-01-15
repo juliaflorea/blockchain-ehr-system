@@ -1,48 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medical Records DApp</title>
 
-    <!-- Bootstrap CSS -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Medical Records Application</title>
+
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/animation.css">
+    <link rel="stylesheet" href="/css/index.css">
 
-    <!-- Kendo UI CSS -->
-    <link href="https://kendo.cdn.telerik.com/2022.2.607/styles/kendo.common.min.css" rel="stylesheet">
-    <link href="https://kendo.cdn.telerik.com/2022.2.607/styles/kendo.default.min.css" rel="stylesheet">
 </head>
+
 <body>
 
-    <div class="container mt-4">
-        <h2 class="mb-4">Medical Records DApp</h2>
+    <!-- Navigation -->
+    <nav class="navbar navbar-inverse navbar-static-top" role="navigation">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse"
+                    data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="#">Electronical Medical Records</a>
+            </div>
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+                    <li class="active">
+                        <a href="javascript:void(0);" onclick="login()">Login</a>
+                    </li>
+                    <li>
+                        <a href="./register.html">Register</a>
+                    </li>
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
 
-        <!-- Add Patient Form -->
-        <form id="addPatientForm">
-            <div class="form-group">
-                <label for="patientName">Patient Name:</label>
-                <input type="text" class="form-control" id="patientName" required>
-            </div>
-            <div class="form-group">
-                <label for="patientAge">Patient Age:</label>
-                <input type="number" class="form-control" id="patientAge" required>
-            </div>
-            <button type="button" class="btn btn-primary" onclick="addPatient()">Add Patient</button>
-        </form>
+    <div>
+        <div id="includedContent"></div>
     </div>
 
 
+    <!-- Page Content -->
+    <div class="container">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="text-center">Welcome to Electronical Medical Records</h3>
+            </div>
+            <div class="panel-body">
+                <div class="row">
+                    <div class="alert alert-warning col-sm-8 col-sm-offset-2" style="display: none;">
+                        <strong>Warning!</strong> Unregistered user. Click <a href="./register.html">here</a> to
+                        register.
 
-<!-- Bootstrap JS and Popper.js (for Bootstrap components) -->
-<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+                    </div>
+                </div>
 
-<!-- Kendo UI JS -->
-<script src="https://kendo.cdn.telerik.com/2022.2.607/js/kendo.all.min.js"></script>
+                <form class="form-horizontal" name="loginForm">
+                    <div class="panel-heading">
+                        <h5 class="text-center">Manage your medical records in a secure and easy way</h5>
+                    </div>
+                    <div class="form-group">
+                    </div>
+                </form>
+                <div class="text-center">
+                    <button class="btn btn-primary btn-lg" onclick="login()">Login</button>
+                </div>
 
-<!-- Your JavaScript file -->
-<script src="/Users/juliaflorea/MedicalRecordsProject/src/js/main.js"></script>
+            </div>
+            <div class="panel-footer">
+            </div>
+        </div>
+
+
+    </div>
+    <!-- /.container -->
+
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ipfs-api@26.1.2/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+    <script src="/js/main.js"></script>
+    <script src="/js/login.js"></script>
 
 </body>
+
 </html>

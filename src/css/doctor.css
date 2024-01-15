@@ -1,0 +1,78 @@
+/* Global Styles */
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f8f9fa; /* Light gray background */
+}
+
+.container {
+    margin-top: 20px;
+}
+
+/* Navigation Styles */
+.navbar {
+    background-color: #392467; /* Dark purple/navy blue background */
+    border: none;
+}
+
+.navbar-brand {
+    color: #ffffff; /* White text */
+}
+
+.navbar-brand:hover,
+.navbar-brand:focus {
+    color: #ffffff; /* White text on hover/focus */
+}
+
+.navbar-nav li a {
+    color: #ffffff; /* White text */
+}
+
+.navbar-nav li a:hover,
+.navbar-nav li a:focus {
+    color: #ffffff; /* White text on hover/focus */
+}
+
+/* Panel Styles */
+.panel-heading {
+    background-color: #392467; /* Dark purple/navy blue background */
+    color: #ffffff; /* White text */
+    border: none;
+}
+
+.panel {
+    border-radius: 0;
+    border: 1px solid #d3d3d3; /* Light gray border */
+}
+
+.panel-body {
+    padding: 20px;
+}
+
+/* Table Styles */
+.table th,
+.table td {
+    text-align: center;
+}
+
+/* Alert Styles */
+.alert {
+    border: 1px solid #ced4da; /* Light gray border */
+}
+
+/* View Patient Table Styles */
+#viewPatient th.patientName,
+#viewPatient th.publicKeyPatient {
+    width: 40%;
+}
+
+/* Access Denied Alert Styles */
+.alert-danger {
+    background-color: #d9534f; /* Red background for error alerts */
+    color: #ffffff; /* White text */
+}
+
+#records {
+    max-height: 200px; /* or any other value that fits your design */
+    overflow-y: auto; /* creates a scrollbar if content overflows */
+  }
+  

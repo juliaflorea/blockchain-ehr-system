@@ -1,0 +1,61 @@
+body {
+  background-color: #f2f2f2; /* Light gray background */
+  color: #333; /* Dark text color */
+}
+
+.navbar-inverse {
+  background-color: #392467 !important; /* Dark purple navbar */
+  border-color: #392467;
+}
+
+.navbar-inverse .navbar-brand,
+.navbar-inverse .navbar-nav>li>a {
+  color: #ffffff; /* White text for navbar brand and links */
+}
+
+.navbar-inverse .navbar-toggle {
+  border-color: #ffffff; /* White border for the navbar toggle button */
+}
+
+.panel-default {
+  border-color: #392467; /* Dark purple border for panels */
+}
+
+.panel-default > .panel-heading {
+  background-color: #392467; /* Dark purple background for panel heading */
+  border-color: #392467;
+  color: #ffffff; /* White text for panel heading */
+}
+
+.panel-default > .panel-footer {
+  background-color: #392467; /* Dark purple background for panel footer */
+  border-color: #392467;
+  color: #ffffff; /* White text for panel footer */
+}
+
+.btn-primary {
+  background-color: #392467; /* Dark purple background for primary buttons */
+  border-color: #392467;
+}
+
+.btn-primary:hover,
+.btn-primary:active,
+.btn-primary:focus {
+  background-color: #2b1b3c; /* Slightly darker purple on hover */
+  border-color: #2b1b3c;
+}
+
+.alert-warning {
+  background-color: #fbeed5; /* Light yellow background for warning alert */
+  border-color: #ecdcb1;
+  color: #8a6d3b; /* Dark text for warning alert */
+}
+
+.container {
+  margin-top: 20px; /* Add some top margin to the container */
+}
+
+.form-horizontal .panel-heading,
+.form-horizontal .text-center {
+  color: #392467; /* Dark purple text for form heading and center text */
+}
