@@ -2,6 +2,7 @@ var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
 
+
 toggleRecordsButton = 0;
 var recordHash = "";
 
@@ -403,7 +404,6 @@ function scheduleAppointment() {
   });
 }
 
-
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
     const patientAddress = accounts[0]; // Assuming the patient is logged in
@@ -419,12 +419,16 @@ function loadSentAppointmentRequests() {
             .appointments(id)
             .call()
             .then(function (appointment) {
-              if (!appointment.isAccepted) {
-                // Fetching additional details from IPFS
-                fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                  displaySentAppointmentRequest(id, appointmentData);
-                });
-              }
+              // Fetching additional details from IPFS
+              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                if (appointment.isAccepted) {
+                  displaySentAppointmentRequest(id, appointmentData, 'accepted');
+                } else if (appointment.isRejected) {
+                  displaySentAppointmentRequest(id, appointmentData, 'rejected');
+                } else {
+                  displaySentAppointmentRequest(id, appointmentData, 'pending');
+                }
+              });
             });
         });
       })
@@ -435,28 +439,35 @@ function loadSentAppointmentRequests() {
 }
 
 
-  function displaySentAppointmentRequest(id,appointment) {
-    var row = $('<tr>');
-  
-   
-      var doctorInfo = appointment.participant.find(p => p.actor.reference.startsWith('Practitioner'));
-      var doctorName = doctorInfo ? doctorInfo.actor.display : "Unknown";
-      var appointmentDate = new Date(appointment.start).toLocaleDateString();
-      var appointmentTime = new Date(appointment.start).toLocaleTimeString();
-      var appointmentStatus = appointment.status;
-     
-  
+function displaySentAppointmentRequest(id, appointment, status) {
+  var row = $('<tr>');
 
-      
-      $('<td>').text(doctorName).appendTo(row);
-      $('<td>').text(appointmentDate).appendTo(row);
-      $('<td>').text( appointmentTime).appendTo(row);
-      $('<td>').text(appointmentStatus).appendTo(row);
-  
-     
-      $('#sentAppointmentRequests').append(row); 
-  }
-  
+  var doctorInfo = appointment.participant.find(p => p.actor.reference.startsWith('Practitioner'));
+  var doctorName = doctorInfo ? doctorInfo.actor.display : "Unknown";
+  var appointmentDate = new Date(appointment.start).toLocaleDateString();
+  var appointmentTime = new Date(appointment.start).toLocaleTimeString();
+
+  $('<td>').text(doctorName).appendTo(row);
+  $('<td>').text(appointmentDate).appendTo(row);
+  $('<td>').text(appointmentTime).appendTo(row);
+  //$('<td>').text(status).appendTo(row);
+  var statusCell = $('<td>').text(status).appendTo(row);
+if (status === 'accepted') {
+  statusCell.addClass('accepted-status');
+} else if (status === 'rejected') {
+  statusCell.addClass('rejected-status');
+} else if (status === 'pending') {
+  statusCell.addClass('pending-status');
+} else {
+  statusCell.addClass('unknown-status'); // Handle unknown status
+}
+
+
+
+  $('#sentAppointmentRequests').append(row);
+}
+
+
   function fetchFromIPFS(ipfsHash, callback) {
     $.get('http://localhost:8080/ipfs/' + ipfsHash)
           .done(function(data) {
@@ -492,3 +503,4 @@ function fetchNotifications() {
             console.error("Error fetching notifications:", error);
         });
 }
+

@@ -327,6 +327,8 @@ function acceptAppointment(appointmentId) {
       .send({ from: doctorAddress })
       .then(function (result) {
         console.log("Appointment accepted. Transaction:", result);
+        
+        notifyPatient(appointmentId, "Accepted");
         // Update the UI to reflect the appointment status
         alert("Appointment Accepted");
         // Optionally, refresh the page or remove the appointment row
@@ -346,6 +348,8 @@ function rejectAppointment(appointmentId) {
       .send({ from: doctorAddress })
       .then(function (result) {
         console.log("Appointment rejected. Transaction:", result);
+
+        notifyPatient(appointmentId, "Rejected");
         // Update the UI to reflect the appointment status
         alert("Appointment Rejected");
         // Optionally, refresh the page or remove the appointment row
@@ -357,4 +361,28 @@ function rejectAppointment(appointmentId) {
   });
 }
 
+function notifyPatient(appointmentId, status) {
+  // Fetch the patient's address associated with the appointment
+  contractInstance.methods
+    .appointments(appointmentId)
+    .call({ gas: 1000000 })
+    .then(function (appointment) {
+      const patientAddress = appointment.patient; // Replace with the actual field name in your contract
 
+      // Send a notification to the patient
+      sendNotificationToPatient(patientAddress, status);
+    })
+    .catch(function (error) {
+      console.error("Error fetching patient address:", error);
+    });
+}
+
+function sendNotificationToPatient(patientAddress, status) {
+  web3.eth.getAccounts().then(function (accounts) {
+    const currentAccount = accounts[0].toLowerCase(); // Assuming the doctor is logged in
+    if (currentAccount === patientAddress.toLowerCase()) {
+      // Display the alert only for the patient
+      alert(`Your appointment has been ${status}.`);
+    }
+  });
+}
