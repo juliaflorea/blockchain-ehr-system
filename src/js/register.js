@@ -74,15 +74,13 @@ function addAgent() {
 
             var buffer = Buffer.from(formattedData);
 
-           // var buffer = Buffer.from(JSON.stringify(fhirPatientResource));
-
             ipfs.files.add(buffer, (error, result) => {
               if (error) {
                 console.error("IPFS upload error:", error);
               } else {
                 let ipfsHash = result[0].hash;
                 contractInstance.methods
-                  .add_agent(firstName,lastName, age, designation, ipfsHash)
+                  .add_agent(firstName, lastName, age, designation, ipfsHash)
                   .send({ from: publicKey, gas: 1000000 })
                   .then((res) => {
                     location.replace("./patient.html");
@@ -130,8 +128,14 @@ function addAgent() {
               ],
             };
 
+            var formattedDoctorData = formatDoctorData(
+              fhirDoctorResource,
+              publicKey
+            );
+            var buffer = Buffer.from(formattedDoctorData);
+
             // Convert the FHIR resource to a Buffer for IPFS
-            var buffer = Buffer.from(JSON.stringify(fhirDoctorResource));
+            //var buffer = Buffer.from(JSON.stringify(fhirDoctorResource));
             ipfs.files.add(buffer, (error, result) => {
               if (error) {
                 console.error("IPFS upload error:", error);
@@ -141,7 +145,7 @@ function addAgent() {
               // Store the IPFS hash in the blockchain
               let ipfsHash = result[0].hash;
               contractInstance.methods
-                .add_agent(firstName,lastName, age, designation, ipfsHash)
+                .add_agent(firstName, lastName, age, designation, ipfsHash)
                 .send({ from: publicKey, gas: 1000000 })
                 .then((res) => {
                   location.replace("./doctor.html");
@@ -183,13 +187,37 @@ function calculateAge(dob) {
 
 function formatPatientData(patientData, publicKey) {
   let dataString = `Medical Record\n`;
-  dataString += `First Name: ${patientData.name[0].given.join(' ')}\n`;
+  dataString += `First Name: ${patientData.name[0].given.join(" ")}\n`;
   dataString += `Last Name: ${patientData.name[0].family}\n`;
   dataString += `Gender: ${patientData.gender}\n`;
   dataString += `Birth Date: ${patientData.birthDate}\n`;
-  dataString += `Contact: ${patientData.telecom.map(t => `${t.system}: ${t.value}`).join(', ')}\n`;
-  dataString += `Address: ${patientData.address.map(a => a.line.join(', ')).join(', ')}\n`;
+  dataString += `Contact: ${patientData.telecom
+    .map((t) => `${t.system}: ${t.value}`)
+    .join(", ")}\n`;
+  dataString += `Address: ${patientData.address
+    .map((a) => a.line.join(", "))
+    .join(", ")}\n`;
   dataString += `Public Key: ${publicKey}\n`;
- 
+
+  return dataString;
+}
+
+function formatDoctorData(doctorData, publicKey) {
+  let dataString = `Doctor Information\n`;
+  dataString += `First Name: ${doctorData.name[0].given.join(" ")}\n`;
+  dataString += `Last Name: ${doctorData.name[0].family}\n`;
+  dataString += `Gender: ${doctorData.gender}\n`;
+  dataString += `Birth Date: ${doctorData.birthDate}\n`;
+  dataString += `Contact: ${doctorData.telecom
+    .map((t) => `${t.system}: ${t.value}`)
+    .join(", ")}\n`;
+  dataString += `Address: ${doctorData.address
+    .map((a) => a.line.join(", "))
+    .join(", ")}\n`;
+  dataString += `Years of Experience: ${yearsOfExperience}\n`;
+  dataString += `Specialty: ${specialty}\n`;
+  dataString += `License Number: ${licenseNumber}\n`;
+  dataString += `Public Key: ${publicKey}\n`;
+
   return dataString;
 }

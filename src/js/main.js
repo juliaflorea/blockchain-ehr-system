@@ -1,4 +1,3 @@
-
 let web3;
 let contractInstance;
 function connect() {
@@ -6,7 +5,7 @@ function connect() {
     // Initialize Web3
     web3 = new Web3(window.ethereum);
 
-    // Request user account access 
+    // Request user account access
     window.ethereum
       .request({ method: "eth_requestAccounts" })
       .then((accounts) => {
@@ -19,12 +18,12 @@ function connect() {
           console.log("Web3 Connected:", web3.eth.defaultAccount);
         });
 
- const abi = JSON.parse('[ { "constant": true, "inputs": [ { "name": "", "type": "uint256" } ], "name": "doctorList", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "", "type": "uint256" } ], "name": "appointments", "outputs": [ { "name": "ipfsHash", "type": "string" }, { "name": "isAccepted", "type": "bool" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "nextAppointmentId", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "", "type": "uint256" } ], "name": "patientList", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "anonymous": false, "inputs": [ { "indexed": true, "name": "patientAddress", "type": "address" }, { "indexed": false, "name": "message", "type": "string" }, { "indexed": false, "name": "notificationType", "type": "string" } ], "name": "NewNotification", "type": "event" }, { "constant": false, "inputs": [ { "name": "first_name", "type": "string" }, { "name": "last_name", "type": "string" }, { "name": "_age", "type": "uint256" }, { "name": "_designation", "type": "uint256" }, { "name": "_hash", "type": "string" } ], "name": "add_agent", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_patient", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "uint256" }, { "name": "", "type": "uint256[]" }, { "name": "", "type": "address" }, { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_doctor", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "paddr", "type": "address" }, { "name": "daddr", "type": "address" } ], "name": "get_patient_doctor_name", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "addr", "type": "address" } ], "name": "permit_access", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function" }, { "constant": false, "inputs": [ { "name": "paddr", "type": "address" }, { "name": "_diagnosis", "type": "uint256" }, { "name": "_hash", "type": "string" } ], "name": "insurance_claim", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "paddr", "type": "address" }, { "name": "daddr", "type": "address" } ], "name": "remove_patient", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_accessed_doctorlist_for_patient", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_accessed_patientlist_for_doctor", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "daddr", "type": "address" } ], "name": "revoke_access", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function" }, { "constant": true, "inputs": [], "name": "get_patient_list", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "get_doctor_list", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "paddr", "type": "address" } ], "name": "get_hash", "outputs": [ { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "doctorAddress", "type": "address" } ], "name": "getDoctorAppointments", "outputs": [ { "name": "", "type": "uint256[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "patientAddress", "type": "address" } ], "name": "getPatientAppointments", "outputs": [ { "name": "", "type": "uint256[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_doctor", "type": "address" }, { "name": "_appointmentIPFSHash", "type": "string" } ], "name": "requestAppointment", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_appointmentId", "type": "uint256" } ], "name": "acceptAppointment", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_appointmentId", "type": "uint256" } ], "name": "rejectAppointment", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "patientAddress", "type": "address" }, { "name": "message", "type": "string" }, { "name": "notificationType", "type": "string" } ], "name": "addNotification", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" } ]');
-        const ContractAddress = "0xec7457bb3A0EE29221b13D77AC527f1a893A393c";
+        const ContractAddress = "0x2929012f79A41A5e968d9BdA604E8B8a62808B1F";
+        const abi = JSON.parse( '[ { "constant": true, "inputs": [ { "name": "", "type": "uint256" } ], "name": "doctorList", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "", "type": "uint256" } ], "name": "appointments", "outputs": [ { "name": "ipfsHash", "type": "string" }, { "name": "isAccepted", "type": "bool" }, { "name": "patientAddress", "type": "address" }, { "name": "doctorAddress", "type": "address" }, { "name": "date", "type": "uint256" }, { "name": "hour", "type": "uint8" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "nextAppointmentId", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "", "type": "uint256" } ], "name": "patientList", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "first_name", "type": "string" }, { "name": "last_name", "type": "string" }, { "name": "_age", "type": "uint256" }, { "name": "_designation", "type": "uint256" }, { "name": "_hash", "type": "string" } ], "name": "add_agent", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" } ], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_patient", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "uint256" }, { "name": "", "type": "uint256[]" }, { "name": "", "type": "address" }, { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_doctor", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "uint256" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "paddr", "type": "address" }, { "name": "daddr", "type": "address" } ], "name": "get_patient_doctor_name", "outputs": [ { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "string" }, { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "addr", "type": "address" } ], "name": "permit_access", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function" }, { "constant": false, "inputs": [ { "name": "paddr", "type": "address" }, { "name": "_diagnosis", "type": "uint256" }, { "name": "_hash", "type": "string" } ], "name": "insurance_claim", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "paddr", "type": "address" }, { "name": "daddr", "type": "address" } ], "name": "remove_patient", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_accessed_doctorlist_for_patient", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "addr", "type": "address" } ], "name": "get_accessed_patientlist_for_doctor", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "daddr", "type": "address" } ], "name": "revoke_access", "outputs": [], "payable": true, "stateMutability": "payable", "type": "function" }, { "constant": true, "inputs": [], "name": "get_patient_list", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "get_doctor_list", "outputs": [ { "name": "", "type": "address[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "paddr", "type": "address" } ], "name": "get_hash", "outputs": [ { "name": "", "type": "string" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_doctor", "type": "address" }, { "name": "_appointmentIPFSHash", "type": "string" }, { "name": "_appointmentDate", "type": "uint256" }, { "name": "_appointmentHour", "type": "uint8" } ], "name": "requestAppointment", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "doctorAddress", "type": "address" } ], "name": "getDoctorAppointments", "outputs": [ { "name": "", "type": "uint256[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [ { "name": "patientAddress", "type": "address" } ], "name": "getPatientAppointments", "outputs": [ { "name": "", "type": "uint256[]" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_appointmentId", "type": "uint256" } ], "name": "acceptAppointment", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_appointmentId", "type": "uint256" } ], "name": "rejectAppointment", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "_doctor", "type": "address" }, { "name": "_date", "type": "uint256" }, { "name": "_hour", "type": "uint8" }, { "name": "_isAvailable", "type": "bool" } ], "name": "updateAvailability", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "_doctor", "type": "address" }, { "name": "_date", "type": "uint256" }, { "name": "_hour", "type": "uint8" } ], "name": "isTimeSlotAvailable", "outputs": [ { "name": "", "type": "bool" } ], "payable": false, "stateMutability": "view", "type": "function" } ]' );
         contractInstance = new web3.eth.Contract(abi, ContractAddress);
         console.log("Contract instance created:", contractInstance);
       })
-      
+
       .catch((error) => {
         // User denied account access
         console.error("Error enabling account:", error);
@@ -35,12 +34,10 @@ function connect() {
 }
 
 window.addEventListener("load", async () => {
-  
   connect();
   console.log("Externally Loaded!");
+  emailjs.init("BVHC0t44IJq1EPSI2");
 });
-
-
 
 function downloadMedicalRecord(data) {
   // Extract first name and last name from the medical record
@@ -50,8 +47,8 @@ function downloadMedicalRecord(data) {
   var firstNameMatch = data.match(firstNamePattern);
   var lastNameMatch = data.match(lastNamePattern);
 
-  var firstName = firstNameMatch ? firstNameMatch[1].trim() : 'Unknown';
-  var lastName = lastNameMatch ? lastNameMatch[1].trim() : 'Unknown';
+  var firstName = firstNameMatch ? firstNameMatch[1].trim() : "Unknown";
+  var lastName = lastNameMatch ? lastNameMatch[1].trim() : "Unknown";
 
   var filename = `MedicalRecord_${firstName}_${lastName}.pdf`;
 
@@ -62,21 +59,22 @@ function downloadMedicalRecord(data) {
   //doc.text(data, 10, 10); // Adjust text positioning and formatting as needed
   var textOptions = {
     maxWidth: 180, // Maximum width for text lines
-    align: 'left' // Align text to the left
+    align: "left", // Align text to the left
   };
 
   // Add the text to the PDF, using textOptions for formatting
   doc.text(data, 10, 10, textOptions);
 
-
   // Save the PDF
   doc.save(filename);
-  var downloadButton = $('<button/>', {
-    text: 'Download Medical Record',
-    class: 'btn btn-primary',
-    click: function () { doc.save(filename); }
-});
+  var downloadButton = $("<button/>", {
+    text: "Download Medical Record",
+    class: "btn btn-primary",
+    click: function () {
+      doc.save(filename);
+    },
+  });
 
-// Append the button to the container
-$('#downloadLinkContainer').html(downloadButton);
+  // Append the button to the container
+  $("#downloadLinkContainer").html(downloadButton);
 }

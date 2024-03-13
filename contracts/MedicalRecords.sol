@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.5.1;
+pragma experimental ABIEncoderV2;
 
 contract MedicalRecords {
     struct patient {
@@ -21,12 +22,16 @@ contract MedicalRecords {
     struct Appointment {
         string ipfsHash;
         bool isAccepted;
+        address patientAddress;
+        address doctorAddress;
+        uint256 date; // New field for appointment date
+        uint8 hour; // New field for appointment hour
     }
 
-    struct Notification {
-        string message;
-        string notificationType;
-        uint256 timestamp;
+    struct TimeSlot {
+        uint256 date; // Represented as YYYYMMDD
+        uint8 hour; // Hour of the day (9-19)
+        bool isAvailable; // True if available, false if booked
     }
 
     uint creditPool;
@@ -43,8 +48,8 @@ contract MedicalRecords {
     mapping(uint => Appointment) public appointments;
     mapping(address => uint[]) private doctorAppointments;
     mapping(address => uint[]) private patientAppointments;
-
-    mapping(address => Notification[]) patientNotifications;
+    mapping(address => mapping(uint256 => mapping(uint8 => bool)))
+        private doctorAvailability;
 
     uint public nextAppointmentId = 0;
 
@@ -137,35 +142,52 @@ contract MedicalRecords {
     }
 
     function insurance_claim(
-        address paddr,
-        uint _diagnosis,
-        string memory _hash
-    ) public {
-        bool patientFound = false;
-        for (
-            uint i = 0;
-            i < doctorInfo[msg.sender].patientAccessList.length;
-            i++
-        ) {
-            if (doctorInfo[msg.sender].patientAccessList[i] == paddr) {
-                msg.sender.transfer(2 ether);
-                creditPool -= 2;
-                patientFound = true;
-            }
-        }
-        if (patientFound == true) {
-            set_hash(paddr, _hash);
-            remove_patient(paddr, msg.sender);
-        } else {
-            revert();
-        }
-
-        bool DiagnosisFound = false;
-        for (uint j = 0; j < patientInfo[paddr].diagnosis.length; j++) {
-            if (patientInfo[paddr].diagnosis[j] == _diagnosis)
-                DiagnosisFound = true;
+    address paddr,
+    uint _diagnosis,
+    string memory _hash
+) public {
+    bool patientFound = false;
+    for (
+        uint i = 0;
+        i < doctorInfo[msg.sender].patientAccessList.length;
+        i++
+    ) {
+        if (doctorInfo[msg.sender].patientAccessList[i] == paddr) {
+            patientFound = true;
+            break; // Stop the loop once the patient is found
         }
     }
+    require(patientFound, "Doctor does not have access to this patient.");
+
+    // New: Check for an accepted appointment
+    bool appointmentAccepted = false;
+    for (uint i = 0; i < doctorAppointments[msg.sender].length; i++) {
+        uint appointmentId = doctorAppointments[msg.sender][i];
+        Appointment storage appointment = appointments[appointmentId];
+        if (appointment.patientAddress == paddr && appointment.isAccepted) {
+            appointmentAccepted = true;
+            break; // Stop the loop once an accepted appointment is found
+        }
+    }
+    require(appointmentAccepted, "No accepted appointment found between doctor and patient.");
+
+    // If both conditions are met, process the diagnosis
+    msg.sender.transfer(2 ether);
+    creditPool -= 2;
+    set_hash(paddr, _hash);
+    remove_patient(paddr, msg.sender); // You may want to review this action based on your app's logic
+
+    // Check if the diagnosis is already recorded (though this part remains unchanged)
+    bool DiagnosisFound = false;
+    for (uint j = 0; j < patientInfo[paddr].diagnosis.length; j++) {
+        if (patientInfo[paddr].diagnosis[j] == _diagnosis) {
+            DiagnosisFound = true;
+            break; // Diagnosis already exists
+        }
+    }
+    // Optionally handle the case where DiagnosisFound is true, if necessary
+}
+
 
     function remove_element_in_array(
         address[] storage Array,
@@ -231,6 +253,50 @@ contract MedicalRecords {
         patientInfo[paddr].record = _hash;
     }
 
+    function requestAppointment(
+        address _doctor,
+        string memory _appointmentIPFSHash,
+        uint256 _appointmentDate,
+        uint8 _appointmentHour
+    ) public {
+        bool accessGiven = false;
+        for (
+            uint i = 0;
+            i < patientInfo[msg.sender].doctorAccessList.length;
+            i++
+        ) {
+            if (patientInfo[msg.sender].doctorAccessList[i] == _doctor) {
+                accessGiven = true;
+                break;
+            }
+        }
+        require(
+            accessGiven,
+            "Patient must give access to the doctor before requesting an appointment."
+        );
+
+        require(
+            _appointmentHour >= 8 && _appointmentHour <= 19,
+            "Appointment hour must be between 8 AM and 7 PM."
+        );
+        require(
+            isTimeSlotAvailable(_doctor, _appointmentDate, _appointmentHour),
+            "Time slot not available."
+        );
+        uint appointmentId = nextAppointmentId++;
+        appointments[appointmentId] = Appointment({
+            ipfsHash: _appointmentIPFSHash,
+            isAccepted: false,
+            patientAddress: msg.sender,
+            doctorAddress: _doctor,
+            date: _appointmentDate,
+            hour: _appointmentHour
+        });
+
+        doctorAppointments[_doctor].push(appointmentId);
+        patientAppointments[msg.sender].push(appointmentId);
+    }
+
     function getDoctorAppointments(
         address doctorAddress
     ) public view returns (uint[] memory) {
@@ -243,77 +309,52 @@ contract MedicalRecords {
         return patientAppointments[patientAddress];
     }
 
-    function requestAppointment(
-        address _doctor,
-        string memory _appointmentIPFSHash
-    ) public {
-        uint appointmentId = nextAppointmentId++;
-        appointments[appointmentId] = Appointment({
-            ipfsHash: _appointmentIPFSHash,
-            isAccepted: false
-        });
-        doctorAppointments[_doctor].push(appointmentId);
-        patientAppointments[msg.sender].push(appointmentId);
-    }
-
     function acceptAppointment(uint _appointmentId) public {
+        Appointment storage appointment = appointments[_appointmentId];
+
         require(
             appointments[_appointmentId].isAccepted == false,
             "Appointment is already processed"
         );
         appointments[_appointmentId].isAccepted = true;
-
-        // Capture the patient's address
-        address patientAddress = msg.sender;
-
-        // Notify the patient of the accepted appointment
-        addNotification(
-            patientAddress,
-            "Your appointment request has been accepted.",
-            "AppointmentAccepted"
-        );
+        doctorAvailability[appointment.doctorAddress][appointment.date][
+            appointment.hour
+        ] = true;
     }
 
     function rejectAppointment(uint _appointmentId) public {
+        Appointment storage appointment = appointments[_appointmentId];
+
         require(
             appointments[_appointmentId].isAccepted == false,
             "Appointment is already processed"
         );
+        address patientAddress = appointments[_appointmentId].patientAddress;
         delete appointments[_appointmentId]; // Optionally, remove the appointment
-
-        // Capture the patient's address
-        address patientAddress = msg.sender;
-
-        // Notify the patient of the rejected appointment
-        addNotification(
-            patientAddress,
-            "Your appointment request has been rejected.",
-            "AppointmentRejected"
-        );
+        doctorAvailability[appointment.doctorAddress][appointment.date][
+            appointment.hour
+        ] = false;
     }
 
-    function addNotification(
-        address patientAddress,
-        string memory message,
-        string memory notificationType
+    function updateAvailability(
+        address _doctor,
+        uint256 _date,
+        uint8 _hour,
+        bool _isAvailable
     ) public {
-        // Create a new notification
-        Notification memory notification = Notification({
-            message: message,
-            notificationType: notificationType,
-            timestamp: block.timestamp // Use the current block's timestamp
-        });
-
-        // Add the notification to the patient's list
-        patientNotifications[patientAddress].push(notification);
-
-        // Emit an event to signal the addition of a new notification
-        emit NewNotification(patientAddress, message, notificationType);
+        require(msg.sender == _doctor, "Unauthorized access");
+        require(
+            _hour >= 8 && _hour <= 19,
+            "Invalid hour. Must be between 8 AM and 7 PM."
+        );
+        doctorAvailability[_doctor][_date][_hour] = _isAvailable;
     }
 
-    event NewNotification(
-        address indexed patientAddress,
-        string message,
-        string notificationType
-    );
+    function isTimeSlotAvailable(
+        address _doctor,
+        uint256 _date,
+        uint8 _hour
+    ) public view returns (bool) {
+        return !doctorAvailability[_doctor][_date][_hour];
+    }
 }
