@@ -297,6 +297,7 @@ function populateDoctorDropdown(dropdownId) {
                 option.text = fullName;
                 option.value = doctorAddress; // Optionally, you can set the doctor's address as the option value
                 list.appendChild(option);
+                
               } else {
                 console.error("Error fetching doctor details:", error);
               }
@@ -305,8 +306,13 @@ function populateDoctorDropdown(dropdownId) {
       } else {
         console.error("Error fetching doctor list:", error);
       }
+      
     });
+    
 }
+
+
+
 
 function scheduleAppointment() {
   const doctorId = $("#doctorSelect").val();

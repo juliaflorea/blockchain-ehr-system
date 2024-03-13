@@ -17,6 +17,7 @@ contract MedicalRecords {
         string lastName;
         uint age;
         address[] patientAccessList;
+        string record;
     }
 
     struct Appointment {
@@ -75,6 +76,7 @@ contract MedicalRecords {
             doctorInfo[addr].firstName = first_name;
             doctorInfo[addr].lastName = last_name;
             doctorInfo[addr].age = _age;
+            doctorInfo[addr].record = _hash;
             doctorList.push(addr) - 1;
             return (first_name, last_name);
         } else {
@@ -108,11 +110,12 @@ contract MedicalRecords {
 
     function get_doctor(
         address addr
-    ) public view returns (string memory, string memory, uint) {
+    ) public view returns (string memory, string memory, uint, string memory) {
         return (
             doctorInfo[addr].firstName,
             doctorInfo[addr].lastName,
-            doctorInfo[addr].age
+            doctorInfo[addr].age,
+            doctorInfo[addr].record
         );
     }
 
