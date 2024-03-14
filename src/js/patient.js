@@ -297,7 +297,7 @@ function populateDoctorDropdown(dropdownId) {
                 option.text = fullName;
                 option.value = doctorAddress; // Optionally, you can set the doctor's address as the option value
                 list.appendChild(option);
-                
+
               } else {
                 console.error("Error fetching doctor details:", error);
               }
@@ -306,13 +306,49 @@ function populateDoctorDropdown(dropdownId) {
       } else {
         console.error("Error fetching doctor list:", error);
       }
-      
+
     });
-    
+
 }
 
 
+function viewDoctorInfo() {
+  var doctorSelect = document.getElementById("doctorSelect");
+  var selectedDoctorAddress = doctorSelect.value;
 
+  if (!selectedDoctorAddress || selectedDoctorAddress === "-- Please Select --") {
+      alert("Please select a doctor to view their information.");
+      return;
+  }
+
+  // Assume you have a method to get doctor's info by address, including the IPFS hash
+  contractInstance.methods.get_doctor(selectedDoctorAddress).call({ from: key })
+  .then(function(doctorDetails) {
+      var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
+
+      if (!ipfsHash) {
+          document.getElementById("doctorInfoDisplay").innerHTML = "Doctor information not available.";
+          return;
+      }
+
+      // Fetch doctor's information from IPFS
+      $.get("http://localhost:8080/ipfs/" + ipfsHash, function(data) {
+          var content = `
+              <div class="doctor-info">
+                  <pre style="margin: 20px 0;">${data}</pre>
+              </div>
+          `;
+
+          document.getElementById("doctorInfoDisplay").innerHTML = content;
+      }).fail(function() {
+          console.error("Failed to fetch data from IPFS.");
+          document.getElementById("doctorInfoDisplay").innerHTML = "Error loading doctor information.";
+      });
+  }).catch(function(error) {
+      console.error("Error fetching doctor details:", error);
+      document.getElementById("doctorInfoDisplay").innerHTML = "Error loading doctor information.";
+  });
+}
 
 function scheduleAppointment() {
   const doctorId = $("#doctorSelect").val();

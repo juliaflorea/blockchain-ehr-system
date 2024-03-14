@@ -93,6 +93,25 @@
 
         <div class="panel panel-default">
             <div class="panel-heading">
+                <h3 class="text-center">Get to Know the Doctors</h3>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label for="doctorSelect" class="control-label">Select Doctor:</label>
+                    <select class="form-control" id="doctorSelect">
+                        <option selected disabled>-- Please Select --</option>
+                        <!-- Doctor options will be populated here -->
+                    </select>
+                </div>
+                <button id="viewDoctorInfoBtn" class="btn btn-primary" onclick="viewDoctorInfo()">View Doctor
+                    Info</button>
+                <div id="doctorInfoDisplay"></div>
+
+            </div>
+        </div>
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
                 <h3 class="text-center">Share your Medical Record</h3>
             </div>
             <div class="panel-body">
