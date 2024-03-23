@@ -297,7 +297,6 @@ function populateDoctorDropdown(dropdownId) {
                 option.text = fullName;
                 option.value = doctorAddress; // Optionally, you can set the doctor's address as the option value
                 list.appendChild(option);
-
               } else {
                 console.error("Error fetching doctor details:", error);
               }
@@ -306,48 +305,67 @@ function populateDoctorDropdown(dropdownId) {
       } else {
         console.error("Error fetching doctor list:", error);
       }
-
     });
-
 }
-
 
 function viewDoctorInfo() {
   var doctorSelect = document.getElementById("doctorSelect");
   var selectedDoctorAddress = doctorSelect.value;
 
-  if (!selectedDoctorAddress || selectedDoctorAddress === "-- Please Select --") {
-      alert("Please select a doctor to view their information.");
-      return;
+  if (
+    !selectedDoctorAddress ||
+    selectedDoctorAddress === "-- Please Select --"
+  ) {
+    alert("Please select a doctor to view their information.");
+    return;
   }
 
-  // Assume you have a method to get doctor's info by address, including the IPFS hash
-  contractInstance.methods.get_doctor(selectedDoctorAddress).call({ from: key })
-  .then(function(doctorDetails) {
+  // Fetch doctor's info from the smart contract
+  contractInstance.methods
+    .get_doctor(selectedDoctorAddress)
+    .call({ from: key })
+    .then(function (doctorDetails) {
       var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
+      var yearsOfExperience = doctorDetails[2]; // Adjust based on your data structure
 
       if (!ipfsHash) {
-          document.getElementById("doctorInfoDisplay").innerHTML = "Doctor information not available.";
-          return;
+        document.getElementById("doctorInfoDisplay").innerHTML =
+          "Doctor information not available.";
+        return;
       }
 
       // Fetch doctor's information from IPFS
-      $.get("http://localhost:8080/ipfs/" + ipfsHash, function(data) {
-          var content = `
-              <div class="doctor-info">
-                  <pre style="margin: 20px 0;">${data}</pre>
-              </div>
-          `;
+      $.get("http://localhost:8080/ipfs/" + ipfsHash, function (data) {
+        // Extracting relevant information from the raw data
+        var lines = data.split("\n");
+        var gender = lines.find((line) => line.includes("Gender:"));
+        var contact = lines.find((line) => line.includes("Contact:"));
+        var specialty = lines.find((line) => line.includes("Specialty:"));
 
-          document.getElementById("doctorInfoDisplay").innerHTML = content;
-      }).fail(function() {
-          console.error("Failed to fetch data from IPFS.");
-          document.getElementById("doctorInfoDisplay").innerHTML = "Error loading doctor information.";
+        // Constructing the display content with new lines after each field
+        var content = `
+                  <div class="doctor-info">
+                      <p>First Name: ${doctorDetails[0]}</p>
+                      <p>Last Name: ${doctorDetails[1]}</p>
+                      <p>Years of Experience: ${yearsOfExperience}</p>
+                      <p>${gender}</p>
+                      <p>${contact}</p>
+                      <p>${specialty}</p>
+                  </div>
+              `;
+
+        document.getElementById("doctorInfoDisplay").innerHTML = content;
+      }).fail(function () {
+        console.error("Failed to fetch data from IPFS.");
+        document.getElementById("doctorInfoDisplay").innerHTML =
+          "Error loading doctor information.";
       });
-  }).catch(function(error) {
+    })
+    .catch(function (error) {
       console.error("Error fetching doctor details:", error);
-      document.getElementById("doctorInfoDisplay").innerHTML = "Error loading doctor information.";
-  });
+      document.getElementById("doctorInfoDisplay").innerHTML =
+        "Error loading doctor information.";
+    });
 }
 
 function scheduleAppointment() {

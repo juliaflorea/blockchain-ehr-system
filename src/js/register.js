@@ -16,6 +16,10 @@ function addAgent() {
   yearsOfExperience = $("#yearsOfExperience").val();
   specialty = $("#specialty").val();
   licenseNumber = $("#licenseNumber").val();
+  // Additional fields for proxy
+  var tokenOrPOAHash = $("#tokenOrPOA").val(); // Field for token or POA hash
+  var isToken = $("#isToken").is(":checked");
+  var poaDocumentFile = document.getElementById("poaDocument").files[0];
 
   var publicKey;
 

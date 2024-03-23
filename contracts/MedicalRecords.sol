@@ -2,6 +2,10 @@
 pragma solidity ^0.5.1;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+
 contract MedicalRecords {
     struct patient {
         string firstName;
@@ -10,6 +14,7 @@ contract MedicalRecords {
         address[] doctorAccessList;
         uint[] diagnosis;
         string record;
+        address proxyAddress;
     }
 
     struct doctor {
@@ -35,6 +40,17 @@ contract MedicalRecords {
         bool isAvailable; // True if available, false if booked
     }
 
+    struct Proxy {
+        string firstName;
+        string lastName;
+        address patientAddress;
+        string record;
+        string token; // This can be a hash or unique identifier
+        bool hasPOA; // Power of Attorney
+        bool consentGiven; 
+    }
+
+
     uint creditPool;
 
     address[] public patientList;
@@ -52,6 +68,11 @@ contract MedicalRecords {
     mapping(address => mapping(uint256 => mapping(uint8 => bool)))
         private doctorAvailability;
 
+    mapping(address => Proxy) public proxies;
+    mapping(string => address) private tokenToPatient; // Maps token to patient for proxy validation
+
+    
+
     uint public nextAppointmentId = 0;
 
     function add_agent(
@@ -59,7 +80,9 @@ contract MedicalRecords {
         string memory last_name,
         uint _age,
         uint _designation,
-        string memory _hash
+        string memory _hash,
+        string memory _tokenOrPOAHash, 
+        bool _isToken
     ) public returns (string memory, string memory) {
         address addr = msg.sender;
 
@@ -79,6 +102,21 @@ contract MedicalRecords {
             doctorInfo[addr].record = _hash;
             doctorList.push(addr) - 1;
             return (first_name, last_name);
+        } else if (_designation == 2) { // Proxy registration
+            require(_isToken || bytes(_tokenOrPOAHash).length > 0, "Token or POA document hash required");
+            address patientAddr = tokenToPatient[_tokenOrPOAHash];
+            require(patientAddr != address(0), "Invalid token or no corresponding patient found");
+
+            Proxy memory newProxy = proxies[addr];
+            require(bytes(newProxy.firstName).length > 0, "Proxy not designated");
+
+            newProxy.record = _hash; // Update with IPFS hash of proxy's information or POA document
+            if (!_isToken) {
+                newProxy.hasPOA = true; // POA provided
+            }
+
+            proxies[addr] = newProxy;
+            // Link proxy with patient's record immediately or based on further validation
         } else {
             revert();
         }
@@ -360,4 +398,44 @@ contract MedicalRecords {
     ) public view returns (bool) {
         return !doctorAvailability[_doctor][_date][_hour];
     }
+
+    function _generateTokenForProxy(address patientAddress) internal returns (string memory) {
+        // Generate a unique token based on patient's address and current timestamp
+        // This is a simplified version. Consider a more secure token generation strategy.
+        return keccak256(abi.encodePacked(patientAddress, now)).toString();
+    }
+
+    function designateProxy(address _proxyAddress, string memory _firstName, string memory _lastName,consentGiven ) public {
+        require(patients[msg.sender].proxyAddress == address(0), "Proxy already designated");
+
+        string memory token = _generateTokenForProxy(msg.sender);
+        Proxy memory newProxy = Proxy({
+            firstName: _firstName,
+            lastName: _lastName,
+            email: _email,
+            patientAddress: msg.sender,
+            token: token,
+            consentGiven: false,
+            hasPOA: false,
+            record: "" // Initially, no IPFS hash until registration is completed
+        });
+
+        proxies[_proxyAddress] = newProxy;
+        patients[msg.sender].proxyAddress = _proxyAddress;
+        tokenToPatient[token] = msg.sender; // Map token to patient for verification during proxy registration
+
+     
+    }
+
+    
+
+    function revokeProxyAccess() public {
+    address proxyAddress = patientInfo[msg.sender].proxyAddress;
+    require(proxyAddress != address(0), "No proxy designated");
+
+    delete proxies[proxyAddress];
+    delete patientInfo[msg.sender].proxyAddress;
+    delete tokenToPatient[proxies[proxyAddress].token];
+}
+
 }
