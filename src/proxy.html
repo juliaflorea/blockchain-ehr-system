@@ -13,6 +13,7 @@
 
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="/css/animation.css">
     <link rel="stylesheet" href="/css/patient.css">
     <link href='https://unpkg.com/fullcalendar@5/main.min.css' rel='stylesheet' />
     <script src='https://unpkg.com/fullcalendar@5/main.min.js'></script>
@@ -52,9 +53,10 @@
     </nav>
 
     <div class="container">
+        <!-- Proxy Personal Information -->
         <div class="panel panel-default">
             <div class="panel-heading">
-                <h3 class="text-center">Personal Information</h3>
+                <h3 class="text-center">Proxy Personal Information</h3>
             </div>
             <div class="panel-body">
                 <div class="row">
@@ -69,25 +71,43 @@
                                 <td id="age"></td>
                             </tr>
                         </table>
-
-                        <div class="text-center">
-                            <h5>Your records are stored here: http://localhost:8080/ipfs/<span id="recordsHash"></span>
-                            </h5>
-                            <button type="submit" class="btn btn-info btn-lg" onclick="showRecords(this)">View medical
-                                records</button>
-
-                        </div>
-                        <pre id="records" style="margin-top: 20px;">
-
-                            </pre>
-                        <div id="downloadLinkContainer" class="text-center" style="margin-top: 20px;"></div>
-
-
-
                     </div>
                 </div>
 
             </div>
+
+        </div>
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="text-center">Accessible EMRs</h3>
+            </div>
+            <div class="panel-body">
+                <div class="row">
+
+                    <div class="alert alert-danger col-sm-8 col-sm-offset-2">
+                        <strong>Notice!</strong> Could not access records. Access might have been revoked. Contact admin
+                        or patient.
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-offset-1 col-sm-10">
+                        <table id="viewPatient" class="table table-hover">
+                            <tr>
+                                <th class="patientName">Patient</th>
+                                <th class="publicKeyPatient">Public Key</th>
+                                <th>Action</th>
+                            </tr>
+
+                        </table>
+                        <div id="downloadLinkContainer" class="text-center"></div>
+
+                    </div>
+
+
+                </div>
+            </div>
+
         </div>
 
         <div class="panel panel-default">
@@ -96,8 +116,8 @@
             </div>
             <div class="panel-body">
                 <div class="form-group">
-                    <label for="doctorInfoSelect" class="control-label">Select Doctor:</label>
-                    <select class="form-control" id="doctorInfoSelect">
+                    <label for="doctorSelect" class="control-label">Select Doctor:</label>
+                    <select class="form-control" id="doctorSelect">
                         <option selected disabled>-- Please Select --</option>
                         <!-- Doctor options will be populated here -->
                     </select>
@@ -206,114 +226,6 @@
 
         <div class="panel panel-default">
             <div class="panel-heading">
-                <h3 class="text-center">Designate a Proxy</h3>
-            </div>
-            <div class="panel-body">
-                <form id="proxyDesignationForm" class="form-horizontal">
-                    <!-- Proxy First Name -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyFirstName">First Name:</label>
-                        <div class="col-sm-10">
-                            <input type="text" class="form-control" id="proxyFirstName" placeholder="Enter first name"
-                                required>
-                        </div>
-                    </div>
-                    <!-- Proxy Last Name -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyLastName">Last Name:</label>
-                        <div class="col-sm-10">
-                            <input type="text" class="form-control" id="proxyLastName" placeholder="Enter last name"
-                                required>
-                        </div>
-                    </div>
-                    <!-- Proxy Date of Birth -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyDOB">Date of Birth:</label>
-                        <div class="col-sm-10">
-                            <input type="date" class="form-control" id="proxyDOB" required>
-                        </div>
-                    </div>
-                    <!-- Proxy Age -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyAge">Age:</label>
-                        <div class="col-sm-10">
-                            <input type="text" class="form-control" id="proxyAge" placeholder="Age" readonly>
-                        </div>
-                    </div>
-                    <!-- Proxy Address -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyAddress">Address:</label>
-                        <div class="col-sm-10">
-                            <input type="text" class="form-control" id="proxyAddress" placeholder="Enter address"
-                                required>
-                        </div>
-                    </div>
-                    <!-- Proxy Phone -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyPhone">Phone:</label>
-                        <div class="col-sm-10">
-                            <input type="tel" class="form-control" id="proxyPhone" placeholder="Enter phone number"
-                                required>
-                        </div>
-                    </div>
-                    <!-- Proxy Email -->
-                    <div class="form-group">
-                        <label class="control-label col-sm-2" for="proxyEmail">Email:</label>
-                        <div class="col-sm-10">
-                            <input type="email" class="form-control" id="proxyEmail" placeholder="Enter email" required>
-                        </div>
-                    </div>
-                    <!-- Consent Dropdown -->
-                    <div class="form-group">
-                        <label for="consentDropdown" class="control-label col-sm-8">Do you agree to give consent for
-                            this person to access your personal and medical data ?</label>
-                        <div class="col-sm-10">
-                            <select class="form-control" id="consentDropdown">
-                                <option value="yes">Yes</option>
-                                <option value="no">No</option>
-                            </select>
-                        </div>
-                    </div>
-                    <!-- Submit Button -->
-                    <div class="form-group">
-                        <div class="col-sm-offset-2 col-sm-10">
-                            <button type="button" id="submitProxyFormBtn" class="btn btn-primary"
-                                onclick="designateProxy()">Submit</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="text-center">Current EMR access holders</h3>
-            </div>
-            <div class="panel-body">
-                <div class="row">
-                    <div class="alert alert-danger col-sm-8 col-sm-offset-2">
-                        <strong>Notice!</strong> The access could not be revoked. Please retry or contact admin.
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-sm-offset-1 col-sm-10">
-                        <table id="accessProxy" class="table table-hover">
-                            <tr>
-                                <th>Proxy</th>
-                                <th class="publicKeyProxy">Public Key</th>
-                                <th>Revoke access</th>
-                                
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-
-        <div class="panel panel-default">
-            <div class="panel-heading">
                 <h3 class="text-center">Appointment Requests Sent</h3>
             </div>
             <div class="panel-body">
@@ -340,7 +252,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js"></script>
-    <script src="/js/patient.js"></script>
+    <script src="/js/proxy.js"></script>
     <script src="/js/main.js"></script>
 
 </body>

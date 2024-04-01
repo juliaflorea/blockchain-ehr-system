@@ -12,12 +12,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts": "^2.5.0",
     "eth-rpc-errors": "^4.0.3",
     "ipfs": "^0.66.1",
     "ipfs-http-client": "^50.1.2",
     "lite": "^2.0.15",
     "server": "^1.0.38",
+    "tesseract.js": "^5.0.5",
     "uws": "^10.148.1",
     "web3": "^4.2.2",
     "web3-providers-http": "^4.1.0"

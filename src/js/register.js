@@ -17,9 +17,12 @@ function addAgent() {
   specialty = $("#specialty").val();
   licenseNumber = $("#licenseNumber").val();
   // Additional fields for proxy
-  var tokenOrPOAHash = $("#tokenOrPOA").val(); // Field for token or POA hash
-  var isToken = $("#isToken").is(":checked");
-  var poaDocumentFile = document.getElementById("poaDocument").files[0];
+  var proxyOption = $("#proxyOption").val();
+  var token = $("#token").val();
+  var patientEthereumAddress = $("#patientEthereumAddress").val();
+  var poaDocument = document.getElementById("poaDoc")
+    ? document.getElementById("poaDoc").files[0]
+    : null;
 
   var publicKey;
 
@@ -84,7 +87,16 @@ function addAgent() {
               } else {
                 let ipfsHash = result[0].hash;
                 contractInstance.methods
-                  .add_agent(firstName, lastName, age, designation, ipfsHash)
+                  .add_agent(
+                    firstName,
+                    lastName,
+                    age,
+                    designation,
+                    ipfsHash,
+                    "",
+                    false,
+                    "0x0000000000000000000000000000000000000000"
+                  )
                   .send({ from: publicKey, gas: 1000000 })
                   .then((res) => {
                     location.replace("./patient.html");
@@ -137,9 +149,6 @@ function addAgent() {
               publicKey
             );
             var buffer = Buffer.from(formattedDoctorData);
-
-            // Convert the FHIR resource to a Buffer for IPFS
-            //var buffer = Buffer.from(JSON.stringify(fhirDoctorResource));
             ipfs.files.add(buffer, (error, result) => {
               if (error) {
                 console.error("IPFS upload error:", error);
@@ -149,7 +158,16 @@ function addAgent() {
               // Store the IPFS hash in the blockchain
               let ipfsHash = result[0].hash;
               contractInstance.methods
-                .add_agent(firstName, lastName, age, designation, ipfsHash)
+                .add_agent(
+                  firstName,
+                  lastName,
+                  age,
+                  designation,
+                  ipfsHash,
+                  "",
+                  false,
+                  "0x0000000000000000000000000000000000000000"
+                )
                 .send({ from: publicKey, gas: 1000000 })
                 .then((res) => {
                   location.replace("./doctor.html");
@@ -158,6 +176,106 @@ function addAgent() {
                   console.error("Blockchain transaction error:", err);
                 });
             });
+          } else if (designation == 2) {
+            handleProxyRegistration(
+              proxyOption,
+              token,
+              poaDocument,
+              ipfs,
+              Buffer
+            )
+              .then(({ isToken, hashOrToken }) => {
+                // Adjust Ethereum address parameter based on the proxy option
+                let ethAddressParam = isToken
+                  ? "0x0000000000000000000000000000000000000000"
+                  : patientEthereumAddress;
+                if (!isToken && !web3.utils.isAddress(patientEthereumAddress)) {
+                  console.error("Invalid patient Ethereum address.");
+                  return; // Exit if the Ethereum address is invalid for POA
+                }
+
+                // Prepare FHIR proxy resource
+                var fhirProxyResource = {
+                  resourceType: "RelatedPerson",
+                  name: [{ family: lastName, given: [firstName] }],
+                  telecom: [
+                    {
+                      system: "phone",
+                      value: phoneNumber,
+                    },
+                    {
+                      system: "email",
+                      value: email,
+                    },
+                  ],
+                  address: [
+                    {
+                      use: "home",
+                      line: [address],
+                    },
+                  ],
+                  gender: gender,
+                  birthDate: birthDate,
+                };
+
+                // Add extensions based on proxy option
+                let extensions = [];
+                if (proxyOption === "token") {
+                  extensions.push({
+                    url: "http://example.org/fhir/StructureDefinition/proxy-access-token",
+                    valueCode: "token",
+                    valueString: token,
+                  });
+                } else if (proxyOption === "poa") {
+                  extensions.push(
+                    {
+                      url: "http://example.org/fhir/StructureDefinition/patientEthereumAddress",
+                      valueString: patientEthereumAddress,
+                    },
+                    {
+                      url: "http://example.org/fhir/StructureDefinition/proxy-access-value",
+                      valueString: hashOrToken,
+                    }
+                  );
+                }
+                fhirProxyResource.extension = extensions;
+
+                // Format data for IPFS
+                var formattedProxyData = JSON.stringify(fhirProxyResource);
+                var buffer = Buffer.from(formattedProxyData);
+
+                ipfs.files.add(buffer, async (error, result) => {
+                  if (error) {
+                    console.error("IPFS upload error:", error);
+                    return;
+                  }
+                  let ipfsHash = result[0].hash;
+                  await contractInstance.methods
+                    .add_agent(
+                      firstName,
+                      lastName,
+                      age,
+                      designation,
+                      ipfsHash,
+                      hashOrToken,
+                      isToken,
+                      ethAddressParam
+                    )
+                    .send({ from: publicKey, gas: 1000000 })
+                    .then((res) => {
+                      window.location.replace("./proxy.html");
+                    })
+                    .catch((err) => {
+                      console.error("Blockchain transaction error:", err);
+                      if (err.data) {
+                        console.error("Error data:", err.data);
+                      }
+                    });
+                });
+              })
+              .catch((error) => {
+                console.error("Error during proxy registration:", error);
+              });
           }
         }
       }
@@ -168,25 +286,24 @@ function addAgent() {
 }
 
 function toggleFields() {
-  var designation = document.getElementById("designation").value;
-  document.getElementById("commonFields").style.display =
-    designation !== "" ? "block" : "none";
-  document.getElementById("doctorFields").style.display =
-    designation === "1" ? "block" : "none";
-  document.getElementById("submitBtn").style.display =
-    designation !== "" ? "block" : "none";
+  var designation = $("#designation").val();
+  $("#commonFields").css("display", designation !== "" ? "block" : "none");
+  $("#doctorFields").css("display", designation === "1" ? "block" : "none");
+  $("#proxyFields").css("display", designation === "2" ? "block" : "none");
+
+  // Call toggleProxyOptionFields to adjust the display based on the proxy option chosen
+  if (designation === "2") {
+    toggleProxyOptionFields();
+  }
 }
 
-document.getElementById("dob").addEventListener("change", function () {
-  var dob = this.value;
-  var age = calculateAge(new Date(dob));
-  document.getElementById("age").value = age;
-});
-
-function calculateAge(dob) {
-  var diff_ms = Date.now() - dob.getTime();
-  var age_dt = new Date(diff_ms);
-  return Math.abs(age_dt.getUTCFullYear() - 1970);
+function toggleProxyOptionFields() {
+  var proxyOption = $("#proxyOption").val();
+  $("#tokenInputField").css(
+    "display",
+    proxyOption === "token" ? "block" : "none"
+  );
+  $("#poaFields").css("display", proxyOption === "poa" ? "block" : "none");
 }
 
 function formatPatientData(patientData, publicKey) {
@@ -225,3 +342,82 @@ function formatDoctorData(doctorData, publicKey) {
 
   return dataString;
 }
+function formatProxyData(
+  proxyData,
+  publicKey,
+  proxyOption,
+  hashOrToken,
+  patientEthereumAddress
+) {
+  // Initialize the data string with the proxy information header
+  let dataString = `Proxy Information\n`;
+
+  // Add the basic information from the proxyData FHIR resource
+  dataString += `First Name: ${proxyData.name[0].given.join(" ")}\n`;
+  dataString += `Last Name: ${proxyData.name[0].family}\n`;
+  dataString += `Gender: ${proxyData.gender}\n`;
+  dataString += `Birth Date: ${proxyData.birthDate}\n`;
+  dataString += `Contact: ${proxyData.telecom
+    .map((t) => `${t.system}: ${t.value}`)
+    .join(", ")}\n`;
+  dataString += `Address: ${proxyData.address
+    .map((a) => a.line.join(", "))
+    .join(", ")}\n`;
+
+  // Use patient Ethereum address for identifying the patient instead of the patient's name
+  dataString += `Patient Ethereum Address: ${patientEthereumAddress}\n`;
+
+  // Append the public key and proxy option
+  dataString += `Public Key: ${publicKey}\n`;
+  dataString += `Proxy Option: ${proxyOption.toUpperCase()}\n`;
+
+  // Conditionally add the token or POA document hash
+  if (proxyOption === "token") {
+    dataString += `Token: ${hashOrToken}\n`;
+  } else if (proxyOption === "poa") {
+    dataString += `POA Document Hash: ${hashOrToken}\n`;
+  }
+
+  return dataString;
+}
+
+function handleProxyRegistration(
+  proxyOption,
+  token,
+  fileElementId,
+  ipfs,
+  Buffer
+) {
+  return new Promise((resolve, reject) => {
+    if (proxyOption === "token") {
+      // No need to upload anything for token-based registration
+      resolve({ isToken: true, hashOrToken: token });
+    } else if (proxyOption === "poa") {
+      const poaDocElement = document.getElementById("poaDoc");
+      if (!poaDocElement || poaDocElement.files.length === 0) {
+        reject("POA document is required for this option.");
+        return;
+      }
+      const poaDocument = poaDocElement.files[0];
+      const reader = new FileReader();
+      reader.onloadend = function () {
+        const buffer = Buffer.from(reader.result);
+        ipfs.files.add(buffer, (error, result) => {
+          if (error) {
+            return reject("IPFS upload error: " + error.message);
+          }
+          // POA document uploaded successfully, resolve with the IPFS hash
+          const ipfsHash = result[0].hash;
+          resolve({ isToken: false, hashOrToken: ipfsHash });
+        });
+      };
+      reader.onerror = function (error) {
+        reject("Error reading POA document: " + error.message);
+      };
+      reader.readAsArrayBuffer(poaDocument);
+    } else {
+      reject("Invalid proxy option provided.");
+    }
+  });
+}
+

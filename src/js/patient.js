@@ -21,12 +21,8 @@ $(window).on("load", function () {
     var lastName = "";
     var age = 0;
     var ailments = [];
-    var insurerName = "";
-
-    $("#buyInsurance").hide();
-    $("#insuranceInfo").hide();
-
-    // print patient details and insurer details (if exists). If insurer does not exist show the buy insurance panel
+    
+    
     console.log("Getting Patient Data");
     contractInstance.methods
       .get_patient(key)
@@ -39,7 +35,6 @@ $(window).on("load", function () {
           lastName = result[1];
           age = result[2];
           ailments = result[3];
-          insurerAddress = result[4];
           recordHash = result[5];
 
           $("#name").html(firstName + " " + lastName);
@@ -51,43 +46,7 @@ $(window).on("load", function () {
               recordHash +
               "</a>"
           );
-
-          if (insurerAddress != 0) {
-            $("#buyInsurance").hide();
-          } else {
-            var InsurerList = 0;
-
-            contractInstance.methods
-              .get_insurer_list()
-              .call({ gas: 1000000 }, function (error, result) {
-                if (!error) {
-                  InsurerList = result;
-                  var list = document.getElementById("insurers");
-                  for (var i = 0; i < InsurerList.length; i++) {
-                    contractInstance.get_insurer.call(
-                      InsurerList[i],
-                      { gas: 1000000 },
-                      function (error, result) {
-                        if (!error) {
-                          d = result[0];
-
-                          var option = document.createElement("option");
-                          option.text = d;
-
-                          list.add(option);
-                        } else {
-                          console.log(error);
-                        }
-                      }
-                    );
-                  }
-                }
-              });
-            $("#buyInsurance").show();
-
-            $("#insuranceInfo").hide();
-          }
-        } else console.error(error);
+        }
       });
 
     // print out the doctors to share emr
@@ -120,8 +79,9 @@ $(window).on("load", function () {
           }
         } else console.error(error);
       });
-
+   
     populateDoctorDropdown("doctorSelect");
+    populateDoctorDropdown("doctorInfoSelect");
 
     // print out the doctors who have access
     var doctorAddressList = 0;
@@ -156,8 +116,10 @@ $(window).on("load", function () {
         } else console.error(error);
       });
   });
-
+ 
   loadSentAppointmentRequests();
+
+  displayProxiesWithAccess();
 });
 
 function showRecords(element) {
@@ -274,42 +236,53 @@ function revokeAccess(element) {
 }
 
 function populateDoctorDropdown(dropdownId) {
-  console.log("Getting Doctor List");
+  console.log("populateDoctorDropdown called for:", dropdownId);
+
+  // Ensure contractInstance is defined
+  if (!contractInstance) {
+    console.error("contractInstance is not defined.");
+    return;
+  }
+
   contractInstance.methods
     .get_doctor_list()
     .call({ gas: 1000000 }, function (error, DoctorList) {
-      if (!error) {
-        var list = document.getElementById(dropdownId);
-        if (!list) {
-          console.error("Dropdown element not found: " + dropdownId);
-          return;
-        }
-
-        list.innerHTML = ""; // Clear existing options
-
-        DoctorList.forEach(function (doctorAddress) {
-          contractInstance.methods
-            .get_doctor(doctorAddress)
-            .call({ gas: 1000000 }, function (error, doctorDetails) {
-              if (!error) {
-                var fullName = doctorDetails[0] + " " + doctorDetails[1];
-                var option = document.createElement("option");
-                option.text = fullName;
-                option.value = doctorAddress; // Optionally, you can set the doctor's address as the option value
-                list.appendChild(option);
-              } else {
-                console.error("Error fetching doctor details:", error);
-              }
-            });
-        });
-      } else {
+      if (error) {
         console.error("Error fetching doctor list:", error);
+        return;
       }
+
+      var list = document.getElementById(dropdownId);
+      if (!list) {
+        console.error("Dropdown element not found: " + dropdownId);
+        return;
+      }
+
+      list.innerHTML = ""; // Clear existing options
+      console.log("Doctor list received:", DoctorList);
+
+      DoctorList.forEach(function (doctorAddress, index) {
+        console.log("Fetching details for doctor at index:", index);
+        contractInstance.methods
+          .get_doctor(doctorAddress)
+          .call({ gas: 1000000 }, function (error, doctorDetails) {
+            if (error) {
+              console.error("Error fetching doctor details:", error);
+              return;
+            }
+
+            var fullName = doctorDetails[0] + " " + doctorDetails[1];
+            var option = document.createElement("option");
+            option.text = fullName;
+            option.value = doctorAddress; // Optionally, you can set the doctor's address as the option value
+            list.appendChild(option);
+          });
+      });
     });
 }
 
 function viewDoctorInfo() {
-  var doctorSelect = document.getElementById("doctorSelect");
+  var doctorSelect = document.getElementById("doctorInfoSelect");
   var selectedDoctorAddress = doctorSelect.value;
 
   if (
@@ -681,4 +654,214 @@ function populateHoursDropdown() {
     .catch((error) => {
       console.error("Error fetching availability:", error);
     });
+}
+
+function designateProxy() {
+  const proxyFirstName = $("#proxyFirstName").val();
+  const proxyLastName = $("#proxyLastName").val();
+  const proxyDOB = $("#proxyDOB").val();
+  const proxyAge = $("proxyAge").val();
+  const proxyAddress = $("#proxyAddress").val();
+  const proxyPhone = $("#proxyPhone").val();
+  const proxyEmail = $("#proxyEmail").val();
+  const consentGiven = $("#consentDropdown").val() === "yes";
+
+  if (!consentGiven) {
+    alert("Consent not given. Proxy cannot be designated without consent.");
+    return;
+  }
+
+  // Generate a unique token for the proxy
+  const token = generateTokenForProxy(proxyEmail);
+
+  // Call your smart contract to designate the proxy
+  web3.eth.getAccounts().then(function (accounts) {
+    const patientAddress = accounts[0];
+    // Assuming your contract instance is already initialized and has a method for designating a proxy
+    contractInstance.methods
+      .designateProxy(token)
+      .send({ from: patientAddress })
+      .then(function (receipt) {
+        // Proxy designated successfully
+        alert("Proxy designated successfully. Token generated.");
+        // Send the token to the proxy's email
+        sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLastName);
+      })
+      .catch(function (error) {
+        // Failed to designate proxy
+        console.error("Failed to designate proxy:", error);
+        alert("Failed to designate proxy. Please try again.");
+      });
+  });
+}
+
+function generateTokenForProxy() {
+  // Create a random string of 16 characters (letters and numbers)
+  let token = "";
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const charactersLength = characters.length;
+  for (let i = 0; i < 16; i++) {
+    token += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+
+  // Optionally, append a timestamp for added uniqueness
+  token += "-" + new Date().getTime().toString(36);
+
+  return token;
+}
+
+function sendTokenToProxyEmail(proxyEmail, token) {
+  // Fetch current patient's details from the smart contract
+  web3.eth.getAccounts().then(function (accounts) {
+    const patientAddress = accounts[0]; // Using the first account as the patient address
+
+    // Assuming get_hash() retrieves the IPFS hash for the patient's data
+    contractInstance.methods
+      .get_hash(patientAddress)
+      .call()
+      .then(function (patientIpfsHash) {
+        console.log(`IPFS Hash for Patient: ${patientIpfsHash}`);
+
+        fetchFromIPFS(patientIpfsHash, function (patientDataText) {
+          // Split the data by lines to extract patient details
+          const lines = patientDataText.split("\n");
+          const firstNameLine = lines.find((line) =>
+            line.startsWith("First Name:")
+          );
+          const lastNameLine = lines.find((line) =>
+            line.startsWith("Last Name:")
+          );
+          const firstName = firstNameLine
+            ? firstNameLine.split(":")[1].trim()
+            : "";
+          const lastName = lastNameLine
+            ? lastNameLine.split(":")[1].trim()
+            : "";
+          const patientName = `${firstName} ${lastName}`;
+
+          // Prepare the template parameters
+          var templateParams = {
+            proxy_email: proxyEmail,
+            proxy_name:
+              $("#proxyFirstName").val() + " " + $("#proxyLastName").val(),
+            patient_name: patientName,
+            token: token,
+            from_name: "Electronical Medical Records Service",
+          };
+
+          console.log(`Sending Email with Params:`, templateParams);
+
+          // Send the email using EmailJS
+          emailjs
+            .send("service_th4f1zo", "template_bwpjgsk", templateParams)
+            .then(
+              function (response) {
+                console.log("Successfully sent email to proxy:", response.text);
+              },
+              function (error) {
+                console.error("Failed to send email to proxy:", error);
+                console.error("Error details:", error.response);
+              }
+            );
+        });
+      })
+      .catch(function (error) {
+        console.error("Error fetching patient details:", error);
+      });
+  });
+}
+
+// This function should be called after the patient logs in and the page is fully loaded
+
+function displayProxiesWithAccess() {
+  web3.eth.getAccounts().then((accounts) => {
+    const patientAddress = accounts[0];
+
+    contractInstance.methods.get_accessed_proxylist_for_patient(patientAddress)
+      .call()
+      .then(proxyAddressList => {
+        // Clear the current list before repopulating it
+        var table = document.getElementById("accessProxy");
+        var rowCount = table.rows.length;
+        for (var i = rowCount - 1; i > 0; i--) {
+          table.deleteRow(i);
+        }
+
+        // Now repopulate the table with the current proxies
+        proxyAddressList.forEach((proxyAddress, index) => {
+          // Avoid adding the null address to the list
+          if (proxyAddress !== "0x0000000000000000000000000000000000000000") {
+            contractInstance.methods.get_proxy(proxyAddress)
+              .call()
+              .then(proxyDetails => {
+                var row = table.insertRow(-1); // Append row at the end of the table
+                var cell1 = row.insertCell(0);
+                var cell2 = row.insertCell(1);
+                var cell3 = row.insertCell(2);
+                cell1.innerHTML = proxyDetails.firstName + ' ' + proxyDetails.lastName;
+                cell2.innerHTML = proxyAddress;
+                cell3.innerHTML = `<button data-proxy-address="${proxyAddress}" class="btn btn-danger revoke-proxy-access">Revoke access</button>`;
+              })
+              .catch(error => {
+                console.error("Error fetching proxy details:", error);
+              });
+          }
+        });
+      })
+      .catch(error => {
+        console.error("Error fetching proxy list:", error);
+      });
+  });
+}
+
+
+$(document).ready(function() {
+  // Event delegation for revoke access buttons within the accessProxy table
+  $('#accessProxy').on('click', '.revoke-proxy-access', function() {
+    var proxyAddress = $(this).data('proxy-address');
+    if (!proxyAddress) {
+      console.error('Proxy address is undefined.');
+      return;
+    }
+    // Pass the button itself and the proxy address
+    revokeProxyAccess(proxyAddress);
+  });
+});
+
+
+
+function revokeProxyAccess() {
+  web3.eth.getAccounts().then((accounts) => {
+    const patientAddress = accounts[0]; // The account invoking the transaction
+
+    console.log('Patient Address:', patientAddress);
+
+    // Check if the patient has a designated proxy before attempting to revoke
+    contractInstance.methods.get_accessed_proxylist_for_patient(patientAddress)
+      .call()
+      .then(proxyList => {
+        if (proxyList.length === 0 || proxyList[0] === "0x0000000000000000000000000000000000000000") {
+          console.error('The patient does not have a designated proxy.');
+          return;
+        }
+
+        console.log('Revoking access for proxy of patient:', patientAddress);
+
+        // Calling the revokeProxyAccess function without the need for a proxyAddress
+        contractInstance.methods.revokeProxyAccess()
+          .send({ from: patientAddress, gas: 1000000 })
+          .then(receipt => {
+            console.log('Proxy access revoked successfully:', receipt);
+            // Handle successful revocation (e.g., update UI)
+          })
+          .catch(error => {
+            console.error('Error revoking proxy access:', error);
+            // Handle errors (e.g., show error message to the user)
+          });
+      })
+      .catch(error => {
+        console.error('Error fetching proxy details:', error);
+      });
+  });
 }

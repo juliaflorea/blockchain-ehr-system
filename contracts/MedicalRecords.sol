@@ -2,9 +2,9 @@
 pragma solidity ^0.5.1;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/utils/Strings.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+// import "@openzeppelin/contracts/utils/Strings.sol";
+// import "@openzeppelin/contracts/access/Ownable.sol";
+// import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 contract MedicalRecords {
     struct patient {
@@ -12,9 +12,11 @@ contract MedicalRecords {
         string lastName;
         uint age;
         address[] doctorAccessList;
+        address[] proxyAccessList;
         uint[] diagnosis;
         string record;
         address proxyAddress;
+        bool hasDesignatedProxy;
     }
 
     struct doctor {
@@ -43,18 +45,21 @@ contract MedicalRecords {
     struct Proxy {
         string firstName;
         string lastName;
+        uint age;
         address patientAddress;
+        address[] patientAccessList;
         string record;
-        string token; // This can be a hash or unique identifier
-        bool hasPOA; // Power of Attorney
-        bool consentGiven; 
+        string token;
+        bool accessGrantedViaToken;
+        bool isAuthorized;
+        bool poa;
     }
-
 
     uint creditPool;
 
     address[] public patientList;
     address[] public doctorList;
+    address[] public proxyList;
 
     mapping(address => patient) patientInfo;
     mapping(address => doctor) doctorInfo;
@@ -70,8 +75,7 @@ contract MedicalRecords {
 
     mapping(address => Proxy) public proxies;
     mapping(string => address) private tokenToPatient; // Maps token to patient for proxy validation
-
-    
+    mapping(address => string) private patientToToken;
 
     uint public nextAppointmentId = 0;
 
@@ -81,8 +85,9 @@ contract MedicalRecords {
         uint _age,
         uint _designation,
         string memory _hash,
-        string memory _tokenOrPOAHash, 
-        bool _isToken
+        string memory _tokenOrPOAHash,
+        bool _isToken,
+        address _patientEthereumAddress
     ) public returns (string memory, string memory) {
         address addr = msg.sender;
 
@@ -102,21 +107,49 @@ contract MedicalRecords {
             doctorInfo[addr].record = _hash;
             doctorList.push(addr) - 1;
             return (first_name, last_name);
-        } else if (_designation == 2) { // Proxy registration
-            require(_isToken || bytes(_tokenOrPOAHash).length > 0, "Token or POA document hash required");
-            address patientAddr = tokenToPatient[_tokenOrPOAHash];
-            require(patientAddr != address(0), "Invalid token or no corresponding patient found");
+        } else if (_designation == 2) {
+            address patientAddr = address(0);
 
-            Proxy memory newProxy = proxies[addr];
-            require(bytes(newProxy.firstName).length > 0, "Proxy not designated");
-
-            newProxy.record = _hash; // Update with IPFS hash of proxy's information or POA document
-            if (!_isToken) {
-                newProxy.hasPOA = true; // POA provided
+            // For the token option, retrieve the patient address using the token-to-patient mapping
+            if (_isToken) {
+                patientAddr = tokenToPatient[_tokenOrPOAHash];
+                require(patientAddr != address(0), "Invalid token.");
+            }
+            // For the POA option, use the provided Ethereum address directly
+            else {
+                patientAddr = _patientEthereumAddress;
+                require(
+                    patientAddr != address(0),
+                    "Invalid patient Ethereum address."
+                );
             }
 
-            proxies[addr] = newProxy;
-            // Link proxy with patient's record immediately or based on further validation
+            // Validate that the patient address is registered in the system
+            require(
+                bytes(patientInfo[patientAddr].firstName).length != 0,
+                "Patient not found."
+            );
+
+            patientInfo[patientAddr].proxyAddress = msg.sender;
+            patientInfo[patientAddr].hasDesignatedProxy = true;
+            address[] memory emptyPatientAccessList = new address[](0);
+
+
+            proxies[msg.sender] = Proxy({
+                firstName: first_name,
+                lastName: last_name,
+                age: _age,
+                patientAddress: patientAddr,
+                patientAccessList: emptyPatientAccessList,
+                record: _hash, // Assuming this is POA document hash if _isToken is false
+                token: _isToken ? _tokenOrPOAHash : "",
+                accessGrantedViaToken: _isToken,
+                isAuthorized: true,
+                poa: !_isToken
+            });
+            proxyList.push(msg.sender);
+
+            return (first_name, last_name);
         } else {
             revert();
         }
@@ -157,6 +190,12 @@ contract MedicalRecords {
         );
     }
 
+    function get_proxy(
+        address proxyAddress
+    ) public view returns (Proxy memory) {
+        return proxies[proxyAddress];
+    }
+
     function get_patient_doctor_name(
         address paddr,
         address daddr
@@ -183,52 +222,54 @@ contract MedicalRecords {
     }
 
     function insurance_claim(
-    address paddr,
-    uint _diagnosis,
-    string memory _hash
-) public {
-    bool patientFound = false;
-    for (
-        uint i = 0;
-        i < doctorInfo[msg.sender].patientAccessList.length;
-        i++
-    ) {
-        if (doctorInfo[msg.sender].patientAccessList[i] == paddr) {
-            patientFound = true;
-            break; // Stop the loop once the patient is found
+        address paddr,
+        uint _diagnosis,
+        string memory _hash
+    ) public {
+        bool patientFound = false;
+        for (
+            uint i = 0;
+            i < doctorInfo[msg.sender].patientAccessList.length;
+            i++
+        ) {
+            if (doctorInfo[msg.sender].patientAccessList[i] == paddr) {
+                patientFound = true;
+                break; // Stop the loop once the patient is found
+            }
         }
-    }
-    require(patientFound, "Doctor does not have access to this patient.");
+        require(patientFound, "Doctor does not have access to this patient.");
 
-    // New: Check for an accepted appointment
-    bool appointmentAccepted = false;
-    for (uint i = 0; i < doctorAppointments[msg.sender].length; i++) {
-        uint appointmentId = doctorAppointments[msg.sender][i];
-        Appointment storage appointment = appointments[appointmentId];
-        if (appointment.patientAddress == paddr && appointment.isAccepted) {
-            appointmentAccepted = true;
-            break; // Stop the loop once an accepted appointment is found
+        // New: Check for an accepted appointment
+        bool appointmentAccepted = false;
+        for (uint i = 0; i < doctorAppointments[msg.sender].length; i++) {
+            uint appointmentId = doctorAppointments[msg.sender][i];
+            Appointment storage appointment = appointments[appointmentId];
+            if (appointment.patientAddress == paddr && appointment.isAccepted) {
+                appointmentAccepted = true;
+                break; // Stop the loop once an accepted appointment is found
+            }
         }
-    }
-    require(appointmentAccepted, "No accepted appointment found between doctor and patient.");
+        require(
+            appointmentAccepted,
+            "No accepted appointment found between doctor and patient."
+        );
 
-    // If both conditions are met, process the diagnosis
-    msg.sender.transfer(2 ether);
-    creditPool -= 2;
-    set_hash(paddr, _hash);
-    remove_patient(paddr, msg.sender); // You may want to review this action based on your app's logic
+        // If both conditions are met, process the diagnosis
+        msg.sender.transfer(2 ether);
+        creditPool -= 2;
+        set_hash(paddr, _hash);
+        remove_patient(paddr, msg.sender); // You may want to review this action based on your app's logic
 
-    // Check if the diagnosis is already recorded (though this part remains unchanged)
-    bool DiagnosisFound = false;
-    for (uint j = 0; j < patientInfo[paddr].diagnosis.length; j++) {
-        if (patientInfo[paddr].diagnosis[j] == _diagnosis) {
-            DiagnosisFound = true;
-            break; // Diagnosis already exists
+        // Check if the diagnosis is already recorded (though this part remains unchanged)
+        bool DiagnosisFound = false;
+        for (uint j = 0; j < patientInfo[paddr].diagnosis.length; j++) {
+            if (patientInfo[paddr].diagnosis[j] == _diagnosis) {
+                DiagnosisFound = true;
+                break; // Diagnosis already exists
+            }
         }
+        // Optionally handle the case where DiagnosisFound is true, if necessary
     }
-    // Optionally handle the case where DiagnosisFound is true, if necessary
-}
-
 
     function remove_element_in_array(
         address[] storage Array,
@@ -259,6 +300,20 @@ contract MedicalRecords {
         remove_element_in_array(patientInfo[paddr].doctorAccessList, daddr);
     }
 
+   
+ function remove_proxy(address patientAddress) internal {
+        require(
+            patientInfo[patientAddress].hasDesignatedProxy,
+            "Patient does not have a designated proxy."
+        );
+
+        // Reset the proxy information for the patient
+        patientInfo[patientAddress].hasDesignatedProxy = false;
+        patientInfo[patientAddress].proxyAddress = address(0);
+
+        // Add any additional logic to revoke permissions or clear state as necessary
+    }
+
     function get_accessed_doctorlist_for_patient(
         address addr
     ) public view returns (address[] memory) {
@@ -272,10 +327,43 @@ contract MedicalRecords {
         return doctorInfo[addr].patientAccessList;
     }
 
+    function get_accessed_patientlist_for_proxy(
+        address proxyAddress
+    ) public view returns (address[] memory) {
+        Proxy memory proxy = proxies[proxyAddress];
+        address[] memory accessedPatients = new address[](1);
+        accessedPatients[0] = proxy.patientAddress;
+        return accessedPatients;
+    }
+
+    function get_accessed_proxylist_for_patient(
+        address patientAddress
+    ) public view returns (address[] memory) {
+        address[] memory accessedProxies = new address[](1);
+        accessedProxies[0] = patientInfo[patientAddress].proxyAddress;
+        return accessedProxies;
+    }
+
     function revoke_access(address daddr) public payable {
         remove_patient(msg.sender, daddr);
         msg.sender.transfer(2 ether);
         creditPool -= 2;
+    }
+
+    function revokeProxyAccess() public {
+        // Assuming this function is called by the patient to revoke their proxy's access
+        address patientAddress = msg.sender;
+
+        // Ensure the patient has a designated proxy before attempting to remove it
+        require(
+            patientInfo[patientAddress].hasDesignatedProxy,
+            "No proxy to revoke."
+        );
+
+        // Call remove_proxy to revoke the proxy's access
+        remove_proxy(patientAddress);
+
+        // Handle any refunds, notifications, or additional state updates as needed
     }
 
     function get_patient_list() public view returns (address[] memory) {
@@ -284,6 +372,10 @@ contract MedicalRecords {
 
     function get_doctor_list() public view returns (address[] memory) {
         return doctorList;
+    }
+
+    function get_proxy_list() public view returns (address[] memory) {
+        return proxyList;
     }
 
     function get_hash(address paddr) public view returns (string memory) {
@@ -399,43 +491,17 @@ contract MedicalRecords {
         return !doctorAvailability[_doctor][_date][_hour];
     }
 
-    function _generateTokenForProxy(address patientAddress) internal returns (string memory) {
-        // Generate a unique token based on patient's address and current timestamp
-        // This is a simplified version. Consider a more secure token generation strategy.
-        return keccak256(abi.encodePacked(patientAddress, now)).toString();
+    function designateProxy(string memory token) public {
+        require(
+            !patientInfo[msg.sender].hasDesignatedProxy,
+            "Proxy already designated"
+        );
+
+        // Associate token with the sender's address
+        patientToToken[msg.sender] = token;
+        tokenToPatient[token] = msg.sender;
+
+        // Update patient's hasDesignatedProxy status
+        patientInfo[msg.sender].hasDesignatedProxy = true;
     }
-
-    function designateProxy(address _proxyAddress, string memory _firstName, string memory _lastName,consentGiven ) public {
-        require(patients[msg.sender].proxyAddress == address(0), "Proxy already designated");
-
-        string memory token = _generateTokenForProxy(msg.sender);
-        Proxy memory newProxy = Proxy({
-            firstName: _firstName,
-            lastName: _lastName,
-            email: _email,
-            patientAddress: msg.sender,
-            token: token,
-            consentGiven: false,
-            hasPOA: false,
-            record: "" // Initially, no IPFS hash until registration is completed
-        });
-
-        proxies[_proxyAddress] = newProxy;
-        patients[msg.sender].proxyAddress = _proxyAddress;
-        tokenToPatient[token] = msg.sender; // Map token to patient for verification during proxy registration
-
-     
-    }
-
-    
-
-    function revokeProxyAccess() public {
-    address proxyAddress = patientInfo[msg.sender].proxyAddress;
-    require(proxyAddress != address(0), "No proxy designated");
-
-    delete proxies[proxyAddress];
-    delete patientInfo[msg.sender].proxyAddress;
-    delete tokenToPatient[proxies[proxyAddress].token];
-}
-
 }
