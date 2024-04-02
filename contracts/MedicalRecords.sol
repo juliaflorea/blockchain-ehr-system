@@ -301,18 +301,35 @@ contract MedicalRecords {
     }
 
    
- function remove_proxy(address patientAddress) internal {
-        require(
-            patientInfo[patientAddress].hasDesignatedProxy,
-            "Patient does not have a designated proxy."
-        );
+ function remove_proxy(address patientAddress) public {
+    require(
+        patientInfo[patientAddress].hasDesignatedProxy,
+        "Patient does not have a designated proxy."
+    );
 
-        // Reset the proxy information for the patient
-        patientInfo[patientAddress].hasDesignatedProxy = false;
-        patientInfo[patientAddress].proxyAddress = address(0);
+    address proxyAddress = patientInfo[patientAddress].proxyAddress;
+    
+    // Ensure the proxy exists
+    require(
+        proxyAddress != address(0),
+        "Proxy address is not valid."
+    );
 
-        // Add any additional logic to revoke permissions or clear state as necessary
+    // Remove the patient from the proxy's patientAccessList
+    address[] storage accessList = proxies[proxyAddress].patientAccessList;
+    for (uint i = 0; i < accessList.length; i++) {
+        if (accessList[i] == patientAddress) {
+            accessList[i] = accessList[accessList.length - 1];
+            accessList.pop();
+            break;
+        }
     }
+
+    // Reset the proxy information for the patient
+    patientInfo[patientAddress].hasDesignatedProxy = false;
+    patientInfo[patientAddress].proxyAddress = address(0);
+}
+
 
     function get_accessed_doctorlist_for_patient(
         address addr
