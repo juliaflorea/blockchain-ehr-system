@@ -275,6 +275,11 @@ function addAgent() {
               })
               .catch((error) => {
                 console.error("Error during proxy registration:", error);
+                document.getElementById("poaValidationError").style.display =
+                  "block"; // Show the alert
+                document.getElementById(
+                  "poaValidationErrorMessage"
+                ).textContent = error;
               });
           }
         }
@@ -388,9 +393,16 @@ function handleProxyRegistration(
   ipfs,
   Buffer
 ) {
+  const formDetails = {
+    firstName: $("#firstName").val(),
+    lastName: $("#lastName").val(),
+    address: $("#address").val(),
+    phoneNumber: $("#phone").val(),
+    email: $("#email").val(),
+  };
+
   return new Promise((resolve, reject) => {
     if (proxyOption === "token") {
-      // No need to upload anything for token-based registration
       resolve({ isToken: true, hashOrToken: token });
     } else if (proxyOption === "poa") {
       const poaDocElement = document.getElementById("poaDoc");
@@ -402,14 +414,28 @@ function handleProxyRegistration(
       const reader = new FileReader();
       reader.onloadend = function () {
         const buffer = Buffer.from(reader.result);
-        ipfs.files.add(buffer, (error, result) => {
-          if (error) {
-            return reject("IPFS upload error: " + error.message);
-          }
-          // POA document uploaded successfully, resolve with the IPFS hash
-          const ipfsHash = result[0].hash;
-          resolve({ isToken: false, hashOrToken: ipfsHash });
-        });
+        // Here you would validate the POA details
+        validatePOADetails(buffer, formDetails)
+          .then((isValidPOA) => {
+            if (!isValidPOA) {
+              reject(
+                "POA document details do not match registration form input."
+              );
+              return;
+            }
+            // Proceed with IPFS upload if validation is successful
+            ipfs.files.add(buffer, (error, result) => {
+              if (error) {
+                reject("IPFS upload error: " + error.message);
+                return;
+              }
+              const ipfsHash = result[0].hash;
+              resolve({ isToken: false, hashOrToken: ipfsHash });
+            });
+          })
+          .catch((error) => {
+            reject("Error validating POA document: " + error);
+          });
       };
       reader.onerror = function (error) {
         reject("Error reading POA document: " + error.message);
@@ -421,3 +447,70 @@ function handleProxyRegistration(
   });
 }
 
+async function validatePOADetails(buffer, formDetails) {
+  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const pdf = await loadingTask.promise;
+  let fullText = "";
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    fullText += textContent.items
+      .map((item) => item.str.replace(/\s+/g, " "))
+      .join(" ")
+      .toLowerCase(); // Ensure the full text is in lowercase for consistent matching
+  }
+
+  // Normalize form details for comparison
+  const normalizedFormDetails = {
+    firstName: formDetails.firstName.toLowerCase().replace(/\s+/g, " "),
+    lastName: formDetails.lastName.toLowerCase().replace(/\s+/g, " "),
+    email: formDetails.email.toLowerCase().trim(),
+    // Ensure address normalization matches the document's potential formatting
+    address: formDetails.address.toLowerCase().replace(/\s+/g, " "),
+    // Assuming phone number handling is removed as per your request
+  };
+
+  // Legal terms to check within the document
+  const legalTerms = [
+    "medical power of attorney",
+    "health care decisions",
+    "agent",
+    "principal",
+    "authority",
+    "life support",
+    "incompetent",
+  ];
+
+  const missingTerms = legalTerms.filter(
+    (term) => !fullText.includes(term.replace(/\s+/g, " "))
+  );
+  const allLegalTermsPresent = missingTerms.length === 0;
+
+  // Debugging: Output which terms were not found if any
+  if (!allLegalTermsPresent) {
+    console.log("Missing Legal Terms:", missingTerms);
+  }
+
+  // Simplified address matching to be resilient against minor discrepancies
+  const matchesAddress = fullText.includes(
+    normalizedFormDetails.address.replace(/\s+/g, " ")
+  );
+
+  // Match other details (First Name, Last Name, Email)
+  const matchesFirstName = fullText.includes(normalizedFormDetails.firstName);
+  const matchesLastName = fullText.includes(normalizedFormDetails.lastName);
+  const matchesEmail = fullText.includes(normalizedFormDetails.email);
+
+  const allDetailsMatch =
+    matchesFirstName &&
+    matchesLastName &&
+    matchesEmail &&
+    matchesAddress &&
+    allLegalTermsPresent;
+
+  console.log("All Legal Terms Present:", allLegalTermsPresent);
+  console.log("Does Address Match:", matchesAddress);
+  console.log("Do All Details Match:", allDetailsMatch);
+
+  return allDetailsMatch;
+}

@@ -134,7 +134,6 @@ contract MedicalRecords {
             patientInfo[patientAddr].hasDesignatedProxy = true;
             address[] memory emptyPatientAccessList = new address[](0);
 
-
             proxies[msg.sender] = Proxy({
                 firstName: first_name,
                 lastName: last_name,
@@ -300,36 +299,31 @@ contract MedicalRecords {
         remove_element_in_array(patientInfo[paddr].doctorAccessList, daddr);
     }
 
-   
- function remove_proxy(address patientAddress) public {
-    require(
-        patientInfo[patientAddress].hasDesignatedProxy,
-        "Patient does not have a designated proxy."
-    );
+    function remove_proxy(address patientAddress) public {
+        require(
+            patientInfo[patientAddress].hasDesignatedProxy,
+            "Patient does not have a designated proxy."
+        );
 
-    address proxyAddress = patientInfo[patientAddress].proxyAddress;
-    
-    // Ensure the proxy exists
-    require(
-        proxyAddress != address(0),
-        "Proxy address is not valid."
-    );
+        address proxyAddress = patientInfo[patientAddress].proxyAddress;
 
-    // Remove the patient from the proxy's patientAccessList
-    address[] storage accessList = proxies[proxyAddress].patientAccessList;
-    for (uint i = 0; i < accessList.length; i++) {
-        if (accessList[i] == patientAddress) {
-            accessList[i] = accessList[accessList.length - 1];
-            accessList.pop();
-            break;
+        // Ensure the proxy exists
+        require(proxyAddress != address(0), "Proxy address is not valid.");
+        proxies[proxyAddress].isAuthorized = false;
+        // Remove the patient from the proxy's patientAccessList
+        address[] storage accessList = proxies[proxyAddress].patientAccessList;
+        for (uint i = 0; i < accessList.length; i++) {
+            if (accessList[i] == patientAddress) {
+                accessList[i] = accessList[accessList.length - 1];
+                accessList.pop();
+                break;
+            }
         }
+
+        // Reset the proxy information for the patient
+        patientInfo[patientAddress].hasDesignatedProxy = false;
+        patientInfo[patientAddress].proxyAddress = address(0);
     }
-
-    // Reset the proxy information for the patient
-    patientInfo[patientAddress].hasDesignatedProxy = false;
-    patientInfo[patientAddress].proxyAddress = address(0);
-}
-
 
     function get_accessed_doctorlist_for_patient(
         address addr
@@ -381,6 +375,38 @@ contract MedicalRecords {
         remove_proxy(patientAddress);
 
         // Handle any refunds, notifications, or additional state updates as needed
+    }
+
+    function regrantProxyAccess(address proxyAddress) public payable {
+        // Ensure the proxy is in the list of proxies but not currently authorized
+        require(
+            !proxies[proxyAddress].isAuthorized,
+            "Proxy is currently authorized."
+        );
+
+        // Ensure the caller had designated a proxy before and wants to regrant access to the same proxy
+        require(
+            proxies[proxyAddress].patientAddress == msg.sender,
+            "This proxy was never designated for the patient."
+        );
+
+        // Require a payment of 2 ether, aligning with the permit_access function requirements
+        require(msg.value == 2 ether, "Payment of 2 ether is required.");
+
+        // Update the credit pool similar to permit_access function
+        creditPool += 2;
+
+        // Set the proxy's isAuthorized flag to true to regrant access
+        proxies[proxyAddress].isAuthorized = true;
+
+        // Update the patient's proxy information
+        patientInfo[msg.sender].proxyAddress = proxyAddress;
+        patientInfo[msg.sender].hasDesignatedProxy = true;
+
+        // Since the proxy is being regranted access, you may also need to ensure
+        // that the proxy's access list is updated if necessary. This part of logic
+        // might need adjustments based on how you're handling the list of patients
+        // a proxy can access.
     }
 
     function get_patient_list() public view returns (address[] memory) {

@@ -21,8 +21,7 @@ $(window).on("load", function () {
     var lastName = "";
     var age = 0;
     var ailments = [];
-    
-    
+
     console.log("Getting Patient Data");
     contractInstance.methods
       .get_patient(key)
@@ -79,7 +78,7 @@ $(window).on("load", function () {
           }
         } else console.error(error);
       });
-   
+
     populateDoctorDropdown("doctorSelect");
     populateDoctorDropdown("doctorInfoSelect");
 
@@ -116,10 +115,11 @@ $(window).on("load", function () {
         } else console.error(error);
       });
   });
- 
+
   loadSentAppointmentRequests();
 
   displayProxiesWithAccess();
+  displayFormerProxies();
 });
 
 function showRecords(element) {
@@ -777,10 +777,12 @@ function sendTokenToProxyEmail(proxyEmail, token) {
 function displayProxiesWithAccess() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0];
+    let hasCurrentProxies = false;
 
-    contractInstance.methods.get_accessed_proxylist_for_patient(patientAddress)
+    contractInstance.methods
+      .get_accessed_proxylist_for_patient(patientAddress)
       .call()
-      .then(proxyAddressList => {
+      .then((proxyAddressList) => {
         // Clear the current list before repopulating it
         var table = document.getElementById("accessProxy");
         var rowCount = table.rows.length;
@@ -788,40 +790,59 @@ function displayProxiesWithAccess() {
           table.deleteRow(i);
         }
 
-        // Now repopulate the table with the current proxies
-        proxyAddressList.forEach((proxyAddress, index) => {
-          // Avoid adding the null address to the list
-          if (proxyAddress !== "0x0000000000000000000000000000000000000000") {
-            contractInstance.methods.get_proxy(proxyAddress)
-              .call()
-              .then(proxyDetails => {
+        // Fetch proxy details for each address and accumulate promises
+        const proxyDetailsPromises = proxyAddressList.map((proxyAddress) => {
+          return contractInstance.methods.get_proxy(proxyAddress).call();
+        });
+
+        // Wait for all proxy details to be fetched
+        Promise.all(proxyDetailsPromises)
+          .then((proxyDetailsArray) => {
+            proxyDetailsArray.forEach((proxyDetails, index) => {
+              // Avoid adding the null address to the list and check for authorization
+              if (
+                proxyAddressList[index] !==
+                  "0x0000000000000000000000000000000000000000" &&
+                proxyDetails.isAuthorized
+              ) {
+                hasCurrentProxies = true;
                 var row = table.insertRow(-1); // Append row at the end of the table
                 var cell1 = row.insertCell(0);
                 var cell2 = row.insertCell(1);
                 var cell3 = row.insertCell(2);
-                cell1.innerHTML = proxyDetails.firstName + ' ' + proxyDetails.lastName;
-                cell2.innerHTML = proxyAddress;
-                cell3.innerHTML = `<button data-proxy-address="${proxyAddress}" class="btn btn-danger revoke-proxy-access">Revoke access</button>`;
-              })
-              .catch(error => {
-                console.error("Error fetching proxy details:", error);
-              });
-          }
-        });
+                cell1.innerHTML =
+                  proxyDetails.firstName + " " + proxyDetails.lastName;
+                cell2.innerHTML = proxyAddressList[index];
+                cell3.innerHTML = `<button data-proxy-address="${proxyAddressList[index]}" class="btn btn-danger revoke-proxy-access">Revoke access</button>`;
+              }
+            });
+
+            // Adjust the visibility of the "Former Proxy" section
+            if (hasCurrentProxies) {
+              // Hide "Former Proxy" section if there are current proxies
+              document.getElementById("formerProxySection").style.display =
+                "none";
+            } else {
+              // Show "Former Proxy" section if there are no current proxies
+              document.getElementById("formerProxySection").style.display = "";
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching proxy details:", error);
+          });
       })
-      .catch(error => {
+      .catch((error) => {
         console.error("Error fetching proxy list:", error);
       });
   });
 }
 
-
-$(document).ready(function() {
+$(document).ready(function () {
   // Event delegation for revoke access buttons within the accessProxy table
-  $('#accessProxy').on('click', '.revoke-proxy-access', function() {
-    var proxyAddress = $(this).data('proxy-address');
+  $("#accessProxy").on("click", ".revoke-proxy-access", function () {
+    var proxyAddress = $(this).data("proxy-address");
     if (!proxyAddress) {
-      console.error('Proxy address is undefined.');
+      console.error("Proxy address is undefined.");
       return;
     }
     // Pass the button itself and the proxy address
@@ -829,39 +850,106 @@ $(document).ready(function() {
   });
 });
 
-
-
 function revokeProxyAccess() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0]; // The account invoking the transaction
 
-    console.log('Patient Address:', patientAddress);
+    console.log("Patient Address:", patientAddress);
 
     // Check if the patient has a designated proxy before attempting to revoke
-    contractInstance.methods.get_accessed_proxylist_for_patient(patientAddress)
+    contractInstance.methods
+      .get_accessed_proxylist_for_patient(patientAddress)
       .call()
-      .then(proxyList => {
-        if (proxyList.length === 0 || proxyList[0] === "0x0000000000000000000000000000000000000000") {
-          console.error('The patient does not have a designated proxy.');
+      .then((proxyList) => {
+        if (
+          proxyList.length === 0 ||
+          proxyList[0] === "0x0000000000000000000000000000000000000000"
+        ) {
+          console.error("The patient does not have a designated proxy.");
           return;
         }
 
-        console.log('Revoking access for proxy of patient:', patientAddress);
+        console.log("Revoking access for proxy of patient:", patientAddress);
 
         // Calling the revokeProxyAccess function without the need for a proxyAddress
-        contractInstance.methods.revokeProxyAccess()
+        contractInstance.methods
+          .revokeProxyAccess()
           .send({ from: patientAddress, gas: 1000000 })
-          .then(receipt => {
-            console.log('Proxy access revoked successfully:', receipt);
+          .then((receipt) => {
+            console.log("Proxy access revoked successfully:", receipt);
             // Handle successful revocation (e.g., update UI)
           })
-          .catch(error => {
-            console.error('Error revoking proxy access:', error);
+          .catch((error) => {
+            console.error("Error revoking proxy access:", error);
             // Handle errors (e.g., show error message to the user)
           });
       })
-      .catch(error => {
-        console.error('Error fetching proxy details:', error);
+      .catch((error) => {
+        console.error("Error fetching proxy details:", error);
+      });
+  });
+}
+
+function displayFormerProxies() {
+  web3.eth.getAccounts().then((accounts) => {
+    const patientAddress = accounts[0]; // Assuming the patient is logged in
+
+    contractInstance.methods
+      .get_proxy_list()
+      .call({ from: patientAddress })
+      .then((proxyAddresses) => {
+        proxyAddresses.forEach((proxyAddress) => {
+          contractInstance.methods
+            .get_proxy(proxyAddress)
+            .call()
+            .then((proxy) => {
+              if (
+                !proxy.isAuthorized &&
+                proxy.patientAddress.toLowerCase() ===
+                  patientAddress.toLowerCase()
+              ) {
+                // This is a former proxy; display it accordingly
+                const table = document.getElementById("formerProxyTable"); // Ensure you have a table with this ID in your HTML
+                const row = table.insertRow(-1);
+                const nameCell = row.insertCell(0);
+                const publicKeyCell = row.insertCell(1);
+                const actionCell = row.insertCell(2);
+
+                nameCell.innerHTML = `${proxy.firstName} ${proxy.lastName}`;
+                publicKeyCell.innerHTML = proxyAddress;
+                actionCell.innerHTML = `<button onclick="regrantProxyAccess('${proxyAddress}')" class="btn btn-primary">Regrant Access</button>`;
+              }
+            });
+        });
+      });
+  });
+}
+
+function regrantProxyAccess(proxyAddress) {
+  web3.eth.getAccounts().then((accounts) => {
+    const patientAddress = accounts[0];
+    console.log(
+      `Attempting to regrant access for proxy: ${proxyAddress} by patient: ${patientAddress}`
+    );
+
+    // Ensure to adjust gas limit and value as per your contract requirements and test findings
+    contractInstance.methods
+      .regrantProxyAccess(proxyAddress)
+      .send({
+        from: patientAddress,
+        gas: 1000000, // This is an estimated gas limit, ensure to adjust based on actual contract needs
+        value: web3.utils.toWei("2", "ether"), // Ensure this matches the contract's expectations
+      })
+      .then((receipt) => {
+        console.log("Transaction receipt:", receipt);
+        alert("Access has been successfully regranted to the proxy.");
+        // Optionally, refresh the list of current and former proxies
+        displayProxiesWithAccess();
+        displayFormerProxies();
+      })
+      .catch((error) => {
+        console.error("Failed to regrant access to proxy:", error);
+        alert("Failed to regrant access. Please try again.");
       });
   });
 }
