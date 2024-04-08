@@ -92,6 +92,46 @@
 
         <div class="panel panel-default">
             <div class="panel-heading">
+                <h3 class="text-center">Allergies Information</h3>
+            </div>
+            <div class="panel-body">
+                <form id="allergyForm" class="form-horizontal">
+                    <div class="form-group">
+                        <label for="allergySubstance" class="control-label col-sm-2">Substance:</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="allergySubstance" placeholder="e.g., Peanuts"
+                                required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="reaction" class="control-label col-sm-2">Reaction:</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="reaction" placeholder="e.g., Hives, Anaphylaxis"
+                                required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="criticality" class="control-label col-sm-2">Criticality:</label>
+                        <div class="col-sm-10">
+                            <select class="form-control" id="criticality">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="unable-to-assess">Unable to Assess</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <button type="button" class="btn btn-primary" onclick="addPatientAllergy()">Submit Allergy
+                            Information</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <div class="panel panel-default">
+            <div class="panel-heading">
                 <h3 class="text-center">Get to Know the Doctors</h3>
             </div>
             <div class="panel-body">
@@ -302,7 +342,7 @@
                                 <th>Proxy</th>
                                 <th class="publicKeyProxy">Public Key</th>
                                 <th>Revoke access</th>
-                                
+
                             </tr>
                         </table>
                     </div>
@@ -328,7 +368,7 @@
                                 <th>Proxy</th>
                                 <th class="publicKeyProxy">Public Key</th>
                                 <th>Grant access </th>
-                                
+
                             </tr>
                         </table>
                     </div>

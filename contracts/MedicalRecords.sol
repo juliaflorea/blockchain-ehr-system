@@ -25,6 +25,7 @@ contract MedicalRecords {
         uint age;
         address[] patientAccessList;
         string record;
+        string licenseNumber;
     }
 
     struct Appointment {
@@ -63,6 +64,8 @@ contract MedicalRecords {
 
     mapping(address => patient) patientInfo;
     mapping(address => doctor) doctorInfo;
+    mapping(string => bool) private registeredLicenses;
+
     mapping(address => address) Empty;
 
     mapping(address => string) patientRecords;
@@ -74,8 +77,9 @@ contract MedicalRecords {
         private doctorAvailability;
 
     mapping(address => Proxy) public proxies;
-    mapping(string => address) private tokenToPatient; // Maps token to patient for proxy validation
+    mapping(string => address) private tokenToPatient;
     mapping(address => string) private patientToToken;
+    mapping(address => bytes32) private proxyDetailsHash;
 
     uint public nextAppointmentId = 0;
 
@@ -87,7 +91,8 @@ contract MedicalRecords {
         string memory _hash,
         string memory _tokenOrPOAHash,
         bool _isToken,
-        address _patientEthereumAddress
+        address _patientEthereumAddress,
+        string memory _licenseNumber
     ) public returns (string memory, string memory) {
         address addr = msg.sender;
 
@@ -101,11 +106,16 @@ contract MedicalRecords {
             patientList.push(addr) - 1;
             return (first_name, last_name);
         } else if (_designation == 1) {
+            require(
+                !registeredLicenses[_licenseNumber],
+                "License number already registered."
+            );
             doctorInfo[addr].firstName = first_name;
             doctorInfo[addr].lastName = last_name;
             doctorInfo[addr].age = _age;
             doctorInfo[addr].record = _hash;
             doctorList.push(addr) - 1;
+            registeredLicenses[_licenseNumber] = true;
             return (first_name, last_name);
         } else if (_designation == 2) {
             address patientAddr = address(0);
@@ -425,7 +435,7 @@ contract MedicalRecords {
         return patientInfo[paddr].record;
     }
 
-    function set_hash(address paddr, string memory _hash) internal {
+    function set_hash(address paddr, string memory _hash) public {
         patientInfo[paddr].record = _hash;
     }
 
@@ -534,12 +544,12 @@ contract MedicalRecords {
         return !doctorAvailability[_doctor][_date][_hour];
     }
 
-    function designateProxy(string memory token) public {
+    function designateProxy(string memory token,bytes32 detailsHash) public {
         require(
             !patientInfo[msg.sender].hasDesignatedProxy,
             "Proxy already designated"
         );
-
+        proxyDetailsHash[msg.sender] = detailsHash;
         // Associate token with the sender's address
         patientToToken[msg.sender] = token;
         tokenToPatient[token] = msg.sender;
@@ -547,4 +557,20 @@ contract MedicalRecords {
         // Update patient's hasDesignatedProxy status
         patientInfo[msg.sender].hasDesignatedProxy = true;
     }
+
+    function isLicenseRegistered(
+        string memory licenseNumber
+    ) public view returns (bool) {
+        return registeredLicenses[licenseNumber];
+    }
+
+    function getTokenToPatient(string memory token) public view returns (address) {
+    return tokenToPatient[token];
+}
+
+function getProxyDetailsHash(address patientAddress) public view returns (bytes32) {
+    return proxyDetailsHash[patientAddress];
+}
+
+
 }

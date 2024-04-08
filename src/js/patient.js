@@ -2,6 +2,10 @@ var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
 
+var ipfs = window.IpfsApi("localhost", "5001");
+
+const Buffer = window.IpfsApi().Buffer;
+
 toggleRecordsButton = 0;
 var recordHash = "";
 
@@ -21,6 +25,7 @@ $(window).on("load", function () {
     var lastName = "";
     var age = 0;
     var ailments = [];
+    var proxyDesignationDetails = {};
 
     console.log("Getting Patient Data");
     contractInstance.methods
@@ -666,6 +671,9 @@ function designateProxy() {
   const proxyEmail = $("#proxyEmail").val();
   const consentGiven = $("#consentDropdown").val() === "yes";
 
+  const detailsConcat = `${proxyFirstName}${proxyLastName}${proxyDOB}${proxyAddress}${proxyPhone}${proxyEmail}`;
+  const detailsHash = web3.utils.sha3(detailsConcat);
+
   if (!consentGiven) {
     alert("Consent not given. Proxy cannot be designated without consent.");
     return;
@@ -679,7 +687,7 @@ function designateProxy() {
     const patientAddress = accounts[0];
     // Assuming your contract instance is already initialized and has a method for designating a proxy
     contractInstance.methods
-      .designateProxy(token)
+      .designateProxy(token, detailsHash)
       .send({ from: patientAddress })
       .then(function (receipt) {
         // Proxy designated successfully
@@ -950,6 +958,80 @@ function regrantProxyAccess(proxyAddress) {
       .catch((error) => {
         console.error("Failed to regrant access to proxy:", error);
         alert("Failed to regrant access. Please try again.");
+      });
+  });
+}
+
+function addPatientAllergy() {
+  web3.eth.getAccounts().then((accounts) => {
+    const patientAddress = accounts[0];
+    const allergySubstance = document.getElementById("allergySubstance").value;
+    const allergyReaction = document.getElementById("reaction").value;
+    const allergyCriticality = document.getElementById("criticality").value;
+
+    // Validation
+    if (!allergySubstance || !allergyReaction || !allergyCriticality) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
+    // Fetch the current IPFS hash for the patient's record
+    contractInstance.methods
+      .get_hash(patientAddress)
+      .call()
+      .then(function (ipfsHash) {
+        // Download the existing medical record from IPFS
+        fetch(`http://localhost:8080/ipfs/${ipfsHash}`)
+          .then((response) => response.text())
+          .then(function (patientRecord) {
+            // Append the new allergy information
+            const updatedPatientRecord = `${patientRecord}
+Allergy Substance: ${allergySubstance.padEnd(30)} 
+Reaction:          ${allergyReaction.padEnd(30)} 
+Criticality:       ${allergyCriticality.padEnd(30)} 
+Recorded on:       ${new Date().toLocaleString().padEnd(30)}\n`;
+
+            // Convert the updated record into a format suitable for IPFS
+            const buffer = Buffer.from(updatedPatientRecord);
+
+            // Upload the updated record to IPFS
+            ipfs.files.add(buffer, (error, result) => {
+              if (error) {
+                console.error("Error adding file to IPFS:", error);
+                return;
+              }
+
+              const updatedIpfsHash = result[0].hash;
+
+              // Update the patient's record hash in the smart contract
+              contractInstance.methods
+                .set_hash(patientAddress, updatedIpfsHash)
+                .send({ from: patientAddress })
+                .then(function (receipt) {
+                  console.log("Record updated successfully:", receipt);
+                  alert("Allergy information successfully added.");
+                  // Optionally, you might want to trigger a re-fetch of the records here or redirect the user
+                })
+                .catch(function (error) {
+                  console.error(
+                    "Failed to update the patient's record hash:",
+                    error
+                  );
+                });
+            });
+          })
+          .catch(function (error) {
+            console.error(
+              "Failed to fetch the patient's current record from IPFS:",
+              error
+            );
+          });
+      })
+      .catch(function (error) {
+        console.error(
+          "Failed to fetch the patient's current record hash:",
+          error
+        );
       });
   });
 }

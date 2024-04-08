@@ -16,6 +16,9 @@ function addAgent() {
   yearsOfExperience = $("#yearsOfExperience").val();
   specialty = $("#specialty").val();
   licenseNumber = $("#licenseNumber").val();
+  medicalCertificate = document.getElementById("medicalCertificate")
+    ? document.getElementById("medicalCertificate").files[0]
+    : null;
   // Additional fields for proxy
   var proxyOption = $("#proxyOption").val();
   var token = $("#token").val();
@@ -95,7 +98,8 @@ function addAgent() {
                     ipfsHash,
                     "",
                     false,
-                    "0x0000000000000000000000000000000000000000"
+                    "0x0000000000000000000000000000000000000000",
+                    licenseNumber
                   )
                   .send({ from: publicKey, gas: 1000000 })
                   .then((res) => {
@@ -107,76 +111,105 @@ function addAgent() {
               }
             });
           } else if (designation == 1) {
-            let fhirDoctorResource = {
-              resourceType: "Practitioner",
-              name: [
-                {
-                  family: "Doctor's Family Name",
-                  given: ["Doctor's Given Name"],
-                },
-              ],
-              telecom: [
-                { system: "phone", value: phoneNumber, use: "work" },
-                { system: "email", value: email },
-              ],
-              address: [
-                {
-                  use: "work",
-                  line: [address],
-                },
-              ],
-              gender: gender,
-              birthDate: birthDate,
-              qualification: [
-                {
-                  identifier: [
-                    {
-                      system: "http://example.org/licenses",
-                      value: licenseNumber,
-                    },
-                  ],
-                  code: { text: specialty },
-                  period: {
-                    start: "Practitioner's Start Date",
-                    end: "Practitioner's End Date",
-                  },
-                },
-              ],
-            };
-
-            var formattedDoctorData = formatDoctorData(
-              fhirDoctorResource,
-              publicKey
-            );
-            var buffer = Buffer.from(formattedDoctorData);
-            ipfs.files.add(buffer, (error, result) => {
-              if (error) {
-                console.error("IPFS upload error:", error);
-                return;
+            checkLicenseUniqueness(licenseNumber).then((isRegistered) => {
+              if (isRegistered) {
+                alert(
+                  "This license number is already registered. Please use a unique license number."
+                );
+                return; // Stop the registration process
               }
+              if (!medicalCertificate) {
+                alert("Please upload your medical certificate.");
+                return false;
+              }
+              validateDoctorCertificate(medicalCertificate, licenseNumber).then(
+                () => {
+                  console.log("Certificate validated successfully.");
+                  let fhirDoctorResource = {
+                    resourceType: "Practitioner",
+                    name: [
+                      {
+                        family: "Doctor's Family Name",
+                        given: ["Doctor's Given Name"],
+                      },
+                    ],
+                    telecom: [
+                      { system: "phone", value: phoneNumber, use: "work" },
+                      { system: "email", value: email },
+                    ],
+                    address: [
+                      {
+                        use: "work",
+                        line: [address],
+                      },
+                    ],
+                    gender: gender,
+                    birthDate: birthDate,
+                    qualification: [
+                      {
+                        identifier: [
+                          {
+                            system: "http://example.org/licenses",
+                            value: licenseNumber,
+                          },
+                        ],
+                        code: { text: specialty },
+                        period: {
+                          start: "Practitioner's Start Date",
+                          end: "Practitioner's End Date",
+                        },
+                      },
+                    ],
+                  };
 
-              // Store the IPFS hash in the blockchain
-              let ipfsHash = result[0].hash;
-              contractInstance.methods
-                .add_agent(
-                  firstName,
-                  lastName,
-                  age,
-                  designation,
-                  ipfsHash,
-                  "",
-                  false,
-                  "0x0000000000000000000000000000000000000000"
-                )
-                .send({ from: publicKey, gas: 1000000 })
-                .then((res) => {
-                  location.replace("./doctor.html");
-                })
-                .catch((err) => {
-                  console.error("Blockchain transaction error:", err);
-                });
+                  var formattedDoctorData = formatDoctorData(
+                    fhirDoctorResource,
+                    publicKey
+                  );
+                  var buffer = Buffer.from(formattedDoctorData);
+                  ipfs.files
+                    .add(buffer, (error, result) => {
+                      if (error) {
+                        console.error("IPFS upload error:", error);
+                        return;
+                      }
+
+                      // Store the IPFS hash in the blockchain
+                      let ipfsHash = result[0].hash;
+                      contractInstance.methods
+                        .add_agent(
+                          firstName,
+                          lastName,
+                          age,
+                          designation,
+                          ipfsHash,
+                          "",
+                          false,
+                          "0x0000000000000000000000000000000000000000",
+                          licenseNumber
+                        )
+                        .send({ from: publicKey, gas: 1000000 })
+                        .then((res) => {
+                          location.replace("./doctor.html");
+                        });
+                    })
+                    .catch((error) => {
+                      console.error("Validation failed: ", error);
+                      alert("Medical certificate validation failed: " + error);
+                    })
+                    .catch((error) => {
+                      console.error("Validation failed: ", error);
+                      alert("Medical certificate validation failed: "); // Debug alert
+                      return;
+                    });
+                }
+              );
             });
           } else if (designation == 2) {
+            if (age < 18) {
+              alert("Proxies must be 18 years or older to register.");
+              return false; // Stop the registration process
+            }
             handleProxyRegistration(
               proxyOption,
               token,
@@ -259,7 +292,8 @@ function addAgent() {
                       ipfsHash,
                       hashOrToken,
                       isToken,
-                      ethAddressParam
+                      ethAddressParam,
+                      licenseNumber
                     )
                     .send({ from: publicKey, gas: 1000000 })
                     .then((res) => {
@@ -393,17 +427,54 @@ function handleProxyRegistration(
   ipfs,
   Buffer
 ) {
-  const formDetails = {
-    firstName: $("#firstName").val(),
-    lastName: $("#lastName").val(),
-    address: $("#address").val(),
-    phoneNumber: $("#phone").val(),
-    email: $("#email").val(),
-  };
+  const proxyFirstName = $("#firstName").val();
+  const proxyLastName = $("#lastName").val();
+  const proxyDOB = $("#dob").val();
+  const proxyAddress = $("#address").val();
+  const proxyPhone = $("#phone").val();
+  const proxyEmail = $("#email").val();
 
   return new Promise((resolve, reject) => {
     if (proxyOption === "token") {
-      resolve({ isToken: true, hashOrToken: token });
+      contractInstance.methods
+        .getTokenToPatient(token)
+        .call()
+        .then((patientAddress) => {
+          if (
+            !patientAddress ||
+            patientAddress === "0x0000000000000000000000000000000000000000"
+          ) {
+            alert("Invalid token or no patient associated with this token.");
+            return;
+          }
+
+          contractInstance.methods
+            .getProxyDetailsHash(patientAddress)
+            .call()
+            .then((storedDetailsHash) => {
+              const enteredDetailsConcat = `${proxyFirstName}${proxyLastName}${proxyDOB}${proxyAddress}${proxyPhone}${proxyEmail}`;
+              const enteredDetailsHash = web3.utils.sha3(enteredDetailsConcat);
+
+              // Compare the hashes
+              if (enteredDetailsHash !== storedDetailsHash) {
+                alert(
+                  "The details you entered do not match the designated proxy's details. Please verify and try again."
+                );
+                return;
+              }
+              console.log(
+                "Details hash matches. Proceeding with proxy registration."
+              );
+
+              resolve({ isToken: true, hashOrToken: token });
+            })
+            .catch((error) => {
+              console.error("Error fetching stored details hash:", error);
+            });
+        })
+        .catch((error) => {
+          console.error("Error fetching patient address for token:", error);
+        });
     } else if (proxyOption === "poa") {
       const poaDocElement = document.getElementById("poaDoc");
       if (!poaDocElement || poaDocElement.files.length === 0) {
@@ -513,4 +584,54 @@ async function validatePOADetails(buffer, formDetails) {
   console.log("Do All Details Match:", allDetailsMatch);
 
   return allDetailsMatch;
+}
+
+function validateDoctorCertificate(file, licenseNumber) {
+  return new Promise((resolve, reject) => {
+    Tesseract.recognize(file, "eng", { logger: (m) => console.log(m) })
+      .then(({ data: { text } }) => {
+        console.log("Extracted Text:", text); // Debugging: log extracted text
+
+        // Normalize the input license number by removing any non-alphanumeric characters
+        const normalizedInputLicense = licenseNumber
+          .replace(/[^a-zA-Z0-9]/g, "")
+          .toLowerCase();
+
+        // Attempt to find the license number in the OCR'd text
+        // Adjust the pattern to match the license number format in the text
+        const licenseRegex = new RegExp(normalizedInputLicense, "i");
+        if (
+          !licenseRegex.test(text.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
+        ) {
+          reject("License number does not match any found in the document.");
+          return;
+        }
+
+        // Check the expiration date
+        const dateRegex = /Expiration Date: (\d{2}\/\d{2}\/\d{4})/;
+        const dateMatch = text.match(dateRegex);
+        if (dateMatch && dateMatch[1]) {
+          const expirationDate = new Date(dateMatch[1]);
+          if (expirationDate.getTime() < new Date().getTime()) {
+            reject(
+              `The certificate has expired on ${expirationDate.toLocaleDateString()}.`
+            );
+          } else {
+            resolve("The medical certificate is valid and not expired.");
+          }
+        } else {
+          // If the date format in the document differs from the expected format, modify the regex accordingly.
+          reject("Expiration date could not be extracted from the document.");
+        }
+      })
+      .catch((err) => {
+        reject("OCR Error: " + err);
+      });
+  });
+}
+
+async function checkLicenseUniqueness(licenseNumber) {
+  return await contractInstance.methods
+    .isLicenseRegistered(licenseNumber)
+    .call();
 }
