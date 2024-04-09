@@ -127,6 +127,40 @@ function showRecords(element) {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div class="row">
+                                <div class="form-group col-sm-10">
+                                    <div class="row">
+                                        <div class="col-sm-2"><label for="clinicalStatus${patientAddress}">Clinical Status:</label></div>
+                                        <div class="col-sm-10">
+                                            <select class="form-control" id="clinicalStatus${patientAddress}" style="width:inherit;" required>
+                                                <option selected disabled>-- Please Select --</option>
+                                                <option value="active">Active</option>
+                                                <option value="remission">Remission</option>
+                                                <option value="resolved">Resolved</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-sm-2"><label for="severity${patientAddress}">Severity:</label></div>
+                                        <div class="col-sm-10">
+                                            <select class="form-control" id="severity${patientAddress}" style="width:inherit;" required>
+                                                <option selected disabled>-- Please Select --</option>
+                                                <option value="low">Low</option>
+                                                <option value="medium">Medium</option>
+                                                <option value="high">High</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-sm-2"><label for="affectedArea${patientAddress}">Affected Area:</label></div>
+                                        <div class="col-sm-10">
+                                        <input type="text" class="form-control" id="affectedArea${patientAddress}" placeholder="Enter affected body area"  style="width:inherit;" required>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                            
+
                                 <div class="row">
                                     <div class="form-group col-sm-10">
                                         <div class="row">
@@ -194,6 +228,12 @@ function submitDiagnosis(element, index) {
   var table = document.getElementById("viewPatient");
   var patientAddress = table.rows[index].cells[1].innerHTML;
 
+  var diagnosisIndex = $("#ailmentsList" + patientAddress).val();
+  var clinicalStatus = $("#clinicalStatus" + patientAddress).val();
+  var severity = $("#severity" + patientAddress).val();
+  var affectedArea = $("#affectedArea" + patientAddress).val();
+  var otherDetails = $("#details").val();
+
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0]; // Assuming the doctor is logged in
 
@@ -224,21 +264,76 @@ function submitDiagnosis(element, index) {
             return; // Stop the function execution if no accepted appointment found
           }
 
+          if (
+            !diagnosisIndex ||
+            !clinicalStatus ||
+            !severity ||
+            !affectedArea
+          ) {
+            alert("Please fill in all fields.");
+            return;
+          }
+
+          
           console.log("Submitting diagnosis for patient:", patientAddress);
           var diagnosis = $("#ailmentsList" + patientAddress).val();
           diagnosis = parseInt(diagnosis);
           var diagnosed = ailmentsDict[diagnosis];
           var comments = document.getElementById("details").value;
+          var datetime = getDateTime();
+
+           var fhirConditionResource = {
+            resourceType: "Condition",
+            clinicalStatus: {
+              coding: [
+                {
+                  system:
+                    "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                  code: clinicalStatus,
+                },
+              ],
+            },
+            severity: {
+              coding: [
+                {
+                  system:
+                    "http://terminology.hl7.org/CodeSystem/condition-severity",
+                  code: severity,
+                },
+              ],
+            },
+            code: {
+              text: diagnosis,
+            },
+            bodySite: [
+              {
+                text: affectedArea,
+              },
+            ],
+            onsetDateTime: datetime,
+            note: [
+              {
+                text: otherDetails,
+              },
+            ],
+          };
 
           var oldRecords = $("#records" + patientAddress).html();
 
           var newRecords = `Diagnosed By : ${docName}
-Diagnosis Time : ${getDateTime()}
+Diagnosis Time : ${datetime}
 Diagnosis : ${diagnosed}
+Clinical Status: ${clinicalStatus}
+Severity: ${severity}
+Affected Area: ${affectedArea}
 Comments : ${comments}
 `;
+
           console.log("New records to be added:", newRecords);
           var updatedRecords = oldRecords + newRecords;
+
+         
+          updatedRecords.fhirConditionResource = fhirConditionResource;
 
           if (!isNaN(diagnosis)) {
             var buffer = Buffer.from(updatedRecords);

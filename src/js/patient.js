@@ -975,6 +975,25 @@ function addPatientAllergy() {
       return;
     }
 
+    const fhirAllergyResource = {
+      resourceType: "AllergyIntolerance",
+      substance: {
+        text: allergySubstance,
+      },
+      reaction: [
+        {
+          description: allergyReaction,
+        },
+      ],
+      criticality: allergyCriticality,
+      recordedDate: new Date().toISOString(),
+    };
+
+    const formattedAllergy = `Allergy Substance: ${allergySubstance}
+    Reaction: ${allergyReaction}
+    Criticality: ${allergyCriticality}
+    Recorded on: ${new Date().toLocaleString()}\n`;
+
     // Fetch the current IPFS hash for the patient's record
     contractInstance.methods
       .get_hash(patientAddress)
@@ -984,13 +1003,10 @@ function addPatientAllergy() {
         fetch(`http://localhost:8080/ipfs/${ipfsHash}`)
           .then((response) => response.text())
           .then(function (patientRecord) {
-            // Append the new allergy information
-            const updatedPatientRecord = `${patientRecord}
-Allergy Substance: ${allergySubstance.padEnd(30)} 
-Reaction:          ${allergyReaction.padEnd(30)} 
-Criticality:       ${allergyCriticality.padEnd(30)} 
-Recorded on:       ${new Date().toLocaleString().padEnd(30)}\n`;
+            const updatedPatientRecord = patientRecord + formattedAllergy;
 
+            // Log the updated patient record
+            console.log("Updated patient record:", updatedPatientRecord);
             // Convert the updated record into a format suitable for IPFS
             const buffer = Buffer.from(updatedPatientRecord);
 
