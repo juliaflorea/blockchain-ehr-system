@@ -35,6 +35,8 @@ contract MedicalRecords {
         address doctorAddress;
         uint256 date; // New field for appointment date
         uint8 hour; // New field for appointment hour
+        bool diagnosisSubmitted; // New flag for diagnosis submission
+        bool treatmentPlanSubmitted;
     }
 
     struct TimeSlot {
@@ -248,26 +250,32 @@ contract MedicalRecords {
         }
         require(patientFound, "Doctor does not have access to this patient.");
 
-        // New: Check for an accepted appointment
-        bool appointmentAccepted = false;
+        bool appointmentAcceptedAndCurrent = false;
+        uint acceptedAppointmentId = 0;
         for (uint i = 0; i < doctorAppointments[msg.sender].length; i++) {
             uint appointmentId = doctorAppointments[msg.sender][i];
             Appointment storage appointment = appointments[appointmentId];
-            if (appointment.patientAddress == paddr && appointment.isAccepted) {
-                appointmentAccepted = true;
+            if (
+                appointment.patientAddress == paddr &&
+                appointment.isAccepted &&
+                !appointment.diagnosisSubmitted
+            ) {
+                appointmentAcceptedAndCurrent = true;
+                acceptedAppointmentId = appointmentId;
                 break; // Stop the loop once an accepted appointment is found
             }
         }
         require(
-            appointmentAccepted,
+            appointmentAcceptedAndCurrent,
             "No accepted appointment found between doctor and patient."
         );
 
+        appointments[acceptedAppointmentId].diagnosisSubmitted = true;
+
         // If both conditions are met, process the diagnosis
-        msg.sender.transfer(2 ether);
-        creditPool -= 2;
+        //msg.sender.transfer(2 ether);
+       // creditPool -= 2;
         set_hash(paddr, _hash);
-        remove_patient(paddr, msg.sender); // You may want to review this action based on your app's logic
 
         // Check if the diagnosis is already recorded (though this part remains unchanged)
         bool DiagnosisFound = false;
@@ -278,6 +286,35 @@ contract MedicalRecords {
             }
         }
         // Optionally handle the case where DiagnosisFound is true, if necessary
+    }
+
+   function submit_TreatmentPlan(
+    uint appointmentId, // Include this parameter to specify which appointment
+    string memory treatmentPlanIPFSHash
+) public {
+    // Ensure appointmentId is passed and used to access the correct Appointment struct
+    Appointment storage appointment = appointments[appointmentId];
+
+    // Ensure the caller is the doctor associated with this appointment
+    require(appointment.doctorAddress == msg.sender, "Caller is not the doctor for this appointment.");
+
+    // Ensure that a diagnosis has been submitted for this appointment
+    require(appointment.diagnosisSubmitted, "A diagnosis must be submitted before a treatment plan.");
+
+    // Check that a treatment plan hasn't been submitted already
+    require(!appointment.treatmentPlanSubmitted, "Treatment plan has already been submitted for this appointment.");
+
+    // Update the appointment to indicate that a treatment plan has now been submitted
+    appointment.treatmentPlanSubmitted = true;
+
+        msg.sender.transfer(2 ether);
+        creditPool -= 2;
+        set_hash(appointment.patientAddress, treatmentPlanIPFSHash);
+
+        // Remove the doctor's access to the patient
+        remove_patient(appointment.patientAddress, msg.sender);
+
+        // Optionally handle any logic related to the submission of the treatment plan, such as notifications, logging, etc.
     }
 
     function remove_element_in_array(
@@ -476,7 +513,9 @@ contract MedicalRecords {
             patientAddress: msg.sender,
             doctorAddress: _doctor,
             date: _appointmentDate,
-            hour: _appointmentHour
+            hour: _appointmentHour,
+            diagnosisSubmitted: false,
+            treatmentPlanSubmitted: false
         });
 
         doctorAppointments[_doctor].push(appointmentId);
@@ -544,7 +583,7 @@ contract MedicalRecords {
         return !doctorAvailability[_doctor][_date][_hour];
     }
 
-    function designateProxy(string memory token,bytes32 detailsHash) public {
+    function designateProxy(string memory token, bytes32 detailsHash) public {
         require(
             !patientInfo[msg.sender].hasDesignatedProxy,
             "Proxy already designated"
@@ -564,13 +603,15 @@ contract MedicalRecords {
         return registeredLicenses[licenseNumber];
     }
 
-    function getTokenToPatient(string memory token) public view returns (address) {
-    return tokenToPatient[token];
-}
+    function getTokenToPatient(
+        string memory token
+    ) public view returns (address) {
+        return tokenToPatient[token];
+    }
 
-function getProxyDetailsHash(address patientAddress) public view returns (bytes32) {
-    return proxyDetailsHash[patientAddress];
-}
-
-
+    function getProxyDetailsHash(
+        address patientAddress
+    ) public view returns (bytes32) {
+        return proxyDetailsHash[patientAddress];
+    }
 }

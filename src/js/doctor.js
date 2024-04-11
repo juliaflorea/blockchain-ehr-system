@@ -183,6 +183,50 @@ function showRecords(element) {
                         </div>    
                     </div>
                 </div>`;
+            var treatmentPlanContent =
+              `
+      <div class="row">
+          <div class="col-sm-12">
+              <h4>Treatment Plan</h4>
+              <div class="form-group">
+                  <label>Medication Name:</label>
+                  <input type="text" class="form-control" id="medicationName${patientAddress}">
+              </div>
+              <div class="form-group">
+                  <label>Dose:</label>
+                  <input type="text" class="form-control" id="dose${patientAddress}">
+              </div>
+              <div class="form-group">
+                  <label>Route of Administration:</label>
+                  <select id="route${patientAddress}" class="form-control">
+                <option value="">Select</option>
+                <option value="oral">Oral</option>
+                <option value="intravenous">Intravenous</option>
+                <option value="inhalation">Inhalation</option>
+                <option value="subcutaneous">Subcutaneous</option>
+                <option value="intramuscular">Intramuscular</option>
+                <option value="topical">Topical</option>
+                <option value="rectal">Rectal</option>
+                <option value="sublingual">Sublingual</option>
+                <option value="nasal">Nasal</option>
+                <option value="ophthalmic">Ophthalmic</option>
+                <option value="otic">Otic</option>
+            </select>
+              </div>
+              <div class="form-group">
+                  <label>Frequency:</label>
+                  <input type="text" class="form-control" id="frequency${patientAddress}">
+              </div>
+              <div class="form-group">
+                  <label>Additional Instructions:</label>
+                  <textarea class="form-control" id="instructions${patientAddress}"></textarea>
+              </div>
+              <button class="btn btn-primary" onclick="submitTreatmentPlan(this, ` +
+              index +
+              `)">Submit Treatment Plan</button>
+          </div>
+      </div>`;
+            content += treatmentPlanContent;
 
             var row1 = table.insertRow(index + 1);
             var cell1 = row1.insertCell(0);
@@ -274,7 +318,6 @@ function submitDiagnosis(element, index) {
             return;
           }
 
-          
           console.log("Submitting diagnosis for patient:", patientAddress);
           var diagnosis = $("#ailmentsList" + patientAddress).val();
           diagnosis = parseInt(diagnosis);
@@ -282,7 +325,7 @@ function submitDiagnosis(element, index) {
           var comments = document.getElementById("details").value;
           var datetime = getDateTime();
 
-           var fhirConditionResource = {
+          var fhirConditionResource = {
             resourceType: "Condition",
             clinicalStatus: {
               coding: [
@@ -332,7 +375,6 @@ Comments : ${comments}
           console.log("New records to be added:", newRecords);
           var updatedRecords = oldRecords + newRecords;
 
-         
           updatedRecords.fhirConditionResource = fhirConditionResource;
 
           if (!isNaN(diagnosis)) {
@@ -394,6 +436,168 @@ Comments : ${comments}
   });
 }
 
+function submitTreatmentPlan(element, index) {
+  var table = document.getElementById("viewPatient");
+  var patientAddress = table.rows[index].cells[1].innerHTML;
+
+  // Collecting treatment plan details from the UI
+  var medicationName = $("#medicationName" + patientAddress).val();
+  var dose = $("#dose" + patientAddress).val();
+  var route = $("#route" + patientAddress).val();
+  var frequency = $("#frequency" + patientAddress).val();
+  var instructions = $("#instructions" + patientAddress).val();
+  var datetime = getDateTime();
+
+  console.log("Starting treatment plan submission...");
+
+  web3.eth.getAccounts().then(function (accounts) {
+    const doctorAddress = accounts[0];
+
+    console.log(`Doctor Address: ${doctorAddress}`);
+
+    contractInstance.methods
+      .getDoctorAppointments(doctorAddress)
+      .call({ from: doctorAddress })
+      .then(function (appointmentIds) {
+        let foundAppointmentId = null;
+
+        // Convert promises into a sequence to ensure we properly wait for all checks
+        const checks = appointmentIds.map((id) =>
+          contractInstance.methods
+            .appointments(id)
+            .call()
+            .then((appointment) => {
+              console.log(`Checking appointment ${id}:`, appointment);
+              if (
+                appointment.patientAddress.toLowerCase() ===
+                  patientAddress.toLowerCase() &&
+                appointment.isAccepted &&
+                !appointment.treatmentPlanSubmitted
+              ) {
+                foundAppointmentId = id; // Correctly capture the found ID
+
+                console.log(
+                  `Found matching appointment ID: ${foundAppointmentId}`
+                );
+
+                return true;
+              }
+              return false;
+            })
+        );
+
+        Promise.all(checks).then((results) => {
+          if (!foundAppointmentId) {
+            console.error("No suitable appointment found.");
+            alert("No suitable appointment found.");
+            return;
+          }
+
+          if (
+            !medicationName ||
+            !dose ||
+            !route ||
+            !frequency ||
+            !instructions
+          ) {
+            alert("Please fill in all fields.");
+            return; // Properly close the condition
+          }
+
+          console.log(
+            "Attempting to submit treatment plan for patient:",
+            patientAddress
+          );
+
+          var oldRecords = $("#records" + patientAddress).html();
+          var newRecords = `Treated By : ${docName}
+Treatment Time : ${datetime}
+Medication Name: ${medicationName}
+Dose: ${dose}
+Route: ${route}
+Frequency: ${frequency}
+Instructions: ${instructions}
+`;
+
+          // Constructing a FHIR MedicationRequest resource
+          var fhirMedicationRequest = {
+            resourceType: "MedicationRequest",
+            extension: [
+              {
+                url: "http://example.org/fhir/StructureDefinition/newRecords",
+                valueString: newRecords,
+              },
+            ],
+            status: "active",
+            intent: "order",
+            medicationCodeableConcept: {
+              text: medicationName,
+            },
+            authoredOn: datetime,
+            dosageInstruction: [
+              {
+                text: instructions,
+                timing: {
+                  repeat: {
+                    frequency: parseInt(frequency),
+                  },
+                },
+                doseAndRate: [
+                  {
+                    doseQuantity: {
+                      value: dose,
+                    },
+                  },
+                ],
+                route: {
+                  text: route,
+                },
+              },
+            ],
+          };
+
+          console.log("New records to be added:", newRecords);
+          var updatedRecords = oldRecords + newRecords;
+
+          updatedRecords.fhirMedicationRequest = fhirMedicationRequest;
+
+          // Convert the details into a buffer for IPFS
+          var buffer = Buffer.from(updatedRecords);
+
+          // Submitting to IPFS
+          ipfs.files.add(buffer, function (error, result) {
+            if (error) {
+              console.error("Error uploading treatment plan to IPFS:", error);
+              return; // Properly close the condition
+            }
+
+            var ipfsHash = result[0].hash;
+            console.log("Treatment plan uploaded to IPFS. Hash:", ipfsHash);
+
+            contractInstance.methods
+              .submit_TreatmentPlan(foundAppointmentId, ipfsHash) // Fix: Use the stored appointment ID
+              .send({ from: doctorAddress, gas: 1000000 })
+              .then((receipt) => {
+                // Fix: Use .then for the promise chain
+                console.log("Receipt:", receipt);
+                alert("Treatment plan successfully submitted.");
+              })
+              .catch((error) => {
+                // Fix: Use .catch to handle errors in the promise chain
+                console.error(
+                  "Error submitting treatment plan:",
+                  error.message
+                );
+                alert("Failed to submit treatment plan.");
+              });
+          });
+        });
+      })
+      .catch(function (error) {
+        console.error("Error fetching doctor appointments:", error);
+      });
+  });
+}
 function loadAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0]; // Assuming the doctor is logged in
