@@ -12,6 +12,8 @@
     <title>Medical Records Application</title>
 
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2023.3.1114/styles/kendo.default-v2.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <link rel="stylesheet" href="/css/animation.css">
     <link rel="stylesheet" href="/css/index.css">
 
@@ -20,82 +22,155 @@
 <body>
 
     <!-- Navigation -->
-    <nav class="navbar navbar-inverse navbar-static-top" role="navigation">
-        <div class="container-fluid">
-            <!-- Brand and toggle get grouped for better mobile display -->
-            <div class="navbar-header">
-                <button type="button" class="navbar-toggle" data-toggle="collapse"
-                    data-target="#bs-example-navbar-collapse-1">
-                    <span class="sr-only">Toggle navigation</span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                    <span class="icon-bar"></span>
-                </button>
-                <a class="navbar-brand" href="#">Electronical Medical Records</a>
-            </div>
-            <!-- Collect the nav links, forms, and other content for toggling -->
-            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-                <ul class="nav navbar-nav navbar-right">
-                    <li class="active">
-                        <a href="javascript:void(0);" onclick="login()">Login</a>
+
+    <nav class="navbar navbar-expand-lg navbar-custom sticky-top" id="mainNav">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-notes-medical"></i> Electronic Medical Records
+            </a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContents"
+                aria-controls="navbarSupportedContents" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse justify-content-center" id="navbarSupportedContents">
+                <ul class="navbar-nav mx-auto">
+                    <li class="nav-item active">
+                        <a class="nav-link" href="index.html">Home</a>
                     </li>
-                    <li>
-                        <a href="./register.html">Register</a>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#get-started">Get Started</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#services">Services</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Contact Us</a>
                     </li>
                 </ul>
+                <!-- Right-aligned Login and Register -->
+
+                <button class="nav-link login-button btn " onclick="login()">Login</button>
+                <a class="nav-link signup-button" href="register.html">Register</a>
+
             </div>
-            <!-- /.navbar-collapse -->
         </div>
-        <!-- /.container -->
     </nav>
+
 
     <div>
         <div id="includedContent"></div>
     </div>
 
 
-    <!-- Page Content -->
-    <div class="container">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="text-center">Welcome to Electronical Medical Records</h3>
-            </div>
-            <div class="panel-body">
-                <div class="row">
-                    <div class="alert alert-warning col-sm-8 col-sm-offset-2" style="display: none;">
-                        <strong>Warning!</strong> Unregistered user. Click <a href="./register.html">here</a> to
-                        register.
-
-                    </div>
+    <div id="hero" class="k-content"
+        style="background: url('src/img/index.png') no-repeat center center fixed; background-size: cover;">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6">
+                    <h1>Electronical Medical Record System</h1>
+                    <p>MediVault is a secure blockchain-based platform for storage of highly sensitive and critical data
+                        related to patients that is shared among multiple facilities and agencies for effective
+                        diagnosis and treatment.</p>
+                    <!-- Kendo UI Button -->
+                    <button id="signupButton" class="k-button k-primary">Sign Up Now!</button>
                 </div>
-
-                <form class="form-horizontal" name="loginForm">
-                    <div class="panel-heading">
-                        <h5 class="text-center">Manage your medical records in a secure and easy way</h5>
-                    </div>
-                    <div class="form-group">
-                    </div>
-                </form>
-                <div class="text-center">
-                    <button class="btn btn-primary btn-lg" onclick="login()">Login</button>
+                <div class="col-lg-6">
+                    <!-- Place for image or additional content -->
                 </div>
-
             </div>
-            <div class="panel-footer">
+        </div>
+    </div>
+
+    <div class="gradient-background">
+        <!-- Get Started Section -->
+        <div id="get-started" class="get-started-section">
+            <div class="container">
+                <h2 class="text-center">Getting started is quick and easy</h2>
+                <div id="steps-cards" class="row mt-4 step-cards-container">
+                    <!-- Kendo UI Cards will be dynamically inserted here by JavaScript -->
+                </div>
             </div>
         </div>
 
+        <div class="section-separator"></div>
+        
+        <!-- Services Section -->
+        <div id="services" class="services-section k-content">
+            <div class="container">
+                <div class="row services-content">
+                    <div class="col-lg-8 services-text">
+                        <h2>Services</h2>
+                        <p>
+                            The MediLedger network prioritizes industry alignment, accuracy, privacy, and
+                            decentralization.
+                            Network member trading partners find a unified view of transaction-related data,
+                            automatically
+                            enforced accuracy, control over private data, and a decentralized network that allows for
+                            direct
+                            transacting with no intermediary. MediLedger modules include:
+                        </p>
+                    </div>
+                    <div class="services-image">
+                        <!-- Image goes here -->
+                        <img src="src/img/illustration.png" alt="Services Illustration">
+                      </div>
+                    <div class="row services-row justify-content-start">
+                        <!-- Service 1 -->
+                        <div class="col-md-3 service-item" style="position: relative;">
+                            <i class="fa-solid fa-file-medical service-icon"></i>
+                            <h3>Maintaining and Storing Medical Records</h3>
+                            <p>Automatically validate rosters against industry data before trading partners receive
+                                them.
+                            </p>
+                            <hr class="services-divider">
+                        </div>
+                        <!-- Service 2 -->
+                        <div class="col-md-3 service-item" style="position: relative;">
+                            <i class="fa-solid fa-user-doctor service-icon"></i>
+                            <h3>Contract Communication</h3>
+                            <p>Receive pricing, product, customer and other contract updates in real-time.</p>
+                            <hr class="services-divider">
+                        </div>
+                        <!-- Service 3 -->
+                        <div class="col-md-3 service-item" style="position: relative;">
+                            <i class="fa-solid fa-stethoscope service-icon"></i>
+                            <h3>Claim Adjudication</h3>
+                            <p>Automatically enforce accuracy and adjudicate chargebacks right inside a wholesaler's
+                                system.
+                            </p>
+                            <hr class="services-divider">
+                        </div>
+                        <!-- Service 4 -->
+                        <div class="col-md-3 service-item" style="position: relative;">
+                            <i class="fa-solid fa-users-viewfinder service-icon"></i>
+                            <h3>Claim Adjudication</h3>
+                            <p>Automatically enforce accuracy and adjudicate chargebacks right inside a wholesaler's
+                                system.
+                            </p>
 
-    </div>
-    <!-- /.container -->
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ipfs-api@26.1.2/dist/index.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-    <script src="/js/main.js"></script>
-    <script src="/js/login.js"></script>
+        </div>
+
+        <div class="section-separator"></div>
+
+
+
+
+
+
+        <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+        <script src="https://kendo.cdn.telerik.com/2023.3.1114/js/kendo.all.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/ipfs-api@26.1.2/dist/index.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+        <script src="/js/main.js"></script>
+        <script src="/js/login.js"></script>
 
 </body>
 

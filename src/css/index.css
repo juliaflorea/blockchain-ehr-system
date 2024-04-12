@@ -1,61 +1,301 @@
 body {
-  background-color: #f2f2f2; /* Light gray background */
-  color: #333; /* Dark text color */
+  font-family: "Arial", sans-serif;
+  background-color: #f4f4f4;
 }
 
-.navbar-inverse {
-  background-color: #392467 !important; /* Dark purple navbar */
-  border-color: #392467;
+.navbar-custom {
+  background-color: transparent; /* Initial background color */
+  transition: background-color 0.3s;
+  z-index: 1030; /* High z-index to cover other content */
 }
 
-.navbar-inverse .navbar-brand,
-.navbar-inverse .navbar-nav>li>a {
-  color: #ffffff; /* White text for navbar brand and links */
+#mainNav.sticky-top.scroll-down .navbar-custom {
+  background-color: #5e72e4; /* Desired color when scrolled */
+  transition: background-color 0.3s ease-in-out; /* Smooth transition */
+}
+.scroll-down {
+  background-color: #fff; /* Background color for the header when scrolled */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow */
 }
 
-.navbar-inverse .navbar-toggle {
-  border-color: #ffffff; /* White border for the navbar toggle button */
+.navbar-custom .login-button,
+.navbar-custom .signup-button {
+  padding: 0.375rem 0.75rem; /* Button padding */
+  margin: 0 10px; /* Spacing between login and register buttons */
+  border-radius: 0.375rem; /* Rounded corners */
+  background-color: #5e72e4; /* Background color for buttons */
+  color: #fff; /* Text color for buttons */
+  border: none; /* Removes the border */
+  cursor: pointer; /* Changes the cursor to a pointer on hover */
 }
 
-.panel-default {
-  border-color: #392467; /* Dark purple border for panels */
+.navbar-custom .signup-button {
+  background-color: #11cdef !important; /* Ensure the Register button color is consistent */
 }
 
-.panel-default > .panel-heading {
-  background-color: #392467; /* Dark purple background for panel heading */
-  border-color: #392467;
-  color: #ffffff; /* White text for panel heading */
+.navbar-custom .navbar-brand {
+  color: #fff;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
 }
 
-.panel-default > .panel-footer {
-  background-color: #392467; /* Dark purple background for panel footer */
-  border-color: #392467;
-  color: #ffffff; /* White text for panel footer */
+.navbar-custom .navbar-brand i {
+  font-size: 2.5rem; /* Adjust the size of the icon */
+  margin-right: 0.5rem; /* Space between icon and text */
 }
 
-.btn-primary {
-  background-color: #392467; /* Dark purple background for primary buttons */
-  border-color: #392467;
+/* Position the logo and brand name to the left */
+.navbar-custom .container {
+  display: flex;
+  justify-content: space-between; /* Spreads out the logo, nav, and buttons */
+  align-items: center;
+  flex-wrap: wrap; /* Ensures proper wrapping on smaller screens */
 }
 
-.btn-primary:hover,
-.btn-primary:active,
-.btn-primary:focus {
-  background-color: #2b1b3c; /* Slightly darker purple on hover */
-  border-color: #2b1b3c;
+/* Center the nav items */
+.navbar-custom .navbar-nav {
+  flex-grow: 1;
+  justify-content: center;
+  display: flex;
 }
 
-.alert-warning {
-  background-color: #fbeed5; /* Light yellow background for warning alert */
-  border-color: #ecdcb1;
-  color: #8a6d3b; /* Dark text for warning alert */
+/* Style for the login and register buttons/links */
+.navbar-custom .navbar-nav .nav-link {
+  color: #fff;
+  margin: 0 15px;
 }
 
-.container {
-  margin-top: 20px; /* Add some top margin to the container */
+.navbar-custom .navbar-nav .nav-item a {
+  color: #fff; /* Text color */
+  margin: 0 10px; /* Spacing between nav items */
 }
 
-.form-horizontal .panel-heading,
-.form-horizontal .text-center {
-  color: #392467; /* Dark purple text for form heading and center text */
+.navbar-custom .navbar-nav .nav-item a:hover {
+  text-decoration: none;
+  color: #a6b1c2; /* Hover color */
+}
+
+/* Login and Sign Up buttons */
+.login-button,
+.signup-button {
+  color: #fff;
+  background-color: #5e72e4; /* Change as needed */
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  margin-left: 0.5rem;
+}
+
+.signup-button {
+  background-color: #11cdef; /* Change as needed */
+}
+
+#hero {
+  background-size: cover;
+  color: #fff;
+  text-align: left;
+  padding: 150px 0; /* Adjust the padding to suit your content */
+}
+
+/* Update button styles to match the design */
+.k-button.k-primary {
+  font-size: 1.25rem; /* Larger font size */
+  padding: 15px 40px; /* Larger padding */
+  background-color: #4a90e2; /* A soft blue color */
+  color: #fff; /* White color text */
+  border-radius: 25px; /* More pronounced rounded corners */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+}
+
+/* Hover effect for the button */
+.k-button.k-primary:hover {
+  background-color: #357abd; /* Slightly darker shade on hover */
+}
+
+.get-started-section {
+  padding: 60px 0;
+  text-align: center;
+}
+
+.step-cards-container {
+  display: flex;
+  align-items: stretch; /* This will stretch the cards to the same height */
+}
+
+.get-started-section .k-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Make sure all cards have the same height */
+  margin-bottom: 30px;
+  border-radius: 20px; /* Increase the border-radius as desired */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.get-started-section .k-card-body {
+  flex: 1; /* This will make sure the body takes up all available space */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* This will center the content vertically */
+  padding: 30px;
+}
+.k-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff; /* Or any other solid color or gradient */
+}
+
+.get-started-section h2 {
+  margin-bottom: 40px;
+  color: #fff;
+}
+
+.gradient-background {
+  background: linear-gradient(
+    to bottom,
+    #2b2e70,
+    #090919
+  ); /* Your gradient colors */
+}
+
+/* Overrides for Kendo UI if needed */
+.k-card-deck .k-card {
+  margin-top: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.k-card .k-card-body {
+  text-align: center;
+}
+
+.container.mt-4 {
+  margin-top: 2rem !important;
+}
+
+/* Services Section Styles */
+.services-section {
+  padding: 100px 0;
+  color: #fff;
+  position: relative;
+}
+
+.services-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.services-text {
+  flex: 1;
+  float: left;
+  max-width: 540px; /* or any width you want */
+  margin-right: 40px; /* or any spacing you want */
+}
+
+.services-image {
+  flex: 1; /* The image container can grow and shrink as needed */
+  max-width: 50%; /* Adjust this value to make the image larger or smaller */
+  align-self: start; /* Aligns the container at the start of the cross axis */
+  position: relative; /* Position relative to place it correctly in the flex container */
+  z-index: 2; /* Makes sure the image is above other elements if needed */
+}
+
+.services-image img {
+  width: 100%; /* This will make the image take up the full width of .services-image */
+  height: auto; /* This will keep the image's aspect ratio intact */
+  object-fit: contain;
+  display: block;
+  
+}
+
+.services-text h2 {
+  font-size: 2.5rem; /* Adjust size as needed */
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.services-text p {
+  margin-bottom: 100px;
+}
+
+.services-row {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-left: -15px; /* adjust according to the gutter you want */
+  gap: 30px;
+}
+
+.service-item {
+  padding-left: 15px; /* adjust according to the gutter you want */
+  flex: 1;
+}
+
+.service-icon {
+  max-width: 100px; /* maximum width of the service icons */
+  margin-bottom: 15px; /* spacing below each service icon */
+}
+
+.service-item .fa-file-medical,
+.service-item .fa-user-doctor,
+.service-item .fa-users-viewfinder,
+.service-item .fa-stethoscope {
+  font-size: 4rem; /* Adjust the size as needed */
+  color: #8446d0; /* Your desired icon color */
+}
+
+.service-icon {
+  font-size: 3rem; /* Adjust the size as needed */
+  color: #7598f6; /* Adjust the color as needed */
+  text-shadow: 0 0 10px #050608;
+}
+
+.services-divider {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 65, 108, 0),
+    #ff416c,
+    rgba(255, 65, 108, 0)
+  );
+  position: absolute;
+  right: -15px; /* Adjust as needed */
+  top: 0;
+}
+
+.section-separator {
+  border: none;
+  height: 2px; /* Adjust the thickness of the line */
+  background: linear-gradient(
+    to right,
+    transparent,
+    #7554bd,
+    transparent
+  ); /* This creates a gradient that fades in from the left, is solid in the middle, and fades out to the right */
+  margin-top: 50px; /* Space above the line */
+  margin-bottom: 50px; /* Space below the line */
+}
+
+/* Adjustments for smaller screens */
+@media (max-width: 767px) {
+  .navbar-custom .navbar-brand {
+    flex-grow: 1; /* Allows the brand to take up full width on smaller screens */
+    justify-content: center; /* Centers the brand on smaller screens */
+  }
+
+  .navbar-custom .navbar-nav {
+    justify-content: flex-start; /* Aligns nav items to the start on smaller screens */
+  }
+
+  .navbar-custom .navbar-toggler {
+    margin-left: auto; /* Positions the toggle to the end */
+  }
+
+  .login-button,
+  .signup-button {
+    font-size: 0.875rem; /* Smaller text on buttons for smaller screens */
+  }
 }

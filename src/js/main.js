@@ -42,6 +42,20 @@ window.addEventListener("load", async () => {
   emailjs.init("BVHC0t44IJq1EPSI2");
 });
 
+$("#main-content").kendoCardDeck({
+  dataSource: [
+      { title: "Welcome", text: "Manage your medical records in a secure and easy way" }
+      // Add more objects for other sections
+  ],
+  cardTemplate: `<div class="k-card mx-auto" style="width: 18rem;">
+      <div class="k-card-body">
+          <h5 class="k-card-title">#= title #</h5>
+          <p class="k-card-text">#= text #</p>
+          <a href="#" class="btn btn-primary">Learn More</a>
+      </div>
+  </div>`
+});
+
 function downloadMedicalRecord(data) {
   // Extract first name and last name from the medical record
   var firstNamePattern = /First Name: (.+)/;
