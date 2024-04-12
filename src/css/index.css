@@ -205,7 +205,6 @@ body {
   height: auto; /* This will keep the image's aspect ratio intact */
   object-fit: contain;
   display: block;
-  
 }
 
 .services-text h2 {
@@ -277,6 +276,81 @@ body {
   ); /* This creates a gradient that fades in from the left, is solid in the middle, and fades out to the right */
   margin-top: 50px; /* Space above the line */
   margin-bottom: 50px; /* Space below the line */
+}
+
+.footer-section {
+  color: #fff;
+  padding: 50px 0;
+}
+
+.footer-section .container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: start; /* Align items to the start of their container */
+}
+
+.footer-left {
+  flex: 1;
+  max-width: 40%; /* Reduced width for more space between columns */
+}
+
+.footer-right {
+  flex: 1;
+  display: flex;
+  justify-content: space-between; /* Distribute space between policy and contact */
+  align-items: start; /* Align items to the start of their container */
+  max-width: 60%; /* Increased width for alignment */
+}
+
+/* Spacing and alignment for policy links */
+.footer-policy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* Align text to the right */
+  margin-top: 20px; /* Push down the policy links to align with copyright */
+}
+
+.footer-policy a {
+  color: #fff;
+  text-decoration: none;
+  text-align: right; /* Right align */
+}
+
+/* Spacing and alignment for contact info */
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* Align text to the right */
+  margin-top: 20px; /* Push down contact info to align with phone number */
+}
+
+.contact-info p {
+  color: #fff;
+  text-decoration: none;
+  text-align: right; /* Right align */
+  margin-bottom: 5px; /* Space between phone and email */
+}
+
+@media (max-width: 767px) {
+  .footer-section .container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .footer-left,
+  .footer-right {
+    max-width: 100%;
+    flex-basis: 100%;
+    text-align: center;
+    align-items: center;
+  }
+
+  .footer-policy,
+  .contact-info {
+    align-items: center;
+    margin-top: 10px; /* Adjust as needed for mobile view */
+  }
 }
 
 /* Adjustments for smaller screens */

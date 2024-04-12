@@ -1,50 +1,194 @@
 body {
-    background-color: #f5f5f5;
-    color: #333;
+  font-family: "Arial", sans-serif;
+  background-color: #f4f4f4;
 }
 
-.navbar {
-    background-color: #392467;
+.navbar-custom {
+  background-color: transparent; /* Initial background color */
+  transition: background-color 0.3s;
+  z-index: 1030; /* High z-index to cover other content */
 }
 
-.navbar-inverse .navbar-brand,
-.navbar-inverse .navbar-nav>li>a {
-    color: #fff;
+#mainNav.sticky-top.scroll-down .navbar-custom {
+  background-color: #5e72e4; /* Desired color when scrolled */
+  transition: background-color 0.3s ease-in-out; /* Smooth transition */
+}
+.scroll-down {
+  background-color: #fff; /* Background color for the header when scrolled */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow */
+}
+
+.navbar-custom .login-button,
+.navbar-custom .signup-button {
+  padding: 0.375rem 0.75rem; /* Button padding */
+  margin: 0 10px; /* Spacing between login and register buttons */
+  border-radius: 0.375rem; /* Rounded corners */
+  background-color: #5e72e4; /* Background color for buttons */
+  color: #fff; /* Text color for buttons */
+  border: none; /* Removes the border */
+  cursor: pointer; /* Changes the cursor to a pointer on hover */
+}
+
+.navbar-custom .signup-button {
+  background-color: #11cdef !important; /* Ensure the Register button color is consistent */
+}
+
+.navbar-custom .navbar-brand {
+  color: #fff;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+}
+
+.navbar-custom .navbar-brand i {
+  font-size: 2.5rem; /* Adjust the size of the icon */
+  margin-right: 0.5rem; /* Space between icon and text */
+}
+
+/* Position the logo and brand name to the left */
+.navbar-custom .container {
+  display: flex;
+  justify-content: space-between; /* Spreads out the logo, nav, and buttons */
+  align-items: center;
+  flex-wrap: wrap; /* Ensures proper wrapping on smaller screens */
+}
+
+/* Center the nav items */
+.navbar-custom .navbar-nav {
+  flex-grow: 1;
+  justify-content: center;
+  display: flex;
+}
+
+/* Style for the login and register buttons/links */
+.navbar-custom .navbar-nav .nav-link {
+  color: #fff;
+  margin: 0 15px;
+}
+
+.navbar-custom .navbar-nav .nav-item a {
+  color: #fff; /* Text color */
+  margin: 0 10px; /* Spacing between nav items */
+}
+
+.navbar-custom .navbar-nav .nav-item a:hover {
+  text-decoration: none;
+  color: #a6b1c2; /* Hover color */
+}
+
+/* Login and Sign Up buttons */
+.login-button,
+.signup-button {
+  color: #fff;
+  background-color: #5e72e4; /* Change as needed */
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  margin-left: 0.5rem;
+}
+
+.signup-button {
+  background-color: #11cdef; /* Change as needed */
 }
 
 .panel-default {
-    border-color: #ddd;
+  border-color: #ddd;
 }
 
 .panel-heading {
-    background-color: #392467;
-    color: #fff;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 25px;
+  margin-bottom: 30px;
 }
 
 .panel-body {
-    padding: 15px;
+  padding: 15px;
+}
+
+.form-horizontal {
+  width: 100%;
+}
+
+.form-horizontal .form-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.form-horizontal .control-label {
+  margin-bottom: 1rem; /* Add some space below the label */
+  font-size: 1rem; /* Adjust the font size as necessary */
+  white-space: nowrap; /* Ensure the text doesn't wrap */
+  overflow: hidden; /* Hide overflow */
+  text-overflow: ellipsis; /* Add ellipsis if text is too long */
+  max-width: 100%; /* Max width to fit container */
+  margin-bottom: 0.5rem; /* Space below the label */
+  display: block; 
+}
+
+.panel {
+  margin-top: 10%; /* More space from the top of the page */
+  padding: 2rem; /* Padding inside the panel for spacing around the form */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: add shadow for depth */
+  width: 70%; /* Adjust panel width as necessary */
+  margin-left: auto; /* Center the panel */
+  margin-right: auto; /* Center the panel */
+  border-radius: 0.5rem; /* Optional: rounded corners for the panel */
+}
+
+.form-horizontal .form-control {
+  display: inline-block;
+  width: auto;
+  margin-top: 0;
+  min-width: 250px; /* Ensure it doesn't get too small on very narrow screens */
+  margin-bottom: 1rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #495057;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-horizontal .form-control:focus {
+  color: #495057;
+  background-color: #fff;
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.form-group {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  margin-top: 0; /* Adjust space from the top */
+  margin-bottom: 20px; /* Space below the group */
+}
+
+.control-label {
+  margin-bottom: 0.5rem; /* Less space below the label */
+  font-size: 1rem; /* Font size adjustment if needed */
+  text-align: center;
+  display: inline-block; /* Ensure it takes its own line */
 }
 
 .alert {
-    margin-bottom: 15px;
+  margin-bottom: 15px;
 }
 
 .btn-primary {
-    background-color: #392467;
-    border-color: #392467;
+  background-color: #392467;
+  border-color: #392467;
 }
 
 .btn-primary:hover,
 .btn-primary:focus {
-    background-color: #2a1b3d;
-    border-color: #2a1b3d;
-}
-
-.form-control {
-    border: 1px solid #ddd;
-}
-
-.form-control:focus {
-    border-color: #392467;
-    box-shadow: none;
+  background-color: #2a1b3d;
+  border-color: #2a1b3d;
 }
