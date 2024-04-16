@@ -232,6 +232,22 @@ contract MedicalRecords {
         patientInfo[msg.sender].doctorAccessList.push(addr) - 1;
     }
 
+    function permit_access_by_proxy(
+        address doctorAddress,
+        address patientAddress
+    ) public payable {
+        require(msg.value == 2 ether);
+        require(proxies[msg.sender].isAuthorized, "Proxy not authorized");
+        require(
+            patientInfo[patientAddress].proxyAddress == msg.sender,
+            "Caller is not the proxy for this patient"
+        );
+        creditPool += 2;
+
+        patientInfo[patientAddress].doctorAccessList.push(doctorAddress);
+        doctorInfo[doctorAddress].patientAccessList.push(patientAddress);
+    }
+
     function insurance_claim(
         address paddr,
         uint _diagnosis,
@@ -274,7 +290,7 @@ contract MedicalRecords {
 
         // If both conditions are met, process the diagnosis
         //msg.sender.transfer(2 ether);
-       // creditPool -= 2;
+        // creditPool -= 2;
         set_hash(paddr, _hash);
 
         // Check if the diagnosis is already recorded (though this part remains unchanged)
@@ -288,24 +304,33 @@ contract MedicalRecords {
         // Optionally handle the case where DiagnosisFound is true, if necessary
     }
 
-   function submit_TreatmentPlan(
-    uint appointmentId, // Include this parameter to specify which appointment
-    string memory treatmentPlanIPFSHash
-) public {
-    // Ensure appointmentId is passed and used to access the correct Appointment struct
-    Appointment storage appointment = appointments[appointmentId];
+    function submit_TreatmentPlan(
+        uint appointmentId, // Include this parameter to specify which appointment
+        string memory treatmentPlanIPFSHash
+    ) public {
+        // Ensure appointmentId is passed and used to access the correct Appointment struct
+        Appointment storage appointment = appointments[appointmentId];
 
-    // Ensure the caller is the doctor associated with this appointment
-    require(appointment.doctorAddress == msg.sender, "Caller is not the doctor for this appointment.");
+        // Ensure the caller is the doctor associated with this appointment
+        require(
+            appointment.doctorAddress == msg.sender,
+            "Caller is not the doctor for this appointment."
+        );
 
-    // Ensure that a diagnosis has been submitted for this appointment
-    require(appointment.diagnosisSubmitted, "A diagnosis must be submitted before a treatment plan.");
+        // Ensure that a diagnosis has been submitted for this appointment
+        require(
+            appointment.diagnosisSubmitted,
+            "A diagnosis must be submitted before a treatment plan."
+        );
 
-    // Check that a treatment plan hasn't been submitted already
-    require(!appointment.treatmentPlanSubmitted, "Treatment plan has already been submitted for this appointment.");
+        // Check that a treatment plan hasn't been submitted already
+        require(
+            !appointment.treatmentPlanSubmitted,
+            "Treatment plan has already been submitted for this appointment."
+        );
 
-    // Update the appointment to indicate that a treatment plan has now been submitted
-    appointment.treatmentPlanSubmitted = true;
+        // Update the appointment to indicate that a treatment plan has now been submitted
+        appointment.treatmentPlanSubmitted = true;
 
         msg.sender.transfer(2 ether);
         creditPool -= 2;
@@ -405,6 +430,20 @@ contract MedicalRecords {
     function revoke_access(address daddr) public payable {
         remove_patient(msg.sender, daddr);
         msg.sender.transfer(2 ether);
+        creditPool -= 2;
+    }
+
+    function revoke_access_by_proxy(
+        address doctorAddress,
+        address patientAddress
+    ) public payable {
+        require(proxies[msg.sender].isAuthorized, "Proxy not authorized");
+        require(
+            patientInfo[patientAddress].proxyAddress == msg.sender,
+            "Caller is not the proxy for this patient"
+        );
+        remove_patient(patientAddress, doctorAddress);
+         msg.sender.transfer(2 ether);
         creditPool -= 2;
     }
 

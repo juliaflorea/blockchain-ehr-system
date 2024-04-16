@@ -7,7 +7,7 @@ async function login() {
 
     if (accounts.length === 0) {
       console.error("No accounts found");
-      $(".alert-warning").show();
+      alert("No accounts found. Please make sure you are logged in to your Ethereum wallet.");
       return;
     }
 
@@ -26,11 +26,12 @@ async function login() {
       location.href = `./proxy.html?key=${publicKey}`; // Redirect proxy users to the proxy dashboard
     } else {
       console.log("Invalid User!");
-      $(".alert-warning").show();
+      alert("Invalid user. Please make sure you are registered and logged in with the correct account.");
     }
   } catch (error) {
     console.error("Error during login:", error);
-    $(".alert-warning").show();
+    alert("Error during login. Please try again later.");
+
   }
 }
 
@@ -67,17 +68,17 @@ $(document).ready(function() {
 var steps = [
   {
     title: "Register Yourself",
-    description: "Register yourself to the locker, secured by blockchain technology.",
+    description: "Join our community by registering as a patient, doctor or proxy.",
     iconClass: "fas fa-user-plus"
   },
   {
-    title: "Authenticate Yourself",
-    description: "Log In with your credentials.",
+    title: "Log In",
+    description: "Access your account using your secure credentials via Metamask.",
     iconClass: "fas fa-check-circle"
   },
   {
-    title: "Upload your Data",
-    description: "Create, update, or view your health record information.",
+    title: "Manage Your Data",
+    description: "Effortlessly create, access or sahre your medical records securely.",
     iconClass: "fas fa-upload"
   }
 ];
@@ -120,6 +121,8 @@ $("a.nav-link").on('click', function(event) {
     });
   } // End if
 });
+
+
 
 
 

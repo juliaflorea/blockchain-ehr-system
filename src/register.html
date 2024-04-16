@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2023.3.1114/styles/kendo.default-v2.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <link rel="stylesheet" href="/css/register.css">
+    <link rel="stylesheet" href="/css/navbar.css">
 
 </head>
 
@@ -32,10 +33,10 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
 
-                <a class="nav-link login-button btn "  href="index.html">Log In</a>
-                <a class="nav-link signup-button" href="register.html">Register</a>
+            <button class="nav-link login-button btn " onclick="login()">Login</button>
+            <!-- <a class="nav-link signup-button" href="register.html">Register</a> -->
 
-            </div>
+        </div>
         </div>
     </nav>
 
@@ -43,7 +44,7 @@
     <div class="container mt-5">
         <div class="panel panel-default ">
             <div class="panel-heading">
-                <h3 class="text-center">Please enter your details to register.</h3>
+                <h3 class="text-center">Want to join our community?</h3>
             </div>
             <div class="panel-body">
                 <div class="row">
@@ -70,7 +71,8 @@
 
                 <form name="registerForm" class="form-horizontal" action="./doctor.html">
                     <div class="form-group">
-                        <label for="designation" class="control-label col-sm-2">What role do you wish to register as ?</label>
+                        <label for="designation" class="control-label col-sm-2">What role do you wish to register as
+                            ?</label>
                         <div class="col-sm-8">
                             <select class="form-control" id="designation" onchange="toggleFields();">
                                 <option selected disabled>-- Please Select --</option>
@@ -149,7 +151,7 @@
                         <div class="form-group">
                             <label class="control-label col-sm-2" for="yearsExperience">Years of Experience:</label>
                             <div class="col-sm-8">
-                                <input type="number" class="form-control" id="yearsExperience"
+                                <input type="number" class="form-control" id="yearsOfExperience"
                                     placeholder="Enter years of experience">
                             </div>
                         </div>
@@ -190,10 +192,10 @@
                         </div>
 
                         <!-- Token Input Field -->
-                        <div class="form-group" id="tokenInputField" style="display:none;">
+                        <div class="form-group token-input-group" id="tokenInputField" style="display:none;">
                             <label class="control-label col-sm-2" for="token">Token:</label>
                             <div class="col-sm-8">
-                                <input type="text" class="form-control" id="token"
+                                <input type="text" class="form-control token-input" id="token"
                                     placeholder="Token received via email">
                             </div>
                         </div>
@@ -252,6 +254,7 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
     </script>
     <script src="/js/main.js"></script>
+    <script src="/js/login.js"></script>
     <script src="/js/register.js"></script>
 
 </body>

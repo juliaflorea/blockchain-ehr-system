@@ -157,6 +157,12 @@ function addAgent() {
                         period: {
                           start: "Practitioner's Start Date",
                           end: "Practitioner's End Date",
+                          extension: [
+                            {
+                              url: "http://example.org/fhir/StructureDefinition/yearsOfExperience",
+                              valueInteger: parseInt(yearsOfExperience),
+                            },
+                          ],
                         },
                       },
                     ],
@@ -455,6 +461,14 @@ function handleProxyRegistration(
               const enteredDetailsConcat = `${proxyFirstName}${proxyLastName}${proxyDOB}${proxyAddress}${proxyPhone}${proxyEmail}`;
               const enteredDetailsHash = web3.utils.sha3(enteredDetailsConcat);
 
+              console.log(
+                "Patient designated proxy details hash:",
+                storedDetailsHash
+              );
+              console.log(
+                "Proxy registration details hash:",
+                enteredDetailsHash
+              );
               // Compare the hashes
               if (enteredDetailsHash !== storedDetailsHash) {
                 alert(

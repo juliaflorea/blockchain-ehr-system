@@ -1,0 +1,87 @@
+.navbar-custom {
+    background-color: #392467; /* Set your desired background color */
+    transition: background-color 0.3s;
+    z-index: 1030; /* Keep a high z-index */
+  }
+  
+  #mainNav.sticky-top.scroll-down .navbar-custom {
+    background-color: #392467; /* Desired color when scrolled */
+    transition: background-color 0.3s ease-in-out; /* Smooth transition */
+  }
+  
+  #mainNav.sticky-top {
+    position: -webkit-sticky; /* For Safari */
+    position: sticky;
+    top: 0; /* Stick to the top */
+    width: 100%; /* Full width */
+  }
+  
+  .navbar-custom .navbar-brand,
+  .navbar-custom .navbar-nav .nav-link {
+    color: #fff; /* White text for visibility */
+  }
+  
+  
+  .scroll-down {
+    background-color: #392467; /* Match the non-transparent background */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Add shadow for depth */
+  }
+  
+  .navbar-custom .login-button,
+  .navbar-custom .signup-button {
+    padding: 0.375rem 0.75rem; /* Button padding */
+    margin: 0 10px; /* Spacing between login and register buttons */
+    border-radius: 0.375rem; /* Rounded corners */
+    background-color: #5e72e4; /* Background color for buttons */
+    color: #fff; /* Text color for buttons */
+    border: none; /* Removes the border */
+    cursor: pointer; /* Changes the cursor to a pointer on hover */
+  }
+  
+  .navbar-custom .signup-button {
+    background-color: #11cdef !important; /* Ensure the Register button color is consistent */
+  }
+  
+  .navbar-custom .navbar-brand {
+    color: #fff;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+  }
+  
+  .navbar-custom .navbar-brand i {
+    font-size: 2.5rem; /* Adjust the size of the icon */
+    margin-right: 0.5rem; /* Space between icon and text */
+  }
+  
+  /* Position the logo and brand name to the left */
+  .navbar-custom .container {
+    display: flex;
+    justify-content: space-between; /* Spreads out the logo, nav, and buttons */
+    align-items: center;
+    flex-wrap: wrap; /* Ensures proper wrapping on smaller screens */
+  }
+  
+  /* Center the nav items */
+  .navbar-custom .navbar-nav {
+    flex-grow: 1;
+    justify-content: center;
+    display: flex;
+  }
+  
+  /* Style for the login and register buttons/links */
+  .navbar-custom .navbar-nav .nav-link {
+    color: #fff;
+    margin: 0 15px;
+  }
+  
+  .navbar-custom .navbar-nav .nav-item a {
+    color: #fff; /* Text color */
+    margin: 0 10px; /* Spacing between nav items */
+  }
+  
+  .navbar-custom .navbar-nav .nav-item a:hover {
+    text-decoration: none;
+    color: #a6b1c2; /* Hover color */
+  }
+  

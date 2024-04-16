@@ -3,79 +3,6 @@ body {
   background-color: #f4f4f4;
 }
 
-.navbar-custom {
-  background-color: transparent; /* Initial background color */
-  transition: background-color 0.3s;
-  z-index: 1030; /* High z-index to cover other content */
-}
-
-#mainNav.sticky-top.scroll-down .navbar-custom {
-  background-color: #5e72e4; /* Desired color when scrolled */
-  transition: background-color 0.3s ease-in-out; /* Smooth transition */
-}
-.scroll-down {
-  background-color: #fff; /* Background color for the header when scrolled */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Adds a subtle shadow */
-}
-
-.navbar-custom .login-button,
-.navbar-custom .signup-button {
-  padding: 0.375rem 0.75rem; /* Button padding */
-  margin: 0 10px; /* Spacing between login and register buttons */
-  border-radius: 0.375rem; /* Rounded corners */
-  background-color: #5e72e4; /* Background color for buttons */
-  color: #fff; /* Text color for buttons */
-  border: none; /* Removes the border */
-  cursor: pointer; /* Changes the cursor to a pointer on hover */
-}
-
-.navbar-custom .signup-button {
-  background-color: #11cdef !important; /* Ensure the Register button color is consistent */
-}
-
-.navbar-custom .navbar-brand {
-  color: #fff;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-}
-
-.navbar-custom .navbar-brand i {
-  font-size: 2.5rem; /* Adjust the size of the icon */
-  margin-right: 0.5rem; /* Space between icon and text */
-}
-
-/* Position the logo and brand name to the left */
-.navbar-custom .container {
-  display: flex;
-  justify-content: space-between; /* Spreads out the logo, nav, and buttons */
-  align-items: center;
-  flex-wrap: wrap; /* Ensures proper wrapping on smaller screens */
-}
-
-/* Center the nav items */
-.navbar-custom .navbar-nav {
-  flex-grow: 1;
-  justify-content: center;
-  display: flex;
-}
-
-/* Style for the login and register buttons/links */
-.navbar-custom .navbar-nav .nav-link {
-  color: #fff;
-  margin: 0 15px;
-}
-
-.navbar-custom .navbar-nav .nav-item a {
-  color: #fff; /* Text color */
-  margin: 0 10px; /* Spacing between nav items */
-}
-
-.navbar-custom .navbar-nav .nav-item a:hover {
-  text-decoration: none;
-  color: #a6b1c2; /* Hover color */
-}
-
 /* Login and Sign Up buttons */
 .login-button,
 .signup-button {
@@ -120,7 +47,9 @@ body {
 
 .step-cards-container {
   display: flex;
-  align-items: stretch; /* This will stretch the cards to the same height */
+  justify-content: center; /* Center flex items horizontally */
+  align-items: stretch; /* Stretch items to the same height */
+  flex-wrap: wrap;
 }
 
 .get-started-section .k-card {
@@ -147,7 +76,11 @@ body {
 
 .get-started-section h2 {
   margin-bottom: 40px;
-  color: #fff;
+  color: #fff !important; /* Add !important to ensure this rule takes precedence */
+  text-align: center !important;
+  margin-top: 80px ; 
+  margin-right: 20px;
+  
 }
 
 .gradient-background {
@@ -197,14 +130,17 @@ body {
   max-width: 50%; /* Adjust this value to make the image larger or smaller */
   align-self: start; /* Aligns the container at the start of the cross axis */
   position: relative; /* Position relative to place it correctly in the flex container */
-  z-index: 2; /* Makes sure the image is above other elements if needed */
+  z-index: 2;
+  margin-left: auto; /* Move the image to the right */
 }
 
 .services-image img {
-  width: 100%; /* This will make the image take up the full width of .services-image */
+  width: 65%; /* This will make the image take up the full width of .services-image */
   height: auto; /* This will keep the image's aspect ratio intact */
   object-fit: contain;
   display: block;
+  margin-left: 250px; /* Move the image to the right */
+  margin-top: -50px;
 }
 
 .services-text h2 {
@@ -278,79 +214,82 @@ body {
   margin-bottom: 50px; /* Space below the line */
 }
 
+/* Footer Section Styles */
 .footer-section {
-  color: #fff;
-  padding: 50px 0;
+  /* Or any color you prefer */
+  color: #7b7e7e; /* Grey text for all content */
+  padding: 20px 0; /* Top and bottom padding */
 }
 
-.footer-section .container {
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 15px; /* Padding for the container */
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: start; /* Align items to the start of their container */
+  align-items: flex-start;
+  justify-content: space-between; /* This will ensure the logo and columns are spaced out evenly */
 }
 
-.footer-left {
-  flex: 1;
-  max-width: 40%; /* Reduced width for more space between columns */
-}
-
-.footer-right {
-  flex: 1;
-  display: flex;
-  justify-content: space-between; /* Distribute space between policy and contact */
-  align-items: start; /* Align items to the start of their container */
-  max-width: 60%; /* Increased width for alignment */
-}
-
-/* Spacing and alignment for policy links */
-.footer-policy {
+.footer-logo-column {
+  flex: 0 0 25%; /* Allocate space for the logo column */
   display: flex;
   flex-direction: column;
-  align-items: flex-end; /* Align text to the right */
-  margin-top: 20px; /* Push down the policy links to align with copyright */
+  align-items: flex-start;
+  justify-content: center;
 }
 
-.footer-policy a {
-  color: #fff;
+.footer-logo {
+  color: #ffffff; /* Logo text is white */
+  font-size: 1.75em; /* Slightly larger font size for logo text */
   text-decoration: none;
-  text-align: right; /* Right align */
 }
 
-/* Spacing and alignment for contact info */
+.footer-logo i {
+  font-size: 2em; /* Larger font size for logo icon */
+  margin-right: 0.5em; /* Space between icon and text */
+}
+
+.footer-logo:hover {
+  color: #ffffff; /* Keep the logo white on hover */
+}
+
+.footer-columns-container {
+  display: flex;
+  flex: 0 0 70%; /* Allocate space for the remaining columns */
+  justify-content: space-between; /* Space columns evenly */
+}
+
+.footer-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1; /* Allow each column to grow equally */
+  padding: 0 15px; /* This adds padding on both sides of each column */
+}
+
+.footer-columns-container .footer-column:nth-child(1),
+.footer-columns-container .footer-column:nth-child(2) {
+  margin-right: 20px; /* Adjust the value to get the desired spacing */
+}
+
+/* Remove the right margin from the last column */
+.footer-columns-container .footer-column:nth-child(3) {
+  margin-right: 0;
+}
+
+.footer-column:last-child {
+  padding-right: 0;
+}
+
+.footer-link {
+  display: block; /* Links on their own line */
+  color: inherit; /* Inherits grey text color */
+  margin-bottom: 0.5rem; /* Space between links */
+}
+
 .contact-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end; /* Align text to the right */
-  margin-top: 20px; /* Push down contact info to align with phone number */
-}
-
-.contact-info p {
-  color: #fff;
-  text-decoration: none;
-  text-align: right; /* Right align */
-  margin-bottom: 5px; /* Space between phone and email */
-}
-
-@media (max-width: 767px) {
-  .footer-section .container {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .footer-left,
-  .footer-right {
-    max-width: 100%;
-    flex-basis: 100%;
-    text-align: center;
-    align-items: center;
-  }
-
-  .footer-policy,
-  .contact-info {
-    align-items: center;
-    margin-top: 10px; /* Adjust as needed for mobile view */
-  }
+  color: inherit; /* Inherits grey text color */
+  margin-bottom: 0.5rem; /* Space between contact info */
 }
 
 /* Adjustments for smaller screens */

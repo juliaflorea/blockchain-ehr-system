@@ -304,7 +304,7 @@ function viewDoctorInfo() {
     .call({ from: key })
     .then(function (doctorDetails) {
       var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
-      var yearsOfExperience = doctorDetails[2]; // Adjust based on your data structure
+     
 
       if (!ipfsHash) {
         document.getElementById("doctorInfoDisplay").innerHTML =
@@ -319,6 +319,9 @@ function viewDoctorInfo() {
         var gender = lines.find((line) => line.includes("Gender:"));
         var contact = lines.find((line) => line.includes("Contact:"));
         var specialty = lines.find((line) => line.includes("Specialty:"));
+        var yearsOfExperienceLine = lines.find(line => line.startsWith('Years of Experience:'));
+        var yearsOfExperience = yearsOfExperienceLine.split(':')[1].trim();
+      
 
         // Constructing the display content with new lines after each field
         var content = `
@@ -549,9 +552,9 @@ function displaySentAppointmentRequest(id, appointment, status) {
     var appointmentDate = "Invalid Date";
     var appointmentTime = "Invalid Time";
   }
-  $("<td>").text(doctorName).appendTo(row);
-  $("<td>").text(appointmentDate).appendTo(row);
-  $("<td>").text(appointmentTime).appendTo(row);
+  $("<td>", { class: 'doctorName' }).text(doctorName).appendTo(row);
+  $("<td>", { class: 'appointmentDate' }).text(appointmentDate).appendTo(row);
+  $("<td>", { class: 'appointmentTime' }).text(appointmentTime).appendTo(row);
   //$('<td>').text(status).appendTo(row);
   var statusCell = $("<td>").text(status).appendTo(row);
   if (status === "accepted") {
@@ -564,7 +567,7 @@ function displaySentAppointmentRequest(id, appointment, status) {
     statusCell.addClass("unknown-status"); // Handle unknown status
   }
 
-  $("#sentAppointmentRequests").append(row);
+  $("#sentAppointmentRequests tbody").append(row);
 }
 
 function fetchFromIPFS(ipfsHash, callback) {
@@ -856,7 +859,11 @@ $(document).ready(function () {
     // Pass the button itself and the proxy address
     revokeProxyAccess(proxyAddress);
   });
+
+
+  
 });
+
 
 function revokeProxyAccess() {
   web3.eth.getAccounts().then((accounts) => {

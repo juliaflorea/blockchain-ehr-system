@@ -1,146 +1,184 @@
 /* Global Styles */
 body {
-    font-family: 'Arial', sans-serif;
-    background-color: #f8f9fa; /* Light gray background */
+  font-family: "Arial", sans-serif;
+  background-color: #f8f9fa; /* Light gray background */
 }
 
-.container {
-    margin-top: 20px;
+#page-content-wrapper {
+  display: flex; /* Enables flexbox */
+  flex-direction: column;
+  justify-content: center; /* Centers horizontally */
+  align-items: center; /* Centers vertically */
+  min-height: 100vh; /* Full height minus navbar height, adjust as needed */
+  padding: 1rem;
+  flex-grow: 1;
 }
 
-/* Navigation Styles */
-.navbar {
-    background-color: #392467; /* Dark purple/navy blue background */
-    border: none;
-}
-
-.navbar-brand {
-    color: #ffffff; /* White text */
-}
-
-.navbar-brand:hover,
-.navbar-brand:focus {
-    color: #ffffff; /* White text on hover/focus */
-}
-
-.navbar-nav li a {
-    color: #ffffff; /* White text */
-}
-
-.navbar-nav li a:hover,
-.navbar-nav li a:focus {
-    color: #ffffff; /* White text on hover/focus */
+.container-fluid {
+  flex-grow: 1; /* Takes up the available space */
+  max-width: none; /* Remove max-width restriction */
+  padding: 2rem; /* Add some padding */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  height: calc(100vh - 56px);
 }
 
 /* Panel Styles */
 .panel-heading {
-    background-color: #392467; /* Dark purple/navy blue background */
-    color: #ffffff; /* White text */
-    border: none;
+  margin: 1rem 0; /* Add margin top and bottom */
+  width: 100%; /* Full width panels */
+  max-width: 1000px;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e3e6f0; /* Subtle border for heading */
+  background-color: #392467; /* A nice shade of blue for heading background */
+  color: #fff; /* White text color */
+  border-top-left-radius: 0.35rem; /* Rounded top corners */
+  border-top-right-radius: 0.35rem; /* Rounded top corners */
+}
+
+.form-group .form-control,
+.form-group .btn {
+  max-width: 100%; /* Full width form elements */
 }
 
 .panel {
-    border-radius: 0;
-    border: 1px solid #d3d3d3; /* Light gray border */
+  background-color: #fff; /* Light background for the content */
+  border: none; /* Remove border */
+  border-radius: 10px; /* Rounded corners for the panel */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Soft shadow */
+  margin: 2rem auto; /* Center the panel with margin */
+  width: 80%; /* Adjust the width */
+  display: none;
 }
 
 .panel-body {
-    padding: 20px;
+  padding: 2rem; /* More padding inside the panel body for spacing */
+  color: #5a5c69; /* Dark grey color for text for better readability */
+}
+
+#personalInfoPanel {
+  display: block; /* Show the personal info panel by default */
 }
 
 /* Form Styles */
 .form-group {
-    margin-bottom: 15px;
+  margin-bottom: 15px;
 }
 
 .form-control {
-    width: 100%;
+  width: 100%;
 }
 
-/* Button Styles */
-.btn-primary {
-    background-color: #392467; /* Dark purple/navy blue background */
-    border-color: #392467; /* Dark purple/navy blue border */
+.btn-primary,
+.btn-info {
+  background-color: #5e72e4; /* Primary button color to match the theme */
+  border-color: #5e72e4; /* Border color to match the button */
+  border-radius: 20px; /* Rounded borders */
+  padding: 10px 25px; /* Padding for the buttons */
+  font-size: 1rem; /* Font size for the buttons */
+  color: #fff; /* White text color */
+  text-transform: uppercase; /* Uppercase text */
+  font-weight: bold; /* Bold font weight */
+  letter-spacing: 1px; /* Space between letters */
 }
 
 .btn-primary:hover,
-.btn-primary:focus {
-    background-color: #261b3d; /* Darker purple/navy blue background on hover/focus */
-    border-color: #261b3d; /* Darker purple/navy blue border on hover/focus */
-    color: #ffffff; /* White text on hover/focus */
+.btn-info:hover {
+  background-color: #324cdd; /* Darker shade on hover */
+  border-color: #324cdd; /* Darker border on hover */
 }
 
 /* Table Styles */
 .table th,
 .table td {
-    text-align: center;
+  padding: 0.75rem; /* More padding for table cells */
+  vertical-align: middle; /* Align items in the middle vertically */
+  border-top: 1px solid #e3e6f0; /* Subtle top border for table rows */
+}
+
+.table th {
+  color: #392467; /* Dark text to match the theme */
+  padding: 12px 15px;
 }
 
 /* Alert Styles */
 .alert {
-    border: 1px solid #ced4da; /* Light gray border */
+  border: 1px solid #ced4da; /* Light gray border */
 }
 
-/* View Medical Records Button Styles */
 .btn-info {
-    background-color: #5bc0de; /* Light blue background */
-    border-color: #5bc0de; /* Light blue border */
+  display: block; /* Ensure the button is a block element */
+  width: 50%; /* Set a width */
+  margin: 1rem auto; /* Center the button */
 }
 
 .btn-info:hover,
 .btn-info:focus {
-    background-color: #31b0d5; /* Darker light blue background on hover/focus */
-    border-color: #31b0d5; /* Darker light blue border on hover/focus */
+  background-color: #324cdd; /* Darker light blue background on hover/focus */
+  border-color: #324cdd; /* Darker light blue border on hover/focus */
 }
 
 /* Error Alert Styles */
 .alert-danger {
-    background-color: #d9534f; /* Red background for error alerts */
-    color: #ffffff; /* White text */
+  background-color: #d9534f; /* Red background for error alerts */
+  color: #ffffff; /* White text */
 }
 
 /* Revoke Access Button Styles */
 .btn-danger {
-    background-color: #d9534f; /* Red background */
-    border-color: #d9534f; /* Red border */
+  background-color: #d9534f; /* Red background */
+  border-color: #d9534f; /* Red border */
 }
 
 .btn-danger:hover,
 .btn-danger:focus {
-    background-color: #c9302c; /* Darker red background on hover/focus */
-    border-color: #c9302c; /* Darker red border on hover/focus */
+  background-color: #c9302c; /* Darker red background on hover/focus */
+  border-color: #c9302c; /* Darker red border on hover/focus */
 }
 
 /* Info Alert Styles */
 .alert-info {
-    background-color: #5bc0de; /* Light blue background for info alerts */
-    color: #ffffff; /* White text */
+  background-color: #5bc0de; /* Light blue background for info alerts */
+  color: #ffffff; /* White text */
 }
 
 #records {
-    max-height: 200px; /* or any other value that fits your design */
-    overflow-y: auto; /* creates a scrollbar if content overflows */
-  }
-  
-  /* Notifications styling */
-#notificationsPanel {
-    background: #f7f7f7;
-    padding: 15px;
-    border-radius: 4px;
+  background-color: #e9ecef; /* Light background for records */
+  padding: 1rem; /* Padding around records text */
+  border-radius: 5px; /* Rounded corners for records */
+  margin-top: 1rem; /* Margin above the records for spacing */
+  text-align: center; /* Center align records text */
+  font-family: "Courier New", monospace; /* Monospace font for records to mimic typewritten text */
 }
 
-.alert {
-    padding: 10px;
-    margin-bottom: 10px;
-    border-radius: 4px;
+#recordsHash a {
+  color: #5e72e4; /* Color to match theme */
+  text-decoration: underline; /* Underline the link */
 }
 
-.alert-success {
-    background-color: #dff0d8;
-    color: #3c763d;
+#recordsHash a:hover,
+#recordsHash a:focus {
+  color: #324cdd; /* Darker shade when hovered/focused */
 }
 
-.alert-danger {
-    background-color: #f2dede;
-    color: #a94442;
-    }
+#records::-webkit-scrollbar {
+  width: 8px;
+}
+
+#records::-webkit-scrollbar-thumb {
+  background: #5e72e4; /* Scrollbar color to match theme */
+  border-radius: 10px;
+}
+
+.appointment-container {
+  width: 100%; /* Adjust the width as needed */
+}
+
+/* Adjust the panel width to be similar to the share record panels */
+#appointmentPanel, #sentAppointmentRequests {
+  width: 80%; /* Match the width to share record panels, or adjust as needed */
+  margin: 0 auto; /* Center the panels */
+  display: block; /* Ensure the panels are displayed */
+}

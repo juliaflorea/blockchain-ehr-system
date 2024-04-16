@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2023.3.1114/styles/kendo.default-v2.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <link rel="stylesheet" href="/css/index.css">
+    <link rel="stylesheet" href="/css/navbar.css">
 
 </head>
 
@@ -67,10 +68,14 @@
         <div class="container">
             <div class="row">
                 <div class="col-lg-6">
-                    <h1>Electronical Medical Record System</h1>
-                    <p>MediVault is a secure blockchain-based platform for storage of highly sensitive and critical data
-                        related to patients that is shared among multiple facilities and agencies for effective
-                        diagnosis and treatment.</p>
+                    <h1>Electronical Medical Records System</h1>
+                    <p>A robust and decentralized healthcare platform, leverages blockchain technology to ensure the
+                        secure and private management of electronic medical records. This system facilitates seamless
+                        sharing of critical patient data across various healthcare providers, enhancing coordination and
+                        improving outcomes in patient care. By integrating advanced security measures, MediVault offers
+                        a trustworthy environment for storing and accessing sensitive healthcare information, enabling
+                        more efficient and accurate diagnoses and treatments.</p>
+
                     <!-- Kendo UI Button -->
                     <button id="signupButton" class="k-button k-primary">Sign Up Now!</button>
                 </div>
@@ -100,15 +105,13 @@
                 <div class="row services-content">
                     <div class="col-lg-8 services-text">
                         <h2>Services</h2>
-                        <p>
-                            The MediLedger network prioritizes industry alignment, accuracy, privacy, and
-                            decentralization.
-                            Network member trading partners find a unified view of transaction-related data,
-                            automatically
-                            enforced accuracy, control over private data, and a decentralized network that allows for
-                            direct
-                            transacting with no intermediary. MediLedger modules include:
+                        <p>The platform emphasizes precision, confidentiality, and decentralization in healthcare data
+                            management. Our network allows healthcare providers to seamlessly access and share critical
+                            patient information, ensuring data accuracy and privacy with blockchain's inherent security
+                            features. The decentralized architecture of the application eliminates the need for
+                            intermediaries, fostering direct and secure exchanges of medical data. Key features include:
                         </p>
+
                     </div>
                     <div class="services-image">
                         <!-- Image goes here -->
@@ -118,34 +121,35 @@
                         <!-- Service 1 -->
                         <div class="col-md-3 service-item" style="position: relative;">
                             <i class="fa-solid fa-file-medical service-icon"></i>
-                            <h3>Maintaining and Storing Medical Records</h3>
-                            <p>Automatically validate rosters against industry data before trading partners receive
-                                them.
+                            <h3>Secure Medical Record Storage</h3>
+                            <p>Securely store and manage electronic medical records with blockchain technology ensuring
+                                data integrity and accessibility.
                             </p>
                             <hr class="services-divider">
                         </div>
                         <!-- Service 2 -->
                         <div class="col-md-3 service-item" style="position: relative;">
                             <i class="fa-solid fa-user-doctor service-icon"></i>
-                            <h3>Contract Communication</h3>
-                            <p>Receive pricing, product, customer and other contract updates in real-time.</p>
+                            <h3>Share Patient Data With Doctors </h3>
+                            <p>Seamlessly share patient data with doctors and receive critical insights including
+                                diagnoses and treatment plans.</p>
                             <hr class="services-divider">
                         </div>
                         <!-- Service 3 -->
                         <div class="col-md-3 service-item" style="position: relative;">
                             <i class="fa-solid fa-stethoscope service-icon"></i>
-                            <h3>Claim Adjudication</h3>
-                            <p>Automatically enforce accuracy and adjudicate chargebacks right inside a wholesaler's
-                                system.
+                            <h3>Quick Disease Prediction</h3>
+                            <p>Leverage advanced analytics to predict potential diseases and conditions before
+                                consultation.
                             </p>
                             <hr class="services-divider">
                         </div>
                         <!-- Service 4 -->
                         <div class="col-md-3 service-item" style="position: relative;">
                             <i class="fa-solid fa-users-viewfinder service-icon"></i>
-                            <h3>Claim Adjudication</h3>
-                            <p>Automatically enforce accuracy and adjudicate chargebacks right inside a wholesaler's
-                                system.
+                            <h3>Proxy Access Management</h3>
+                            <p>Empower patients to designate proxies who can securely access their data when they cannot
+                                make decisions themselves.
                             </p>
 
                         </div>
@@ -160,33 +164,40 @@
         <!-- Footer Section -->
         <footer class="footer-section" id="contact">
             <div class="container">
-                <div class="row ">
-                    <div class="col-lg-8 footer-left">
-                        <a href="index.html" class="footer-logo">
-                            <i class="fas fa-notes-medical"></i> Electronic Medical Records
-                        </a>
-                        <div class="footer-copyright">
-                            <p>© Copyright 2024 EMR, Inc.</p>
-                        </div>
-                        <div class="footer-address">
-                            <p>116 Natoma St, 2nd Floor, New York, 94105</p>
-                        </div>
-                    </div>
-                    <div class="col-lg-6 footer-right">
-                        <div class="footer-policy">
-                            <a href="#">Privacy Policy</a> ·
-                            <a href="#">Terms & Conditions</a> ·
-                            <a href="#">License Information</a>
-                        </div>
-                        <div class="contact-info">
-                            <p>Phone: 0712345600</p>
-                            <p>Email: electronicalmedicalrecords@gmail.com </p>
-                        </div>
-                    </div>
+
+                <!-- Logo and Icon, placed on the left top part -->
+                <div class="footer-logo-column">
+                    <a href="index.html" class="footer-logo">
+                        <i class="fas fa-notes-medical"></i>
+                        <span>Electronic Medical Records</span>
+                    </a>
                 </div>
+
+                <!-- Footer Columns Under Logo -->
+                <div class="footer-columns-container">
+
+                    <!-- First Column: Copyright and Address -->
+                    <div class="footer-column">
+                        <p class="copyright-info">© Copyright 2024 EMR, Inc.</p>
+                        <p class="address-info">116 Natoma St, 2nd Floor, New York, 94105</p>
+                    </div>
+
+                    <!-- Second Column: Links -->
+                    <div class="footer-column">
+                        <a href="#" class="footer-link">Privacy Policy</a>
+                        <a href="#" class="footer-link">Terms & Conditions</a>
+                        <a href="#" class="footer-link">License Information</a>
+                    </div>
+
+                    <!-- Third Column: Contact Info -->
+                    <div class="footer-column">
+                        <p class="contact-info">Phone: 0712345600</p>
+                        <p class="contact-info">Email: electronicalmedicalrecords@gmail.com</p>
+                    </div>
+
+                </div>
+            </div>
         </footer>
-
-
 
 
 
