@@ -242,6 +242,20 @@ contract MedicalRecords {
             patientInfo[patientAddress].proxyAddress == msg.sender,
             "Caller is not the proxy for this patient"
         );
+        bool isAlreadyGranted = false;
+        for (
+            uint i = 0;
+            i < patientInfo[patientAddress].doctorAccessList.length;
+            i++
+        ) {
+            if (
+                patientInfo[patientAddress].doctorAccessList[i] == doctorAddress
+            ) {
+                isAlreadyGranted = true;
+                break;
+            }
+        }
+        require(!isAlreadyGranted, "Access already granted to this doctor.");
         creditPool += 2;
 
         patientInfo[patientAddress].doctorAccessList.push(doctorAddress);
@@ -442,8 +456,9 @@ contract MedicalRecords {
             patientInfo[patientAddress].proxyAddress == msg.sender,
             "Caller is not the proxy for this patient"
         );
+
         remove_patient(patientAddress, doctorAddress);
-         msg.sender.transfer(2 ether);
+        msg.sender.transfer(2 ether);
         creditPool -= 2;
     }
 
@@ -561,6 +576,54 @@ contract MedicalRecords {
         patientAppointments[msg.sender].push(appointmentId);
     }
 
+    function requestAppointmentByProxy(
+        address _doctor,
+        address _patient,
+        string memory _appointmentIPFSHash,
+        uint256 _appointmentDate,
+        uint8 _appointmentHour
+    ) public {
+        // Ensure the caller is the designated proxy for the patient
+        require(
+            patientInfo[_patient].proxyAddress == msg.sender,
+            "Caller is not the proxy for this patient"
+        );
+
+        // Ensure the doctor has access to the patient's medical records
+        bool accessGranted = false;
+        for (uint i = 0; i < patientInfo[_patient].doctorAccessList.length; i++) {
+            if (patientInfo[_patient].doctorAccessList[i] == _doctor) {
+                accessGranted = true;
+                break;
+            }
+        }
+        require(accessGranted, "Doctor does not have access to the patient's records.");
+
+        // Check the doctor's availability
+        require(
+            isTimeSlotAvailable(_doctor, _appointmentDate, _appointmentHour),
+            "Requested time slot is not available."
+        );
+
+        // Create the appointment
+        uint appointmentId = nextAppointmentId++;
+        appointments[appointmentId] = Appointment({
+            ipfsHash: _appointmentIPFSHash,
+            isAccepted: false,
+            patientAddress: _patient,
+            doctorAddress: _doctor,
+            date: _appointmentDate,
+            hour: _appointmentHour,
+            diagnosisSubmitted: false,
+            treatmentPlanSubmitted: false
+        });
+
+        // Add the appointment ID to the patient's and doctor's lists
+        patientAppointments[_patient].push(appointmentId);
+        doctorAppointments[_doctor].push(appointmentId);
+    }
+
+
     function getDoctorAppointments(
         address doctorAddress
     ) public view returns (uint[] memory) {
@@ -613,6 +676,8 @@ contract MedicalRecords {
         );
         doctorAvailability[_doctor][_date][_hour] = _isAvailable;
     }
+
+   
 
     function isTimeSlotAvailable(
         address _doctor,
