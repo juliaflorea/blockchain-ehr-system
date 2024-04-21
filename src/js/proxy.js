@@ -477,6 +477,7 @@ function revokeAccessByProxy(element) {
     });
 }
 
+
 function scheduleAppointmentByProxy() {
   const doctorId = $("#doctorSelect").val();
   const appointmentDate = $("#appointmentDate").val().replace(/-/g, "");
@@ -498,67 +499,80 @@ function scheduleAppointmentByProxy() {
     .then((proxyDetails) => {
       const patientAddress = proxyDetails.patientAddress;
 
-      // Check if the selected doctor has access
-      contractInstance.methods.get_accessed_doctorlist_for_patient(patientAddress).call()
-      .then(doctorList => {
-        const doctorHasAccess = doctorList.includes(doctorId);
+      // Fetch patient details
+      contractInstance.methods.get_patient(patientAddress).call()
+      .then((patientResult) => {
+          const patientFirstName = patientResult[0];
+          const patientLastName = patientResult[1];
 
-        if (!doctorHasAccess) {
-          alert("This doctor does not have access to the patient's records. Please grant access before scheduling an appointment.");
-          return;
-        }
+          // Check if the selected doctor has access
+          contractInstance.methods.get_accessed_doctorlist_for_patient(patientAddress).call()
+          .then(doctorList => {
+            const doctorHasAccess = doctorList.includes(doctorId);
 
-        // If doctor has access, proceed with IPFS and transaction
-        const fhirAppointmentResource = {
-          resourceType: "Appointment",
-          status: "pending",
-          start: `${appointmentDate}T${paddedHour}:${paddedMinute}:00Z`,
-          participant: [
-            {
-              actor: { reference: `Patient/${patientAddress}` },
-              status: "needs-action"
-            },
-            {
-              actor: { reference: `Practitioner/${doctorId}` },
-              status: "needs-action"
+            if (!doctorHasAccess) {
+              alert("This doctor does not have access to the patient's records. Please grant access before scheduling an appointment.");
+              return;
             }
-          ]
-        };
 
-        const ipfs = window.IpfsApi("localhost", "5001");
-        const buffer = ipfs.Buffer.from(JSON.stringify(fhirAppointmentResource));
+            // If doctor has access, proceed with IPFS and transaction
+            const fhirAppointmentResource = {
+              resourceType: "Appointment",
+              status: "pending",
+              start: `${appointmentDate}T${paddedHour}:${paddedMinute}:00Z`,
+              participant: [
+                {
+                  actor: {
+                    reference: `Patient/${patientAddress}`,
+                    display: `${patientFirstName} ${patientLastName}`
+                  },
+                  status: "needs-action"
+                },
+                {
+                  actor: { reference: `Practitioner/${doctorId}` },
+                  status: "needs-action"
+                }
+              ]
+            };
 
-        ipfs.files.add(buffer, (error, result) => {
-          if (error) {
-            console.error("Error uploading to IPFS:", error);
-            alert("Failed to store appointment details on IPFS.");
-            return;
-          }
-          
-          const ipfsHash = result[0].hash;
+            const ipfs = window.IpfsApi("localhost", "5001");
+            const buffer = ipfs.Buffer.from(JSON.stringify(fhirAppointmentResource));
 
-          // Send the IPFS hash and other appointment details to the smart contract
-          contractInstance.methods
-              .requestAppointmentByProxy(
-                  doctorId,
-                  patientAddress,
-                  ipfsHash,
-                  dateAsNumber,
-                  parseInt(paddedHour)
-              )
-              .send({ from: fromAddress, gas: 1000000 })
-              .then(res => {
-                  console.log("Appointment request sent. Transaction:", res);
-                  alert("Appointment request sent successfully!");
-              })
-              .catch(err => {
-                  console.error("Error sending to blockchain:", err.message || err);
-                  alert("Failed to schedule appointment.");
-              });
-        });
+            ipfs.files.add(buffer, (error, result) => {
+              if (error) {
+                console.error("Error uploading to IPFS:", error);
+                alert("Failed to store appointment details on IPFS.");
+                return;
+              }
+
+              const ipfsHash = result[0].hash;
+
+              // Send the IPFS hash and other appointment details to the smart contract
+              contractInstance.methods
+                  .requestAppointmentByProxy(
+                      doctorId,
+                      patientAddress,
+                      ipfsHash,
+                      dateAsNumber,
+                      parseInt(paddedHour)
+                  )
+                  .send({ from: fromAddress, gas: 1000000 })
+                  .then(res => {
+                      console.log("Appointment request sent. Transaction:", res);
+                      alert("Appointment request sent successfully!");
+                  })
+                  .catch(err => {
+                      console.error("Error sending to blockchain:", err.message || err);
+                      alert("Failed to schedule appointment.");
+                  });
+            });
+          })
+          .catch(err => {
+            console.error("Error checking doctor's access:", err.message || err);
+          });
       })
       .catch(err => {
-        console.error("Error checking doctor's access:", err.message || err);
+        console.error("Error retrieving patient details:", err.message || err);
       });
     })
     .catch(err => {

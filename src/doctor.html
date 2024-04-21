@@ -17,6 +17,9 @@
     <link rel="stylesheet" href="/css/doctor.css">
     <link rel="stylesheet" href="/css/common.css">
     <script type="text/javascript" src="https://cdn.emailjs.com/sdk/2.3.2/email.min.js"></script>
+    <link href='https://unpkg.com/fullcalendar@5/main.min.css' rel='stylesheet' />
+    <script src='https://unpkg.com/fullcalendar@5/main.min.js'></script>
+
 
 
 </head>
@@ -38,6 +41,9 @@
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="appointmentRequestsPanel"><i class="fas fa-briefcase-medical"></i>Appointment
                     Requests</a>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i>Appointment
+                    Calendar</a>
 
 
 
@@ -135,6 +141,16 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="panel panel-default" id="appointmentCalendarPanel" style="display:none;">
+                    <div class="panel-heading">
+                        <h3 class="text-center">Appointment Calendar</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="calendar"></div>
+                    </div>
+                </div>
+                
             </div>
         </div>
         <!-- /#page-content-wrapper -->

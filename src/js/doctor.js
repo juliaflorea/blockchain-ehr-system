@@ -848,3 +848,4 @@ function notifyPatient(appointmentId, status) {
         });
     });
 }
+
