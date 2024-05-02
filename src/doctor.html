@@ -42,7 +42,7 @@
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="accessibleEMRPanel"><i class="fas fa-user-injured"></i> Patients</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="appointmentRequestsPanel"><i class="fas fa-briefcase-medical"></i>Appointment
+                    data-target="appointmentRequestsPanel appointmentHistoryPanel"><i class="fas fa-briefcase-medical"></i>Appointment
                     Requests</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i>Appointment
@@ -144,6 +144,24 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="panel panel-default" id="appointmentHistoryPanel">
+                    <div class="panel-heading">
+                        <h3 class="text-center">Appointment History</h3>
+                    </div>
+                    <div class="panel-body">
+                        <table id="appointmentHistory" class="table table-hover">
+                            <tr>
+                                <th>Patient</th>
+                                <th>Appointment Date</th>
+                                <th>Appointment Time</th>
+                                <th>Status</th>
+                            </tr>
+                            <!-- Appointment history will be populated here dynamically -->
+                        </table>
+                    </div>
+                </div>
+                
 
                 <div class="panel panel-default" id="appointmentCalendarPanel" style="display:none;">
                     <div class="panel-heading">

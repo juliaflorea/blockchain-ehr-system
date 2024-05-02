@@ -74,6 +74,7 @@ $(window).on("load", function () {
       });
   });
   loadAppointmentRequests();
+  loadAppointmentHistory();
 });
 
 function showRecords(element) {
@@ -656,6 +657,81 @@ function displayAppointmentRequest(id, appointment) {
   $("#appointmentRequests").append(row);
 }
 
+function loadAppointmentHistory() {
+  web3.eth.getAccounts().then(function (accounts) {
+    const doctorAddress = accounts[0]; // Assuming the doctor is logged in
+
+    // Fetching appointment IDs associated with the doctor
+    contractInstance.methods
+      .getDoctorAppointments(doctorAddress)
+      .call({ from: doctorAddress })
+      .then(function (appointmentIds) {
+        appointmentIds.forEach(function (id) {
+          // Fetching each appointment from the blockchain
+          contractInstance.methods
+            .appointments(id)
+            .call()
+            .then(function (appointment) {
+              // Optionally, fetch additional details from IPFS
+              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                const status = appointment.isAccepted
+                  ? "accepted"
+                  : appointment.isRejected
+                  ? "rejected"
+                  : "pending";
+                  displayAppointmentHistory(id, appointmentData, status);
+              });
+            });
+        });
+      })
+      .catch(function (error) {
+        console.error("Error loading doctor appointment requests:", error);
+      });
+  });
+}
+
+function displayAppointmentHistory(id, appointment, status) {
+  var row = $("<tr>");
+
+  var patientInfo = appointment.participant.find((p) =>
+    p.actor.reference.startsWith("Patient")
+  );
+  var patientName = patientInfo ? patientInfo.actor.display : "Unknown";
+
+  var match = appointment.start.match(
+    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+  );
+
+  if (match) {
+    var date = new Date(
+      Date.UTC(
+        parseInt(match[1], 10),
+        parseInt(match[2], 10) - 1,
+        parseInt(match[3], 10),
+        parseInt(match[4], 10),
+        parseInt(match[5], 10),
+        parseInt(match[6], 10)
+      )
+    );
+
+    var appointmentDate = date.toISOString().substring(0, 10);
+    var appointmentTime = date.toISOString().substring(11, 16);
+  } else {
+    var appointmentDate = "Invalid Date";
+    var appointmentTime = "Invalid Time";
+  }
+
+  $("<td>").text(patientName).appendTo(row);
+  $("<td>").text(appointmentDate).appendTo(row);
+  $("<td>").text(appointmentTime).appendTo(row);
+  $("<td>")
+    .text(status)
+    .addClass(status.toLowerCase() + "-status")
+    .appendTo(row);
+
+  $("#appointmentHistory tbody").append(row); // Ensure you have a table with id="appointmentHistory"
+}
+
 function fetchFromIPFS(ipfsHash, callback) {
   $.get("http://localhost:8080/ipfs/" + ipfsHash)
     .done(function (data) {
@@ -667,7 +743,6 @@ function fetchFromIPFS(ipfsHash, callback) {
       console.error("Failed to fetch data from IPFS.");
     });
 }
-
 
 function acceptAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {
@@ -888,7 +963,3 @@ function notifyPatient(appointmentId, status) {
         });
     });
 }
-
-
-
-
