@@ -182,3 +182,19 @@ body {
   margin: 0 auto; /* Center the panels */
   display: block; /* Ensure the panels are displayed */
 }
+
+#symptomsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+#symptomsContainer div {
+  margin-right: 15px;
+  margin-bottom: 10px;
+}
+
+label {
+  margin-left: 5px;
+}

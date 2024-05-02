@@ -636,18 +636,44 @@ contract MedicalRecords {
         return patientAppointments[patientAddress];
     }
 
-    function acceptAppointment(uint _appointmentId) public {
-        Appointment storage appointment = appointments[_appointmentId];
+    // function acceptAppointment(uint _appointmentId) public {
+    //     Appointment storage appointment = appointments[_appointmentId];
 
-        require(
-            appointments[_appointmentId].isAccepted == false,
-            "Appointment is already processed"
-        );
-        appointments[_appointmentId].isAccepted = true;
-        doctorAvailability[appointment.doctorAddress][appointment.date][
-            appointment.hour
-        ] = true;
+    //     require(
+    //         appointments[_appointmentId].isAccepted == false,
+    //         "Appointment is already processed"
+    //     );
+    //     appointments[_appointmentId].isAccepted = true;
+    //     doctorAvailability[appointment.doctorAddress][appointment.date][
+    //         appointment.hour
+    //     ] = true;
+    // }
+
+    function acceptAppointment(uint _appointmentId) public {
+    Appointment storage appointment = appointments[_appointmentId];
+
+    require(
+        appointment.isAccepted == false,
+        "Appointment is already processed"
+    );
+
+    // Check if there is any accepted appointment at the same date and time
+    uint[] memory docAppointments = doctorAppointments[appointment.doctorAddress];
+    for (uint i = 0; i < docAppointments.length; i++) {
+        Appointment storage otherAppointment = appointments[docAppointments[i]];
+        if (otherAppointment.date == appointment.date &&
+            otherAppointment.hour == appointment.hour &&
+            otherAppointment.isAccepted) {
+            revert("Another appointment is already booked for this time slot.");
+        }
     }
+
+    // If no conflict, set the appointment as accepted
+    appointment.isAccepted = true;
+    // Optionally mark the time slot as unavailable (if not already done)
+    doctorAvailability[appointment.doctorAddress][appointment.date][appointment.hour] = true;
+}
+
 
     function rejectAppointment(uint _appointmentId) public {
         Appointment storage appointment = appointments[_appointmentId];

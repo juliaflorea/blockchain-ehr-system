@@ -42,6 +42,8 @@
                         class="fas fa-briefcase-medical"></i>Schedule an Appointment</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="diagnosisPanel"><i class="fas fa-allergies"></i> Quick Diagnosis Prediction</a>
                 <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
                         class="fas fa-history"></i> Medical History</a> -->
                 <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
@@ -59,7 +61,8 @@
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="designateProxyPanel"><i class="fas fa-user-plus"></i> Designate Proxy</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="currentProxyPanel formerProxySection"><i class="fas fa-user-shield"></i> Current Proxy</a>
+                    data-target="currentProxyPanel formerProxySection"><i class="fas fa-user-shield"></i> Current
+                    Proxy</a>
 
             </div>
         </div>
@@ -74,7 +77,7 @@
 
             <div class="container-fluid">
 
-         
+
 
                 <div class="panel panel-default" id="personalInfoPanel">
                     <div class="panel-heading">
@@ -428,7 +431,24 @@
 
                     </div>
                 </div>
+                <div class="panel panel-default" id="diagnosisPanel">
+                    <div class="panel-heading">
+                        <h3 class="text-center">Diagnosis Prediction</h3>
+                    </div>
+                    <div class="panel-body">
+                        <form id="diagnosisForm" class="form-horizontal">
+                            <!-- Symptoms will be loaded here dynamically -->
+                            <div id="symptomsContainer"></div>
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary">Predict Diagnosis</button>
+                            </div>
+                        </form>
+                        <div id="predictionResult" class="alert alert-info" style="margin-top: 20px;"></div>
+                        <button type="button" id="resetButton" class="btn btn-secondary">Reset Symptoms</button>
 
+                    </div>
+                </div>
+                
 
 
 

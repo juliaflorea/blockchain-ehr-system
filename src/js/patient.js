@@ -125,6 +125,7 @@ $(window).on("load", function () {
 
   displayProxiesWithAccess();
   displayFormerProxies();
+  fetchSymptoms();
 });
 
 function showRecords(element) {
@@ -1058,3 +1059,128 @@ function addPatientAllergy() {
       });
   });
 }
+
+// Function to fetch symptoms from the Flask API
+function fetchSymptoms() {
+  fetch('https://0bd9bf90-247c-40e9-adff-c9f302d7a747-00-3g8iecfpf4ugs.picard.replit.dev/symptoms')
+  .then(response => {
+      if (!response.ok) {
+          throw new Error('Network response was not ok');
+      }
+      return response.json();
+  })
+  .then(data => {
+      console.log(data);
+      displaySymptoms(data.symptoms);
+  })
+  .catch(error => {
+      console.error('Error fetching symptoms:', error);
+  });
+}
+
+function displaySymptoms(symptoms) {
+  const container = document.getElementById('symptomsContainer');
+  container.innerHTML = ''; // Clear previous contents
+
+  symptoms.forEach(symptom => {
+      const cleanName = cleanSymptomName(symptom);
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'symptoms[]';
+      checkbox.value = symptom;
+      checkbox.id = symptom;
+
+      const label = document.createElement('label');
+      label.htmlFor = symptom;
+      label.textContent = cleanName;
+
+      const div = document.createElement('div');
+      div.appendChild(checkbox);
+      div.appendChild(label);
+
+      container.appendChild(div);
+  });
+}
+
+
+
+
+// Function to send selected symptoms to the Flask API for diagnosis prediction
+document.getElementById('diagnosisForm').addEventListener('submit', function(event) {
+  event.preventDefault(); // Prevent the form from submitting traditionally
+
+  // Collect checked symptoms
+  const symptomsData = {};
+  document.querySelectorAll('[name="symptoms[]"]:checked').forEach(checkbox => {
+      symptomsData[checkbox.value] = 1; // Assuming your model expects '1' for present symptoms
+  });
+
+  // Send the symptoms data to your predict endpoint
+  predictDiagnosis(symptomsData);
+});
+
+function predictDiagnosis(symptoms) {
+  fetch('https://0bd9bf90-247c-40e9-adff-c9f302d7a747-00-3g8iecfpf4ugs.picard.replit.dev/predict', {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(symptoms)
+  })
+  .then(response => {
+      if (!response.ok) {
+          throw new Error('Network response was not ok');
+      }
+      return response.json();
+  })
+  .then(data => {
+      console.log('Prediction:', data);
+      displayPredictionResult(data.prediction);
+  })
+  .catch(error => {
+      console.error('Error predicting the diagnosis:', error);
+      displayPredictionResult(`Error: ${error.message}`);
+  });
+}
+
+function displayPredictionResult(result) {
+  const resultContainer = document.getElementById('predictionResult');
+  resultContainer.innerHTML = result;
+  resultContainer.style.display = 'block'; // Make sure to display the result section if it was hidden
+}
+
+
+// Example usage (ensure these are called appropriately within your app's logic)
+document.addEventListener('DOMContentLoaded', function () {
+  // Fetch symptoms when the document is ready (this could be tied to a specific event or page load)
+  fetchSymptoms();
+});
+
+// You might call predictDiagnosis() based on specific user actions, such as form submission
+function cleanSymptomName(symptom) {
+  // This regex removes any dot followed by numbers at the end of the symptom names
+  return symptom.replace(/\.\d+$/, '');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const resetButton = document.getElementById('resetButton');
+  if (resetButton) {
+      resetButton.addEventListener('click', function() {
+          // Reset all checkboxes
+          const checkboxes = document.querySelectorAll('#symptomsContainer input[type="checkbox"]');
+          checkboxes.forEach(checkbox => {
+              checkbox.checked = false;
+          });
+
+          // Clear diagnosis display and reset any styles
+          const diagnosisResult = document.getElementById('predictionResult');
+          if (diagnosisResult) {
+              diagnosisResult.innerHTML = ''; // Clears the content
+              diagnosisResult.style.display = 'none'; // Optionally hide the element
+              // If there's a specific style like a border or background color, reset it
+              diagnosisResult.style.borderColor = 'initial'; // Resets to default
+              diagnosisResult.style.backgroundColor = 'initial'; // Resets to default
+          }
+      });
+  }
+});

@@ -668,23 +668,63 @@ function fetchFromIPFS(ipfsHash, callback) {
     });
 }
 
+
 function acceptAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
     contractInstance.methods
-      .acceptAppointment(appointmentId)
-      .send({ from: doctorAddress })
-      .then(function (result) {
-        console.log("Appointment accepted. Transaction:", result);
+      .appointments(appointmentId)
+      .call()
+      .then(function (appointmentToAccept) {
+        // Fetch all appointments for the doctor and check for conflicts
+        contractInstance.methods
+          .getDoctorAppointments(doctorAddress)
+          .call()
+          .then(function (appointmentIds) {
+            let conflict = false;
+            let promises = appointmentIds.map((id) => {
+              return contractInstance.methods
+                .appointments(id)
+                .call()
+                .then((otherAppointment) => {
+                  // Check if any appointment is at the same time and is already accepted
+                  if (
+                    otherAppointment.date === appointmentToAccept.date &&
+                    otherAppointment.hour === appointmentToAccept.hour &&
+                    otherAppointment.isAccepted &&
+                    otherAppointment.doctorAddress === doctorAddress &&
+                    id !== appointmentId
+                  ) {
+                    conflict = true;
+                  }
+                });
+            });
 
-        notifyPatient(appointmentId, "Accepted");
-        // Update the UI to reflect the appointment status
-        alert("Appointment Accepted");
-        // Optionally, refresh the page or remove the appointment row
+            Promise.all(promises).then(() => {
+              if (conflict) {
+                alert("An appointment is already booked for this time slot.");
+              } else {
+                // If no conflict, proceed to accept the appointment
+                contractInstance.methods
+                  .acceptAppointment(appointmentId)
+                  .send({ from: doctorAddress })
+                  .then(function (result) {
+                    console.log("Appointment accepted. Transaction:", result);
+                    notifyPatient(appointmentId, "Accepted");
+                    alert("Appointment Accepted");
+                    // Update the UI to reflect the appointment status
+                  })
+                  .catch(function (error) {
+                    console.error("Error accepting appointment:", error);
+                    alert("Failed to accept appointment: " + error.message);
+                  });
+              }
+            });
+          });
       })
       .catch(function (error) {
-        console.error("Error accepting appointment:", error);
-        alert("Failed to accept appointment.");
+        console.error("Error fetching appointment details:", error);
+        alert("Failed to fetch appointment details.");
       });
   });
 }
@@ -848,4 +888,7 @@ function notifyPatient(appointmentId, status) {
         });
     });
 }
+
+
+
 
