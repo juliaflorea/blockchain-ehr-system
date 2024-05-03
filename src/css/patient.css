@@ -198,3 +198,11 @@ body {
 label {
   margin-left: 5px;
 }
+
+#predictionResult {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 10px; /* Add margin top for spacing */
+}

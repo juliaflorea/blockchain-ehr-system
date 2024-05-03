@@ -1184,3 +1184,52 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 });
+
+//  document.addEventListener("DOMContentLoaded", function () {
+//         // Get all panel elements
+//         var panels = document.querySelectorAll(".panel");
+
+//         // Hide all panels except the personalInfoPanel
+//         panels.forEach(function (panel) {
+//             if (panel.id !== "personalInfoPanel") {
+//                 panel.style.display = "none";
+//             }
+//         });
+
+//         // Add event listener to the sidebar links to show/hide corresponding panels
+//         var sidebarLinks = document.querySelectorAll(".list-group-item");
+//         sidebarLinks.forEach(function (link) {
+//             link.addEventListener("click", function () {
+//                 var targetPanelId = link.getAttribute("data-target");
+//                 panels.forEach(function (panel) {
+//                     if (panel.id === targetPanelId) {
+//                         panel.style.display = "block";
+//                     } else {
+//                         panel.style.display = "none";
+//                     }
+//                 });
+//             });
+//         });
+//     });
+
+document.addEventListener('DOMContentLoaded', function () {
+  const resetButton = document.getElementById('resetButton');
+  if (resetButton) {
+      resetButton.addEventListener('click', function () {
+          // Reset all checkboxes
+          const checkboxes = document.querySelectorAll('#symptomsContainer input[type="checkbox"]');
+          checkboxes.forEach(checkbox => {
+              checkbox.checked = false;
+          });
+
+          // Clear diagnosis display and reset any styles
+          const diagnosisResult = document.getElementById('predictionResult');
+          if (diagnosisResult) {
+              diagnosisResult.innerHTML = ''; // Clears the content
+              diagnosisResult.style.display = 'none'; // Hide the element
+              diagnosisResult.style.color = 'black'; // Set text color to black
+          }
+      });
+  }
+});
+

@@ -30,7 +30,8 @@
 }
 
 /* Form Layout and Control Styles */
-.diagnosis-section, .treatment-plan-section {
+.diagnosis-section,
+.treatment-plan-section {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -39,11 +40,11 @@
 
 .form-group {
   display: flex;
-  justify-content: center; 
+  justify-content: center;
   align-items: center;
-  width: 80%; 
+  width: 80%;
   margin-bottom: 1rem; /* Uniform spacing between form rows */
-  flex-wrap: wrap; 
+  flex-wrap: wrap;
 }
 
 .form-label {
@@ -62,12 +63,11 @@
 }
 
 /* Treatment and Diagnosis Titles */
-.diagnosis-title, .treatment-plan-section h4 {
+.diagnosis-title,
+.treatment-plan-section h4 {
   margin-bottom: 2rem;
   align-self: center;
 }
-
-
 
 /* Miscellaneous Adjustments */
 .form-row {
@@ -85,7 +85,8 @@
 }
 
 @media (max-width: 768px) {
-  .form-label, .submit-btn {
+  .form-label,
+  .submit-btn {
     text-align: center;
     flex: 1 100%;
   }
@@ -93,4 +94,33 @@
   .form-control {
     width: 100%;
   }
+}
+
+.fc-event {
+  border: none;
+  background-color: rgba(255, 179, 128, 0.5); /* Peach background with transparency */
+  color: #f26d21 !important; /* Orange text */
+  padding: 10px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 40px !important; /* Adjust height as needed */
+}
+
+.fc-event:hover {
+  background-color: rgba(255, 165, 0, 0.8) !important; /* Darker orange on hover */
+}
+
+.event-time, .event-title {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.event-time {
+  font-weight: bold;
+}
+
+#calendar {
+  min-height: 500px;
 }

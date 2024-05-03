@@ -75,6 +75,7 @@ $(window).on("load", function () {
   });
   loadAppointmentRequests();
   loadAppointmentHistory();
+  loadAcceptedAppointments();
 });
 
 function showRecords(element) {
@@ -679,7 +680,7 @@ function loadAppointmentHistory() {
                   : appointment.isRejected
                   ? "rejected"
                   : "pending";
-                  displayAppointmentHistory(id, appointmentData, status);
+                displayAppointmentHistory(id, appointmentData, status);
               });
             });
         });
@@ -963,3 +964,114 @@ function notifyPatient(appointmentId, status) {
         });
     });
 }
+
+$(document).ready(function () {
+  var calendarEl = document.getElementById("calendar"); // Ensure this ID matches your HTML
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: "dayGridMonth",
+    headerToolbar: {
+      left: "prev,next today",
+      center: "title",
+      right: "dayGridMonth,timeGridWeek,timeGridDay",
+    },
+    events: [],
+    eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
+    eventContent: function (arg) {
+      // Custom rendering of events, splitting time and patient name
+      return {
+        html: `<div class="event-time">${
+          arg.event.title.split(" ")[0]
+        }</div><div class="event-title">${
+          arg.event.extendedProps.description
+        }</div>`,
+      };
+    },
+  });
+  
+  calendar.render();
+  setTimeout(() => calendar.updateSize(), 100);
+
+  loadAcceptedAppointments(calendar); // Pass the calendar instance to the function
+});
+
+function loadAcceptedAppointments(calendar) {
+  web3.eth
+    .getAccounts()
+    .then(function (accounts) {
+      const doctorAddress = accounts[0];
+      contractInstance.methods
+        .getDoctorAppointments(doctorAddress)
+        .call()
+        .then(function (appointmentIds) {
+          console.log("Appointment IDs:", appointmentIds);
+          appointmentIds.forEach(function (appointmentId) {
+            contractInstance.methods
+              .appointments(appointmentId)
+              .call()
+              .then(function (appointment) {
+                if (appointment.isAccepted) {
+                  console.log("Accepted Appointment:", appointment);
+                  fetchFromIPFS(
+                    appointment.ipfsHash,
+                    function (appointmentData) {
+                      console.log(
+                        "Appointment Data from IPFS:",
+                        appointmentData
+                      );
+                      addEventToCalendar(appointmentData, calendar);
+                    }
+                  );
+                }
+              })
+              .catch(function (error) {
+                console.error("Error fetching appointment details:", error);
+              });
+          });
+        })
+        .catch(function (error) {
+          console.error("Error loading appointments:", error);
+        });
+    })
+    .catch(function (error) {
+      console.error("Error retrieving accounts:", error);
+    });
+}
+
+function addEventToCalendar(appointmentData, calendar) {
+  if (!calendar) {
+    console.error("Calendar not defined");
+    return;
+  }
+
+  try {
+    // Ensure the date is parsed correctly
+    const date = moment(appointmentData.start, "YYYYMMDDTHH:mm:ssZ").utc();
+    const formattedDate = date.format("YYYY-MM-DD");
+    const formattedTime = date.format("HH:mm");
+
+    // Find the patient's name in the participant array
+    const patientInfo = appointmentData.participant.find(p => p.actor.reference.startsWith("Patient"));
+    const patientName = patientInfo ? patientInfo.actor.display : "Unknown Patient";
+
+    // Check if patient's name was found
+    if (patientName === "Unknown Patient") {
+      console.error("Patient name is missing in appointment data");
+    }
+
+    calendar.addEvent({
+      title: `${formattedTime} ${patientName}`,
+      start: formattedDate + "T" + formattedTime,
+      allDay: false,
+      color: 'rgba(255, 179, 128, 0.5)', // Peach background with transparency
+      textColor: '#f26d21', // Orange text
+      extendedProps: {
+        description: patientName, // Added to use in custom rendering
+      },
+    });
+    
+  } catch (e) {
+    console.error("Error in adding event to calendar:", e);
+  }
+}
+
+
