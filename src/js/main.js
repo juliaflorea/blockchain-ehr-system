@@ -5,7 +5,7 @@ function connect() {
   if (window.ethereum) {
     // Initialize Web3
     web3 = new Web3(window.ethereum);
-
+   
     // Request user account access
     window.ethereum
       .request({ method: "eth_requestAccounts" })

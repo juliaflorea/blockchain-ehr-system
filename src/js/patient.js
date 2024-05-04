@@ -2,6 +2,7 @@ var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
 
+
 var ipfs = window.IpfsApi("localhost", "5001");
 
 const Buffer = window.IpfsApi().Buffer;
@@ -1271,7 +1272,9 @@ $(document).ready(function () {
   calendar.render();
   setTimeout(() => calendar.updateSize(), 100);
 
-  loadAcceptedAppointments(calendar); // Pass the calendar instance to the function
+  setTimeout(function() {
+    loadAcceptedAppointments(calendar);
+}, 1000);
 });
 
 function loadAcceptedAppointments(calendar) {

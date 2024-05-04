@@ -75,7 +75,7 @@ $(window).on("load", function () {
   });
   loadAppointmentRequests();
   loadAppointmentHistory();
-  loadAcceptedAppointments();
+  
 });
 
 function showRecords(element) {
@@ -991,7 +991,9 @@ $(document).ready(function () {
   calendar.render();
   setTimeout(() => calendar.updateSize(), 100);
 
-  loadAcceptedAppointments(calendar); // Pass the calendar instance to the function
+  setTimeout(function() {
+    loadAcceptedAppointments(calendar);
+}, 1000);
 });
 
 function loadAcceptedAppointments(calendar) {
