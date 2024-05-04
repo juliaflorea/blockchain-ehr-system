@@ -712,6 +712,8 @@ function displaySentAppointmentRequest(id, appointment, status) {
     .catch(function(error) {
       console.error("Error fetching doctor details:", error);
     });
+
+    
 }
 
 

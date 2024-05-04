@@ -480,99 +480,182 @@ function scheduleAppointment() {
   });
 }
 
+// function loadSentAppointmentRequests() {
+//   web3.eth.getAccounts().then(function (accounts) {
+//     const patientAddress = accounts[0]; // Assuming the patient is logged in
+
+//     // Fetching appointment IDs associated with the patient
+//     contractInstance.methods
+//       .getPatientAppointments(patientAddress)
+//       .call({ from: patientAddress })
+//       .then(function (appointmentIds) {
+//         appointmentIds.forEach(function (id) {
+//           // Fetching each appointment from the blockchain
+//           contractInstance.methods
+//             .appointments(id)
+//             .call()
+//             .then(function (appointment) {
+//               // Fetching additional details from IPFS
+//               fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+//                 if (appointment.isAccepted) {
+//                   displaySentAppointmentRequest(
+//                     id,
+//                     appointmentData,
+//                     "accepted"
+//                   );
+//                 } else if (appointment.isRejected) {
+//                   displaySentAppointmentRequest(
+//                     id,
+//                     appointmentData,
+//                     "rejected"
+//                   );
+//                 } else {
+//                   displaySentAppointmentRequest(id, appointmentData, "pending");
+//                 }
+//               });
+//             });
+//         });
+//       })
+//       .catch(function (error) {
+//         console.error("Error loading sent appointment requests:", error);
+//       });
+//   });
+// }
+
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
-    const patientAddress = accounts[0]; // Assuming the patient is logged in
-
-    // Fetching appointment IDs associated with the patient
-    contractInstance.methods
-      .getPatientAppointments(patientAddress)
-      .call({ from: patientAddress })
-      .then(function (appointmentIds) {
-        appointmentIds.forEach(function (id) {
-          // Fetching each appointment from the blockchain
-          contractInstance.methods
-            .appointments(id)
-            .call()
-            .then(function (appointment) {
-              // Fetching additional details from IPFS
-              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                if (appointment.isAccepted) {
-                  displaySentAppointmentRequest(
-                    id,
-                    appointmentData,
-                    "accepted"
-                  );
-                } else if (appointment.isRejected) {
-                  displaySentAppointmentRequest(
-                    id,
-                    appointmentData,
-                    "rejected"
-                  );
-                } else {
-                  displaySentAppointmentRequest(id, appointmentData, "pending");
-                }
+      const patientAddress = accounts[0];
+      contractInstance.methods.getPatientAppointments(patientAddress)
+          .call({ from: patientAddress })
+          .then(function (appointmentIds) {
+              appointmentIds.forEach(function (id) {
+                  contractInstance.methods.appointments(id)
+                      .call()
+                      .then(function (appointment) {
+                          if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
+                              console.error("Invalid or empty IPFS hash for appointment ID:", id);
+                              return;
+                          }
+                          fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                              if (appointment.isAccepted) {
+                                  displaySentAppointmentRequest(id, appointmentData, "accepted");
+                              } else if (appointment.isRejected) {
+                                  displaySentAppointmentRequest(id, appointmentData, "rejected");
+                              } else {
+                                  displaySentAppointmentRequest(id, appointmentData, "pending");
+                              }
+                          });
+                      });
               });
-            });
-        });
-      })
-      .catch(function (error) {
-        console.error("Error loading sent appointment requests:", error);
-      });
+          })
+          .catch(function (error) {
+              console.error("Error loading sent appointment requests:", error);
+          });
   });
 }
 
+
+
+// function displaySentAppointmentRequest(id, appointment, status) {
+//   var row = $("<tr>");
+
+//   var doctorInfo = appointment.participant.find((p) =>
+//     p.actor.reference.startsWith("Practitioner")
+//   );
+//   var doctorName = doctorInfo ? doctorInfo.actor.display : "Unknown";
+
+//   var match = appointment.start.match(
+//     /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+//   );
+
+//   // Check if the date format matches the expected pattern
+//   if (match) {
+//     // Create a new date object from the parts
+//     var date = new Date(
+//       Date.UTC(
+//         parseInt(match[1], 10),
+//         parseInt(match[2], 10) - 1, // Months are 0-indexed
+//         parseInt(match[3], 10),
+//         parseInt(match[4], 10),
+//         parseInt(match[5], 10),
+//         parseInt(match[6], 10)
+//       )
+//     );
+
+//     // Convert the date and time to the local time zone
+//     var appointmentDate = date.toISOString().substring(0, 10);
+//     var appointmentTime = date.toISOString().substring(11, 16);
+//   } else {
+//     console.error("Invalid date format:", appointment.start);
+//     var appointmentDate = "Invalid Date";
+//     var appointmentTime = "Invalid Time";
+//   }
+//   $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+//   $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
+//   $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
+//   //$('<td>').text(status).appendTo(row);
+//   var statusCell = $("<td>").text(status).appendTo(row);
+//   if (status === "accepted") {
+//     statusCell.addClass("accepted-status");
+//   } else if (status === "rejected") {
+//     statusCell.addClass("rejected-status");
+//   } else if (status === "pending") {
+//     statusCell.addClass("pending-status");
+//   } else {
+//     statusCell.addClass("unknown-status"); // Handle unknown status
+//   }
+
+//   $("#sentAppointmentRequests tbody").append(row);
+// }
+
 function displaySentAppointmentRequest(id, appointment, status) {
-  var row = $("<tr>");
+  console.log(`Full Appointment ${id} Data:`, appointment);
 
   var doctorInfo = appointment.participant.find((p) =>
-    p.actor.reference.startsWith("Practitioner")
+      p.actor && p.actor.reference && p.actor.reference.startsWith("Practitioner")
   );
-  var doctorName = doctorInfo ? doctorInfo.actor.display : "Unknown";
+
+  if (doctorInfo && doctorInfo.actor) {
+      var doctorName = doctorInfo.actor.display;
+      console.log(`Doctor Name for appointment ID ${id}: ${doctorName}`);
+  } else {
+      console.log(`Doctor details not found in participant array for appointment ID ${id}:`, appointment.participant);
+      doctorName = "Unknown Doctor";
+  }
+
+  if (!doctorInfo) {
+      console.error("No practitioner found in appointment data for ID:", id);
+      return; // Exit the function if no doctor found
+  }
 
   var match = appointment.start.match(
-    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+      /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
   );
-
-  // Check if the date format matches the expected pattern
+  var appointmentDate = "Invalid Date";
+  var appointmentTime = "Invalid Time";
   if (match) {
-    // Create a new date object from the parts
-    var date = new Date(
-      Date.UTC(
-        parseInt(match[1], 10),
-        parseInt(match[2], 10) - 1, // Months are 0-indexed
-        parseInt(match[3], 10),
-        parseInt(match[4], 10),
-        parseInt(match[5], 10),
-        parseInt(match[6], 10)
-      )
-    );
-
-    // Convert the date and time to the local time zone
-    var appointmentDate = date.toISOString().substring(0, 10);
-    var appointmentTime = date.toISOString().substring(11, 16);
-  } else {
-    console.error("Invalid date format:", appointment.start);
-    var appointmentDate = "Invalid Date";
-    var appointmentTime = "Invalid Time";
+      var date = new Date(
+          Date.UTC(
+              parseInt(match[1], 10),
+              parseInt(match[2], 10) - 1,
+              parseInt(match[3], 10),
+              parseInt(match[4], 10),
+              parseInt(match[5], 10),
+              parseInt(match[6], 10)
+          )
+      );
+      appointmentDate = date.toISOString().substring(0, 10);
+      appointmentTime = date.toISOString().substring(11, 16);
   }
+
+  var row = $("<tr>");
   $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
   $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
   $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
-  //$('<td>').text(status).appendTo(row);
   var statusCell = $("<td>").text(status).appendTo(row);
-  if (status === "accepted") {
-    statusCell.addClass("accepted-status");
-  } else if (status === "rejected") {
-    statusCell.addClass("rejected-status");
-  } else if (status === "pending") {
-    statusCell.addClass("pending-status");
-  } else {
-    statusCell.addClass("unknown-status"); // Handle unknown status
-  }
-
   $("#sentAppointmentRequests tbody").append(row);
 }
+
 
 function fetchFromIPFS(ipfsHash, callback) {
   $.get("http://localhost:8080/ipfs/" + ipfsHash)
@@ -585,6 +668,7 @@ function fetchFromIPFS(ipfsHash, callback) {
       console.error("Failed to fetch data from IPFS.");
     });
 }
+
 
 document.addEventListener("DOMContentLoaded", function () {
   var today = new Date().toISOString().split("T")[0]; // Format today's date as YYYY-MM-DD
@@ -1270,7 +1354,29 @@ $(document).ready(function () {
   });
 
   calendar.render();
-  setTimeout(() => calendar.updateSize(), 100);
+  function updateCalendarVisibility() {
+    if ($("#calendar").is(":visible")) {
+        calendar.updateSize();
+    }
+}
+
+// MutationObserver Configuration
+const config = { attributes: true, childList: true, subtree: true };
+const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            updateCalendarVisibility();
+        }
+    });
+});
+
+// Start observing the target node for configured mutations
+observer.observe(document.body, config);
+
+// Clean up observer on page unload
+$(window).on('unload', function() {
+    observer.disconnect();
+});
 
   setTimeout(function() {
     loadAcceptedAppointments(calendar);
@@ -1361,7 +1467,7 @@ function addEventToCalendar(appointmentData, calendar) {
 function checkAndHandleProxy(key) {
   contractInstance.methods.get_patient(key).call()
       .then(patientInfo => {
-          const age = parseInt(patientInfo[2]);
+          const age = parseInt(patientInfo[2], 10);
           console.log(`Patient Age: ${age}, Checking proxy list...`);
 
           contractInstance.methods.get_accessed_proxylist_for_patient(key)
@@ -1371,11 +1477,7 @@ function checkAndHandleProxy(key) {
                   
                   if (hasActiveProxy) {
                       console.log("Active proxy found.");
-                      if (age < 16) {
-                          displayProxyRestrictedDashboard(); // Show limited dashboard for under-16 with proxy
-                      } else {
-                          displayRegularPatientDashboard(); // Show full dashboard for adults or those 16 and older
-                      }
+                      displayRegularPatientDashboard(); // Show full dashboard for adults or those 16 and older
                   } else {
                       console.log("No active proxy, showing full access.");
                       if (age < 16) {
@@ -1393,6 +1495,7 @@ function checkAndHandleProxy(key) {
           console.error("Error fetching patient information:", error);
       });
 }
+
 
 function displayRegularPatientDashboard() {
   // Hide all panels initially

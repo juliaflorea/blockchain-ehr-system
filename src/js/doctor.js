@@ -989,7 +989,30 @@ $(document).ready(function () {
   });
   
   calendar.render();
-  setTimeout(() => calendar.updateSize(), 100);
+  
+  function updateCalendarVisibility() {
+    if ($("#calendar").is(":visible")) {
+        calendar.updateSize();
+    }
+}
+
+// MutationObserver Configuration
+const config = { attributes: true, childList: true, subtree: true };
+const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            updateCalendarVisibility();
+        }
+    });
+});
+
+// Start observing the target node for configured mutations
+observer.observe(document.body, config);
+
+// Clean up observer on page unload
+$(window).on('unload', function() {
+    observer.disconnect();
+});
 
   setTimeout(function() {
     loadAcceptedAppointments(calendar);
