@@ -151,3 +151,32 @@ body {
   background-color: #324cdd; /* Darker shade on hover */
   border-color: #324cdd; /* Darker border on hover */
 }
+
+.fc-event {
+  border: none;
+  background-color: rgba(255, 179, 128, 0.5); /* Peach background with transparency */
+  color: #f26d21 !important; /* Orange text */
+  padding: 10px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 40px !important; /* Adjust height as needed */
+}
+
+.fc-event:hover {
+  background-color: rgba(255, 165, 0, 0.8) !important; /* Darker orange on hover */
+}
+
+.event-time, .event-title {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.event-time {
+  font-weight: bold;
+}
+
+#calendar {
+  min-height: 500px;
+}

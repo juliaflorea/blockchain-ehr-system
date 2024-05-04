@@ -18,7 +18,8 @@
     <link rel="stylesheet" href="/css/patient.css">
     <link rel="stylesheet" href="/css/common.css">
     <script type="text/javascript" src="https://cdn.emailjs.com/sdk/2.3.2/email.min.js"></script>
-
+    <link href="https://kendo.cdn.telerik.com/2023.3.1114/styles/kendo.default.min.css" rel="stylesheet">
+    <link href='https://unpkg.com/fullcalendar@5/main.min.css' rel='stylesheet' />
 
 
 </head>
@@ -39,9 +40,12 @@
                     data-target="appointmentPanel sentAppointmentRequests"><i
                         class="fas fa-briefcase-medical"></i>Schedule an Appointment</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i>Appointment
+                    Calendar</a>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="diagnosisPanel"><i class="fas fa-stethoscope"></i> Quick Diagnosis Prediction</a>
+                    data-target="diagnosisPanel diagnosisHistoryPanel"><i class="fas fa-stethoscope"></i> Quick Diagnosis Prediction</a>
                 <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
                         class="fas fa-history"></i> Medical History</a> -->
                 <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
@@ -429,6 +433,7 @@
 
                     </div>
                 </div>
+
                 <div class="panel panel-default" id="diagnosisPanel">
                     <div class="panel-heading">
                         <h3 class="text-center">Diagnosis Prediction</h3>
@@ -446,7 +451,29 @@
 
                     </div>
                 </div>
+
+                <div class="panel panel-default" id="diagnosisHistoryPanel">
+                    <div class="panel-heading">
+                        <h3 class="text-center">Diagnosis History Prediction</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="predictionHistory" class="alert alert-info" style="margin-top: 20px;"></div>
+                    </div>
+                </div>
+
                 
+
+
+                <div class="panel panel-default" id="appointmentCalendarPanel" style="display:none;">
+                    <div class="panel-heading">
+                        <h3 class="text-center">Appointment Calendar</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div id="calendar"></div>
+                    </div>
+                </div>
+
+
 
 
 
@@ -461,12 +488,14 @@
 
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://kendo.cdn.telerik.com/2023.3.1114/js/kendo.all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ipfs-api@26.1.2/dist/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js"></script>
+    <script src="https://kendo.cdn.telerik.com/2023.3.1114/js/kendo.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src='https://unpkg.com/fullcalendar@5/main.min.js'></script>
     <script src="/js/patient.js"></script>
     <script src="/js/main.js"></script>
 

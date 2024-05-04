@@ -995,8 +995,7 @@ $(document).ready(function () {
 });
 
 function loadAcceptedAppointments(calendar) {
-  web3.eth
-    .getAccounts()
+  web3.eth.getAccounts()
     .then(function (accounts) {
       const doctorAddress = accounts[0];
       contractInstance.methods

@@ -206,3 +206,15 @@ label {
   justify-content: flex-start;
   margin-top: 10px; /* Add margin top for spacing */
 }
+
+.prediction-entry {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f4f4f4; /* Light grey background */
+  border-left: 5px solid #007BFF; /* Blue border on the left */
+  border-radius: 5px;
+}
+
+.prediction-entry p {
+  margin: 5px 0; /* Small margin for paragraph */
+}
