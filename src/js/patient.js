@@ -2,7 +2,6 @@ var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
 
-
 var ipfs = window.IpfsApi("localhost", "5001");
 
 const Buffer = window.IpfsApi().Buffer;
@@ -49,12 +48,11 @@ $(window).on("load", function () {
               recordHash +
               '" target="_blank">' +
               recordHash +
-              "</a>");
-              return checkAndHandleProxy(key);
+              "</a>"
+          );
+          return checkAndHandleProxy(key);
         }
       });
-
-      
 
     // print out the doctors to share emr
 
@@ -524,37 +522,48 @@ function scheduleAppointment() {
 
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
-      const patientAddress = accounts[0];
-      contractInstance.methods.getPatientAppointments(patientAddress)
-          .call({ from: patientAddress })
-          .then(function (appointmentIds) {
-              appointmentIds.forEach(function (id) {
-                  contractInstance.methods.appointments(id)
-                      .call()
-                      .then(function (appointment) {
-                          if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
-                              console.error("Invalid or empty IPFS hash for appointment ID:", id);
-                              return;
-                          }
-                          fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                              if (appointment.isAccepted) {
-                                  displaySentAppointmentRequest(id, appointmentData, "accepted");
-                              } else if (appointment.isRejected) {
-                                  displaySentAppointmentRequest(id, appointmentData, "rejected");
-                              } else {
-                                  displaySentAppointmentRequest(id, appointmentData, "pending");
-                              }
-                          });
-                      });
+    const patientAddress = accounts[0];
+    contractInstance.methods
+      .getPatientAppointments(patientAddress)
+      .call({ from: patientAddress })
+      .then(function (appointmentIds) {
+        appointmentIds.forEach(function (id) {
+          contractInstance.methods
+            .appointments(id)
+            .call()
+            .then(function (appointment) {
+              if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
+                console.error(
+                  "Invalid or empty IPFS hash for appointment ID:",
+                  id
+                );
+                return;
+              }
+              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                if (appointment.isAccepted) {
+                  displaySentAppointmentRequest(
+                    id,
+                    appointmentData,
+                    "accepted"
+                  );
+                } else if (appointment.isRejected) {
+                  displaySentAppointmentRequest(
+                    id,
+                    appointmentData,
+                    "rejected"
+                  );
+                } else {
+                  displaySentAppointmentRequest(id, appointmentData, "pending");
+                }
               });
-          })
-          .catch(function (error) {
-              console.error("Error loading sent appointment requests:", error);
-          });
+            });
+        });
+      })
+      .catch(function (error) {
+        console.error("Error loading sent appointment requests:", error);
+      });
   });
 }
-
-
 
 // function displaySentAppointmentRequest(id, appointment, status) {
 //   var row = $("<tr>");
@@ -611,41 +620,47 @@ function loadSentAppointmentRequests() {
 function displaySentAppointmentRequest(id, appointment, status) {
   console.log(`Full Appointment ${id} Data:`, appointment);
 
-  var doctorInfo = appointment.participant.find((p) =>
-      p.actor && p.actor.reference && p.actor.reference.startsWith("Practitioner")
+  var doctorInfo = appointment.participant.find(
+    (p) =>
+      p.actor &&
+      p.actor.reference &&
+      p.actor.reference.startsWith("Practitioner")
   );
 
   if (doctorInfo && doctorInfo.actor) {
-      var doctorName = doctorInfo.actor.display;
-      console.log(`Doctor Name for appointment ID ${id}: ${doctorName}`);
+    var doctorName = doctorInfo.actor.display;
+    console.log(`Doctor Name for appointment ID ${id}: ${doctorName}`);
   } else {
-      console.log(`Doctor details not found in participant array for appointment ID ${id}:`, appointment.participant);
-      doctorName = "Unknown Doctor";
+    console.log(
+      `Doctor details not found in participant array for appointment ID ${id}:`,
+      appointment.participant
+    );
+    doctorName = "Unknown Doctor";
   }
 
   if (!doctorInfo) {
-      console.error("No practitioner found in appointment data for ID:", id);
-      return; // Exit the function if no doctor found
+    console.error("No practitioner found in appointment data for ID:", id);
+    return; // Exit the function if no doctor found
   }
 
   var match = appointment.start.match(
-      /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
   );
   var appointmentDate = "Invalid Date";
   var appointmentTime = "Invalid Time";
   if (match) {
-      var date = new Date(
-          Date.UTC(
-              parseInt(match[1], 10),
-              parseInt(match[2], 10) - 1,
-              parseInt(match[3], 10),
-              parseInt(match[4], 10),
-              parseInt(match[5], 10),
-              parseInt(match[6], 10)
-          )
-      );
-      appointmentDate = date.toISOString().substring(0, 10);
-      appointmentTime = date.toISOString().substring(11, 16);
+    var date = new Date(
+      Date.UTC(
+        parseInt(match[1], 10),
+        parseInt(match[2], 10) - 1,
+        parseInt(match[3], 10),
+        parseInt(match[4], 10),
+        parseInt(match[5], 10),
+        parseInt(match[6], 10)
+      )
+    );
+    appointmentDate = date.toISOString().substring(0, 10);
+    appointmentTime = date.toISOString().substring(11, 16);
   }
 
   var row = $("<tr>");
@@ -655,7 +670,6 @@ function displaySentAppointmentRequest(id, appointment, status) {
   var statusCell = $("<td>").text(status).appendTo(row);
   $("#sentAppointmentRequests tbody").append(row);
 }
-
 
 function fetchFromIPFS(ipfsHash, callback) {
   $.get("http://localhost:8080/ipfs/" + ipfsHash)
@@ -668,7 +682,6 @@ function fetchFromIPFS(ipfsHash, callback) {
       console.error("Failed to fetch data from IPFS.");
     });
 }
-
 
 document.addEventListener("DOMContentLoaded", function () {
   var today = new Date().toISOString().split("T")[0]; // Format today's date as YYYY-MM-DD
@@ -871,60 +884,69 @@ function sendTokenToProxyEmail(proxyEmail, token) {
   });
 }
 
-
-
 function displayProxiesWithAccess() {
   web3.eth.getAccounts().then((accounts) => {
-      const patientAddress = accounts[0];
+    const patientAddress = accounts[0];
 
-      contractInstance.methods.get_patient(patientAddress).call()
-          .then(patientInfo => {
-              const age = parseInt(patientInfo[2], 10);
+    contractInstance.methods
+      .get_patient(patientAddress)
+      .call()
+      .then((patientInfo) => {
+        const age = parseInt(patientInfo[2], 10);
 
-              contractInstance.methods.get_accessed_proxylist_for_patient(patientAddress).call()
-                  .then((proxyAddressList) => {
-                      var table = document.getElementById("accessProxy");
-                      var rowCount = table.rows.length;
-                      for (var i = rowCount - 1; i > 0; i--) {
-                          table.deleteRow(i);
-                      }
+        contractInstance.methods
+          .get_accessed_proxylist_for_patient(patientAddress)
+          .call()
+          .then((proxyAddressList) => {
+            var table = document.getElementById("accessProxy");
+            var rowCount = table.rows.length;
+            for (var i = rowCount - 1; i > 0; i--) {
+              table.deleteRow(i);
+            }
 
-                      proxyAddressList.forEach((proxyAddress, index) => {
-                          if (proxyAddress !== "0x0000000000000000000000000000000000000000") {
-                              contractInstance.methods.get_proxy(proxyAddress).call()
-                                  .then(proxyDetails => {
-                                      var row = table.insertRow(-1);
-                                      var cell1 = row.insertCell(0);
-                                      var cell2 = row.insertCell(1);
-                                      var cell3 = row.insertCell(2);
-                                      cell1.innerHTML = proxyDetails.firstName + " " + proxyDetails.lastName;
-                                      cell2.innerHTML = proxyAddress;
-                                      var btn = document.createElement("button");
-                                      btn.className = "btn btn-danger revoke-proxy-access";
-                                      btn.innerHTML = "Revoke access";
-                                      btn.onclick = function () { revokeProxyAccess(proxyAddress); };
-                                      if (age < 16) { // Disable the button if the patient is under 16
-                                          btn.disabled = true;
-                                          btn.title = "You cannot revoke access until you are 16.";
-                                      }
-                                      cell3.appendChild(btn);
-                                  })
-                                  .catch(error => {
-                                      console.error("Error fetching proxy details:", error);
-                                  });
-                          }
-                      });
+            proxyAddressList.forEach((proxyAddress, index) => {
+              if (
+                proxyAddress !== "0x0000000000000000000000000000000000000000"
+              ) {
+                contractInstance.methods
+                  .get_proxy(proxyAddress)
+                  .call()
+                  .then((proxyDetails) => {
+                    var row = table.insertRow(-1);
+                    var cell1 = row.insertCell(0);
+                    var cell2 = row.insertCell(1);
+                    var cell3 = row.insertCell(2);
+                    cell1.innerHTML =
+                      proxyDetails.firstName + " " + proxyDetails.lastName;
+                    cell2.innerHTML = proxyAddress;
+                    var btn = document.createElement("button");
+                    btn.className = "btn btn-danger revoke-proxy-access";
+                    btn.innerHTML = "Revoke access";
+                    btn.onclick = function () {
+                      revokeProxyAccess(proxyAddress);
+                    };
+                    if (age < 16) {
+                      // Disable the button if the patient is under 16
+                      btn.disabled = true;
+                      btn.title = "You cannot revoke access until you are 16.";
+                    }
+                    cell3.appendChild(btn);
                   })
-                  .catch(error => {
-                      console.error("Error fetching proxy list:", error);
+                  .catch((error) => {
+                    console.error("Error fetching proxy details:", error);
                   });
+              }
+            });
           })
-          .catch(error => {
-              console.error("Error retrieving patient info:", error);
+          .catch((error) => {
+            console.error("Error fetching proxy list:", error);
           });
+      })
+      .catch((error) => {
+        console.error("Error retrieving patient info:", error);
+      });
   });
 }
-
 
 $(document).ready(function () {
   // Event delegation for revoke access buttons within the accessProxy table
@@ -1152,13 +1174,14 @@ function fetchSymptoms() {
       console.error("Error fetching symptoms:", error);
     });
 }
-
 function displaySymptoms(symptoms) {
   const container = document.getElementById("symptomsContainer");
   container.innerHTML = ""; // Clear previous contents
 
   symptoms.forEach((symptom) => {
+    // Use the cleanSymptomName function to format the symptom name
     const cleanName = cleanSymptomName(symptom);
+
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.name = "symptoms[]";
@@ -1167,7 +1190,7 @@ function displaySymptoms(symptoms) {
 
     const label = document.createElement("label");
     label.htmlFor = symptom;
-    label.textContent = cleanName;
+    label.textContent = cleanName; // Use the cleaned and formatted name
 
     const div = document.createElement("div");
     div.appendChild(checkbox);
@@ -1176,6 +1199,7 @@ function displaySymptoms(symptoms) {
     container.appendChild(div);
   });
 }
+
 
 // Function to send selected symptoms to the Flask API for diagnosis prediction
 document
@@ -1214,14 +1238,13 @@ function predictDiagnosis(symptoms) {
     })
     .then((data) => {
       console.log("Prediction:", data);
-      storePredictionInIPFS(data.prediction);
       displayPredictionResult(data.prediction);
-      
+
+       storePredictionInIPFS(data.prediction);
     })
     .catch((error) => {
       console.error("Error predicting the diagnosis:", error);
-      displayPredictionResult(`Error: ${error.message}`);
-
+      displayPredictionResult(`Error: ${error.message}`); // Display error in prediction result section
     });
 }
 
@@ -1235,75 +1258,113 @@ function displayPredictionResult(result) {
 document.addEventListener("DOMContentLoaded", function () {
   // Fetch symptoms when the document is ready (this could be tied to a specific event or page load)
   fetchSymptoms();
- 
 });
 
 // You might call predictDiagnosis() based on specific user actions, such as form submission
 function cleanSymptomName(symptom) {
-  // This regex removes any dot followed by numbers at the end of the symptom names
-  return symptom.replace(/\.\d+$/, "");
+  // Removes any trailing numbers and dots, replaces underscores with spaces, and capitalizes each word
+  return symptom.replace(/(\.\d+)?$/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
+
+
 function storePredictionInIPFS(prediction) {
-  const ipfs = window.IpfsApi("localhost", "5001");
-  const buffer = ipfs.Buffer.from(JSON.stringify({ prediction }));
+  const ipfs = window.IpfsApi('localhost', '5001');
+  const timestamp = new Date().toLocaleString();  // Get the current timestamp
+  const predictionData = { prediction, timestamp };  // Include both prediction and timestamp
+  const buffer = ipfs.Buffer.from(JSON.stringify(predictionData));
+  console.log("Storing prediction with timestamp:", predictionData);
 
   ipfs.files.add(buffer, (error, result) => {
-    if (error) {
-      console.error("Error uploading to IPFS:", error);
-      return;
-    }
+      if (error) {
+          console.error("Error uploading to IPFS:", error);
+          return;
+      }
+      const ipfsHash = result[0].hash;
+      console.log("Stored in IPFS with hash:", ipfsHash);
 
-    const ipfsHash = result[0].hash;
-    console.log("Stored in IPFS with hash:", ipfsHash);
-    appendPredictionToHistory(ipfsHash, prediction);
+      // Update localStorage with the hash
+      const hashes = JSON.parse(localStorage.getItem('diagnosisHashes')) || [];
+      hashes.push(ipfsHash);
+      localStorage.setItem('diagnosisHashes', JSON.stringify(hashes));
+      console.log("Updated localStorage with new hash:", hashes);
+
+      // Immediately display the prediction with timestamp
+      appendPredictionToHistory(predictionData);
   });
 }
 
-function appendPredictionToHistory(ipfsHash, prediction) {
+
+
+
+
+
+
+function appendPredictionToHistory(predictionData) {
   const historyContainer = document.getElementById("predictionHistory");
-  if (!historyContainer) {
-      console.error("Prediction history container not found");
-      return;
-  }
-
-  // Create a new div for each prediction entry
   const entry = document.createElement("div");
-  entry.className = "prediction-entry"; // Add a class for styling if needed
-  entry.innerHTML = `
-      <p>Prediction: ${prediction}</p>
-      <p>IPFS Hash: <a href="http://localhost:8080/ipfs/${ipfsHash}" target="_blank">${ipfsHash}</a></p>
-  `;
+  entry.className = "prediction-entry";
+  entry.innerHTML = `<p>Prediction: ${predictionData.prediction}</p><p>Time: ${predictionData.timestamp}</p>`;
 
-  // Append the new entry to the history container
   historyContainer.appendChild(entry);
 }
+
+
+
+
+
+
+
+function displayAllDiagnoses() {
+  const ipfs = window.IpfsApi("localhost", "5001");
+  const hashes = JSON.parse(localStorage.getItem("diagnosisHashes")) || [];
+  console.log("Loaded hashes from localStorage:", hashes);
+
+  hashes.forEach(hash => {
+      console.log("Fetching data for hash:", hash);
+      ipfs.files.cat(hash, (error, file) => {
+          if (error) {
+              console.error("Error retrieving from IPFS:", error);
+              return;
+          }
+          const predictionData = JSON.parse(file.toString());
+          console.log("Retrieved prediction data:", predictionData);
+          appendPredictionToHistory(predictionData);
+      });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  displayAllDiagnoses();
+});
+
+
 
 
 document.addEventListener("DOMContentLoaded", function () {
   var panels = document.querySelectorAll(".panel");
   // Initially hide all panels except the personalInfoPanel
-  panels.forEach(function(panel) {
-      if (panel.id !== "personalInfoPanel") {
-          panel.style.display = "none";
-      } else {
-          panel.style.display = "block"; // Ensure personalInfoPanel is visible
-      }
+  panels.forEach(function (panel) {
+    if (panel.id !== "personalInfoPanel") {
+      panel.style.display = "none";
+    } else {
+      panel.style.display = "block"; // Ensure personalInfoPanel is visible
+    }
   });
 
   // Setup event listeners for sidebar links
   var sidebarLinks = document.querySelectorAll(".list-group-item");
-  sidebarLinks.forEach(function(link) {
-      link.addEventListener("click", function() {
-          var targetPanelId = this.getAttribute("data-target");
-          panels.forEach(function(panel) {
-              if (panel.id === targetPanelId) {
-                  panel.style.display = "block"; // Show the clicked panel
-              } else {
-                  panel.style.display = "none"; // Hide others
-              }
-          });
+  sidebarLinks.forEach(function (link) {
+    link.addEventListener("click", function () {
+      var targetPanelId = this.getAttribute("data-target");
+      panels.forEach(function (panel) {
+        if (panel.id === targetPanelId) {
+          panel.style.display = "block"; // Show the clicked panel
+        } else {
+          panel.style.display = "none"; // Hide others
+        }
       });
+    });
   });
 });
 
@@ -1356,35 +1417,39 @@ $(document).ready(function () {
   calendar.render();
   function updateCalendarVisibility() {
     if ($("#calendar").is(":visible")) {
-        calendar.updateSize();
+      calendar.updateSize();
     }
-}
+  }
 
-// MutationObserver Configuration
-const config = { attributes: true, childList: true, subtree: true };
-const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            updateCalendarVisibility();
-        }
+  // MutationObserver Configuration
+  const config = { attributes: true, childList: true, subtree: true };
+  const observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "class"
+      ) {
+        updateCalendarVisibility();
+      }
     });
-});
+  });
 
-// Start observing the target node for configured mutations
-observer.observe(document.body, config);
+  // Start observing the target node for configured mutations
+  observer.observe(document.body, config);
 
-// Clean up observer on page unload
-$(window).on('unload', function() {
+  // Clean up observer on page unload
+  $(window).on("unload", function () {
     observer.disconnect();
-});
+  });
 
-  setTimeout(function() {
+  setTimeout(function () {
     loadAcceptedAppointments(calendar);
-}, 1000);
+  }, 1000);
 });
 
 function loadAcceptedAppointments(calendar) {
-  web3.eth.getAccounts()
+  web3.eth
+    .getAccounts()
     .then(function (accounts) {
       const patientAddress = accounts[0];
       contractInstance.methods
@@ -1463,61 +1528,68 @@ function addEventToCalendar(appointmentData, calendar) {
   }
 }
 
-
 function checkAndHandleProxy(key) {
-  contractInstance.methods.get_patient(key).call()
-      .then(patientInfo => {
-          const age = parseInt(patientInfo[2], 10);
-          console.log(`Patient Age: ${age}, Checking proxy list...`);
+  contractInstance.methods
+    .get_patient(key)
+    .call()
+    .then((patientInfo) => {
+      const age = parseInt(patientInfo[2], 10);
+      console.log(`Patient Age: ${age}, Checking proxy list...`);
 
-          contractInstance.methods.get_accessed_proxylist_for_patient(key)
-              .call()
-              .then(proxyAddressList => {
-                  let hasActiveProxy = proxyAddressList.some(addr => addr !== "0x0000000000000000000000000000000000000000");
-                  
-                  if (hasActiveProxy) {
-                      console.log("Active proxy found.");
-                      displayRegularPatientDashboard(); // Show full dashboard for adults or those 16 and older
-                  } else {
-                      console.log("No active proxy, showing full access.");
-                      if (age < 16) {
-                          showProxyRegistration(); // Show registration for proxy if under 16 and no proxy
-                      } else {
-                          displayRegularPatientDashboard(); // Show full dashboard if over 16 and no proxy
-                      }
-                  }
-              })
-              .catch(error => {
-                  console.error("Error fetching proxy list:", error);
-              });
-      })
-      .catch(error => {
-          console.error("Error fetching patient information:", error);
-      });
+      contractInstance.methods
+        .get_accessed_proxylist_for_patient(key)
+        .call()
+        .then((proxyAddressList) => {
+          let hasActiveProxy = proxyAddressList.some(
+            (addr) => addr !== "0x0000000000000000000000000000000000000000"
+          );
+
+          if (hasActiveProxy) {
+            console.log("Active proxy found.");
+            displayRegularPatientDashboard(); // Show full dashboard for adults or those 16 and older
+          } else {
+            console.log("No active proxy, showing full access.");
+            if (age < 16) {
+              showProxyRegistration(); // Show registration for proxy if under 16 and no proxy
+            } else {
+              displayRegularPatientDashboard(); // Show full dashboard if over 16 and no proxy
+            }
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching proxy list:", error);
+        });
+    })
+    .catch((error) => {
+      console.error("Error fetching patient information:", error);
+    });
 }
-
 
 function displayRegularPatientDashboard() {
   // Hide all panels initially
   var panels = document.querySelectorAll(".panel");
-  panels.forEach(function(panel) {
-      panel.style.display = "none"; // Hide all panels
+  panels.forEach(function (panel) {
+    panel.style.display = "none"; // Hide all panels
   });
 
   // Show only the personalInfoPanel
   document.getElementById("personalInfoPanel").style.display = "block";
-  
+
   // Show all sidebar items
-  $('.list-group-item').show();
-  
+  $(".list-group-item").show();
+
   // Hide the alert box if any
-  $('#alertBox').hide();
+  $("#alertBox").hide();
 }
 
 function showProxyRegistration() {
-  $('#designateProxyPanel').show();
+  $("#designateProxyPanel").show();
   $('.list-group-item[data-target="designateProxyPanel"]').show();
-  $('#alertBox').html('You must designate a proxy to manage your medical decisions.').show();
-  $('.panel').not('#designateProxyPanel').hide(); // Hide other content panels
-  $('.list-group-item').not('.list-group-item[data-target="designateProxyPanel"]').hide(); // Hide other sidebar items
+  $("#alertBox")
+    .html("You must designate a proxy to manage your medical decisions.")
+    .show();
+  $(".panel").not("#designateProxyPanel").hide(); // Hide other content panels
+  $(".list-group-item")
+    .not('.list-group-item[data-target="designateProxyPanel"]')
+    .hide(); // Hide other sidebar items
 }
