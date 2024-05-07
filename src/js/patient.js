@@ -164,48 +164,124 @@ function showRecords(element) {
   }
 }
 
+// function giveAccess() {
+//   var list = document.getElementById("permitDoctorList");
+//   index = list.selectedIndex;
+
+//   var DoctorList = 0;
+
+//   contractInstance.methods
+//     .get_doctor_list()
+//     .call({ gas: 1000000 }, function (error, result) {
+//       if (!error) {
+//         // console.log(index);
+
+//         DoctorList = result;
+//         doctorToBeAdded = DoctorList[index - 1];
+//         contractInstance.methods.permit_access(doctorToBeAdded).send(
+//           {
+//             from: key,
+//             gas: 1000000,
+//             value: web3.utils.toWei("2", "ether"),
+//           },
+//           function (error) {
+//             if (!error) {
+//               var table = document.getElementById("accessDoc");
+//               noRows = table.rows.length;
+//               var row = table.insertRow(noRows);
+//               var cell1 = row.insertCell(0);
+//               var cell2 = row.insertCell(1);
+//               var cell3 = row.insertCell(2);
+
+//               cell2.className = "publicKeyDoctor";
+//               cell1.innerHTML = $("#permitDoctorList").val();
+//               cell2.innerHTML = doctorToBeAdded;
+//               cell3.innerHTML =
+//                 '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+//             } else {
+//               $(".alert-info").show();
+//               console.log(error);
+//             }
+//           }
+//         );
+//       } else console.log(error);
+//     });
+// }
+
 function giveAccess() {
   var list = document.getElementById("permitDoctorList");
-  index = list.selectedIndex;
+  var index = list.selectedIndex;
 
-  var DoctorList = 0;
+  web3.eth.getAccounts().then((accounts) => {
+    var key = accounts[0].toLowerCase(); // Ensure you get the current user's address
 
-  contractInstance.methods
-    .get_doctor_list()
-    .call({ gas: 1000000 }, function (error, result) {
-      if (!error) {
-        // console.log(index);
+    contractInstance.methods
+      .get_doctor_list()
+      .call({ gas: 1000000 }, function (error, DoctorList) {
+        if (!error) {
+          var doctorToBeAdded = DoctorList[index - 1]; // Adjusted for array offset, assuming 0-based index
 
-        DoctorList = result;
-        doctorToBeAdded = DoctorList[index - 1];
-        contractInstance.methods.permit_access(doctorToBeAdded).send(
-          {
-            from: key,
-            gas: 1000000,
-            value: web3.utils.toWei("2", "ether"),
-          },
-          function (error) {
-            if (!error) {
-              var table = document.getElementById("accessDoc");
-              noRows = table.rows.length;
-              var row = table.insertRow(noRows);
-              var cell1 = row.insertCell(0);
-              var cell2 = row.insertCell(1);
-              var cell3 = row.insertCell(2);
+          // Retrieve the current patient's address or use the logged-in user's address
+          var patientAddress = key; // Modify as per your application logic
 
-              cell2.className = "publicKeyDoctor";
-              cell1.innerHTML = $("#permitDoctorList").val();
-              cell2.innerHTML = doctorToBeAdded;
-              cell3.innerHTML =
-                '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
-            } else {
-              $(".alert-info").show();
-              console.log(error);
-            }
-          }
-        );
-      } else console.log(error);
-    });
+          // Check if the selected doctor already has access
+          contractInstance.methods
+            .get_accessed_doctorlist_for_patient(patientAddress)
+            .call({ gas: 1000000 }, function (error, accessedDoctorList) {
+              if (!error) {
+                if (accessedDoctorList.includes(doctorToBeAdded)) {
+                  // If doctor already has access, show the alert
+                  $(".alert-info")
+                    .show()
+                    .text(
+                      "Info! The doctor already has access to your records."
+                    );
+                  console.error(
+                    "Attempt to grant access to a doctor who already has it."
+                  );
+                } else {
+                  // If doctor does not have access, hide the alert and proceed to grant access
+                  $(".alert-info").hide();
+                  contractInstance.methods.permit_access(doctorToBeAdded).send(
+                    {
+                      from: key,
+                      gas: 1000000,
+                      value: web3.utils.toWei("2", "ether"),
+                    },
+                    function (error) {
+                      if (!error) {
+                        var table = document.getElementById("accessDoc");
+                        var noRows = table.rows.length;
+                        var row = table.insertRow(noRows);
+                        var cell1 = row.insertCell(0);
+                        var cell2 = row.insertCell(1);
+                        var cell3 = row.insertCell(2);
+
+                        cell1.innerHTML = $(
+                          "#permitDoctorList option:selected"
+                        ).text();
+                        cell2.innerHTML = doctorToBeAdded;
+                        cell2.className = "publicKeyDoctor";
+                        cell3.innerHTML =
+                          '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+                      } else {
+                        $(".alert-info")
+                          .show()
+                          .text("Error while granting access.");
+                        console.error("Error while granting access:", error);
+                      }
+                    }
+                  );
+                }
+              } else {
+                console.error("Error fetching accessed doctors list:", error);
+              }
+            });
+        } else {
+          console.log("Error fetching doctor list:", error);
+        }
+      });
+  });
 }
 
 function revokeAccess(element) {
@@ -520,7 +596,6 @@ function scheduleAppointment() {
 //   });
 // }
 
-
 // function displaySentAppointmentRequest(id, appointment, status) {
 //   var row = $("<tr>");
 
@@ -575,73 +650,103 @@ function scheduleAppointment() {
 
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
-      const patientAddress = accounts[0];
+    const patientAddress = accounts[0];
 
-      // Fetch the list of appointment IDs for the patient
-      contractInstance.methods.getPatientAppointments(patientAddress).call({ from: patientAddress })
+    // Fetch the list of appointment IDs for the patient
+    contractInstance.methods
+      .getPatientAppointments(patientAddress)
+      .call({ from: patientAddress })
       .then(function (appointmentIds) {
-          if (appointmentIds.length === 0) {
-              console.log("No appointments found.");
-              return; // Exit if no appointments
-          }
-          appointmentIds.forEach(function (id, index) {
-              contractInstance.methods.appointments(id).call()
-              .then(function (appointment) {
-                  // Fetch the doctor's details
-                  contractInstance.methods.get_doctor(appointment.doctorAddress).call()
-                  .then(function(doctorDetails) {
-                      var doctorName = doctorDetails[0] + ' ' + doctorDetails[1];
-                      // Fetch the appointment data from IPFS using the stored hash
-                      fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                          // Extract and format date and time from appointmentData.start
-                          var match = appointmentData.start.match(/^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/);
-                          var appointmentDate = "Invalid Date";
-                          var appointmentTime = "Invalid Time";
-                          if (match) {
-                              appointmentDate = `${match[1]}-${match[2]}-${match[3]}`;
-                              appointmentTime = `${match[4]}:${match[5]}`;
-                          }
-                          displaySentAppointmentRequest(id, appointmentData, appointmentData.status, doctorName, appointmentDate, appointmentTime);
-                      });
-                  })
-                  .catch(function(error) {
-                      console.error("Error fetching doctor details:", error);
-                      fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                          displaySentAppointmentRequest(id, appointmentData, appointmentData.status, "Unknown Doctor", "Invalid Date", "Invalid Time");
-                      });
-                  });
-              });
-          });
-      }).catch(function (error) {
-          console.error("Error loading appointment IDs:", error);
+        if (appointmentIds.length === 0) {
+          console.log("No appointments found.");
+          return; // Exit if no appointments
+        }
+        appointmentIds.forEach(function (id, index) {
+          contractInstance.methods
+            .appointments(id)
+            .call()
+            .then(function (appointment) {
+              // Fetch the doctor's details
+              contractInstance.methods
+                .get_doctor(appointment.doctorAddress)
+                .call()
+                .then(function (doctorDetails) {
+                  var doctorName = doctorDetails[0] + " " + doctorDetails[1];
+                  // Fetch the appointment data from IPFS using the stored hash
+                  fetchFromIPFS(
+                    appointment.ipfsHash,
+                    function (appointmentData) {
+                      // Extract and format date and time from appointmentData.start
+                      var match = appointmentData.start.match(
+                        /^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/
+                      );
+                      var appointmentDate = "Invalid Date";
+                      var appointmentTime = "Invalid Time";
+                      if (match) {
+                        appointmentDate = `${match[1]}-${match[2]}-${match[3]}`;
+                        appointmentTime = `${match[4]}:${match[5]}`;
+                      }
+                      displaySentAppointmentRequest(
+                        id,
+                        appointmentData,
+                        appointmentData.status,
+                        doctorName,
+                        appointmentDate,
+                        appointmentTime
+                      );
+                    }
+                  );
+                })
+                .catch(function (error) {
+                  console.error("Error fetching doctor details:", error);
+                  fetchFromIPFS(
+                    appointment.ipfsHash,
+                    function (appointmentData) {
+                      displaySentAppointmentRequest(
+                        id,
+                        appointmentData,
+                        appointmentData.status,
+                        "Unknown Doctor",
+                        "Invalid Date",
+                        "Invalid Time"
+                      );
+                    }
+                  );
+                });
+            });
+        });
+      })
+      .catch(function (error) {
+        console.error("Error loading appointment IDs:", error);
       });
   });
 }
 
-function displaySentAppointmentRequest(id, appointment, status, doctorName, appointmentDate, appointmentTime) {
+function displaySentAppointmentRequest(
+  id,
+  appointment,
+  status,
+  doctorName,
+  appointmentDate,
+  appointmentTime
+) {
   var row = $("<tr>");
-  $("<td>", { class: 'doctorName' }).text(doctorName).appendTo(row);
-  $("<td>", { class: 'appointmentDate' }).text(appointmentDate).appendTo(row);
-  $("<td>", { class: 'appointmentTime' }).text(appointmentTime).appendTo(row);
+  $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+  $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
+  $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
   var statusCell = $("<td>").text(status).appendTo(row);
   if (status === "accepted") {
-      statusCell.addClass("accepted-status");
+    statusCell.addClass("accepted-status");
   } else if (status === "rejected") {
-      statusCell.addClass("rejected-status");
+    statusCell.addClass("rejected-status");
   } else if (status === "pending") {
-      statusCell.addClass("pending-status");
+    statusCell.addClass("pending-status");
   } else {
-      statusCell.addClass("unknown-status");
+    statusCell.addClass("unknown-status");
   }
 
   $("#sentAppointmentRequests tbody").append(row);
 }
-
-
-
-
-
-
 
 function fetchFromIPFS(ipfsHash, callback) {
   $.get("http://localhost:8080/ipfs/" + ipfsHash)
@@ -1172,7 +1277,6 @@ function displaySymptoms(symptoms) {
   });
 }
 
-
 // Function to send selected symptoms to the Flask API for diagnosis prediction
 document
   .getElementById("diagnosisForm")
@@ -1212,7 +1316,7 @@ function predictDiagnosis(symptoms) {
       console.log("Prediction:", data);
       displayPredictionResult(data.prediction);
 
-       storePredictionInIPFS(data.prediction);
+      storePredictionInIPFS(data.prediction);
     })
     .catch((error) => {
       console.error("Error predicting the diagnosis:", error);
@@ -1235,42 +1339,37 @@ document.addEventListener("DOMContentLoaded", function () {
 // You might call predictDiagnosis() based on specific user actions, such as form submission
 function cleanSymptomName(symptom) {
   // Removes any trailing numbers and dots, replaces underscores with spaces, and capitalizes each word
-  return symptom.replace(/(\.\d+)?$/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  return symptom
+    .replace(/(\.\d+)?$/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-
-
 function storePredictionInIPFS(prediction) {
-  const ipfs = window.IpfsApi('localhost', '5001');
-  const timestamp = new Date().toLocaleString();  // Get the current timestamp
-  const predictionData = { prediction, timestamp };  // Include both prediction and timestamp
+  const ipfs = window.IpfsApi("localhost", "5001");
+  const timestamp = new Date().toLocaleString(); // Get the current timestamp
+  const predictionData = { prediction, timestamp }; // Include both prediction and timestamp
   const buffer = ipfs.Buffer.from(JSON.stringify(predictionData));
   console.log("Storing prediction with timestamp:", predictionData);
 
   ipfs.files.add(buffer, (error, result) => {
-      if (error) {
-          console.error("Error uploading to IPFS:", error);
-          return;
-      }
-      const ipfsHash = result[0].hash;
-      console.log("Stored in IPFS with hash:", ipfsHash);
+    if (error) {
+      console.error("Error uploading to IPFS:", error);
+      return;
+    }
+    const ipfsHash = result[0].hash;
+    console.log("Stored in IPFS with hash:", ipfsHash);
 
-      // Update localStorage with the hash
-      const hashes = JSON.parse(localStorage.getItem('diagnosisHashes')) || [];
-      hashes.push(ipfsHash);
-      localStorage.setItem('diagnosisHashes', JSON.stringify(hashes));
-      console.log("Updated localStorage with new hash:", hashes);
+    // Update localStorage with the hash
+    const hashes = JSON.parse(localStorage.getItem("diagnosisHashes")) || [];
+    hashes.push(ipfsHash);
+    localStorage.setItem("diagnosisHashes", JSON.stringify(hashes));
+    console.log("Updated localStorage with new hash:", hashes);
 
-      // Immediately display the prediction with timestamp
-      appendPredictionToHistory(predictionData);
+    // Immediately display the prediction with timestamp
+    appendPredictionToHistory(predictionData);
   });
 }
-
-
-
-
-
-
 
 function appendPredictionToHistory(predictionData) {
   const historyContainer = document.getElementById("predictionHistory");
@@ -1281,37 +1380,28 @@ function appendPredictionToHistory(predictionData) {
   historyContainer.appendChild(entry);
 }
 
-
-
-
-
-
-
 function displayAllDiagnoses() {
   const ipfs = window.IpfsApi("localhost", "5001");
   const hashes = JSON.parse(localStorage.getItem("diagnosisHashes")) || [];
   console.log("Loaded hashes from localStorage:", hashes);
 
-  hashes.forEach(hash => {
-      console.log("Fetching data for hash:", hash);
-      ipfs.files.cat(hash, (error, file) => {
-          if (error) {
-              console.error("Error retrieving from IPFS:", error);
-              return;
-          }
-          const predictionData = JSON.parse(file.toString());
-          console.log("Retrieved prediction data:", predictionData);
-          appendPredictionToHistory(predictionData);
-      });
+  hashes.forEach((hash) => {
+    console.log("Fetching data for hash:", hash);
+    ipfs.files.cat(hash, (error, file) => {
+      if (error) {
+        console.error("Error retrieving from IPFS:", error);
+        return;
+      }
+      const predictionData = JSON.parse(file.toString());
+      console.log("Retrieved prediction data:", predictionData);
+      appendPredictionToHistory(predictionData);
+    });
   });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
   displayAllDiagnoses();
 });
-
-
-
 
 document.addEventListener("DOMContentLoaded", function () {
   var panels = document.querySelectorAll(".panel");

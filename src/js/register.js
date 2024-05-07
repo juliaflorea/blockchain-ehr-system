@@ -122,6 +122,8 @@ function addAgent() {
                 alert("Please upload your medical certificate.");
                 return false;
               }
+              $("#loadingMessage").text("Verifying medical certificate... Please wait.");
+    $("#loadingMessage").show(); 
               validateDoctorCertificate(medicalCertificate, licenseNumber).then(
                 () => {
                   console.log("Certificate validated successfully.");
