@@ -520,50 +520,6 @@ function scheduleAppointment() {
 //   });
 // }
 
-function loadSentAppointmentRequests() {
-  web3.eth.getAccounts().then(function (accounts) {
-    const patientAddress = accounts[0];
-    contractInstance.methods
-      .getPatientAppointments(patientAddress)
-      .call({ from: patientAddress })
-      .then(function (appointmentIds) {
-        appointmentIds.forEach(function (id) {
-          contractInstance.methods
-            .appointments(id)
-            .call()
-            .then(function (appointment) {
-              if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
-                console.error(
-                  "Invalid or empty IPFS hash for appointment ID:",
-                  id
-                );
-                return;
-              }
-              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                if (appointment.isAccepted) {
-                  displaySentAppointmentRequest(
-                    id,
-                    appointmentData,
-                    "accepted"
-                  );
-                } else if (appointment.isRejected) {
-                  displaySentAppointmentRequest(
-                    id,
-                    appointmentData,
-                    "rejected"
-                  );
-                } else {
-                  displaySentAppointmentRequest(id, appointmentData, "pending");
-                }
-              });
-            });
-        });
-      })
-      .catch(function (error) {
-        console.error("Error loading sent appointment requests:", error);
-      });
-  });
-}
 
 // function displaySentAppointmentRequest(id, appointment, status) {
 //   var row = $("<tr>");
@@ -617,59 +573,75 @@ function loadSentAppointmentRequests() {
 //   $("#sentAppointmentRequests tbody").append(row);
 // }
 
-function displaySentAppointmentRequest(id, appointment, status) {
-  console.log(`Full Appointment ${id} Data:`, appointment);
+function loadSentAppointmentRequests() {
+  web3.eth.getAccounts().then(function (accounts) {
+      const patientAddress = accounts[0];
 
-  var doctorInfo = appointment.participant.find(
-    (p) =>
-      p.actor &&
-      p.actor.reference &&
-      p.actor.reference.startsWith("Practitioner")
-  );
+      // Fetch the list of appointment IDs for the patient
+      contractInstance.methods.getPatientAppointments(patientAddress).call({ from: patientAddress })
+      .then(function (appointmentIds) {
+          if (appointmentIds.length === 0) {
+              console.log("No appointments found.");
+              return; // Exit if no appointments
+          }
+          appointmentIds.forEach(function (id, index) {
+              contractInstance.methods.appointments(id).call()
+              .then(function (appointment) {
+                  // Fetch the doctor's details
+                  contractInstance.methods.get_doctor(appointment.doctorAddress).call()
+                  .then(function(doctorDetails) {
+                      var doctorName = doctorDetails[0] + ' ' + doctorDetails[1];
+                      // Fetch the appointment data from IPFS using the stored hash
+                      fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                          // Extract and format date and time from appointmentData.start
+                          var match = appointmentData.start.match(/^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/);
+                          var appointmentDate = "Invalid Date";
+                          var appointmentTime = "Invalid Time";
+                          if (match) {
+                              appointmentDate = `${match[1]}-${match[2]}-${match[3]}`;
+                              appointmentTime = `${match[4]}:${match[5]}`;
+                          }
+                          displaySentAppointmentRequest(id, appointmentData, appointmentData.status, doctorName, appointmentDate, appointmentTime);
+                      });
+                  })
+                  .catch(function(error) {
+                      console.error("Error fetching doctor details:", error);
+                      fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                          displaySentAppointmentRequest(id, appointmentData, appointmentData.status, "Unknown Doctor", "Invalid Date", "Invalid Time");
+                      });
+                  });
+              });
+          });
+      }).catch(function (error) {
+          console.error("Error loading appointment IDs:", error);
+      });
+  });
+}
 
-  if (doctorInfo && doctorInfo.actor) {
-    var doctorName = doctorInfo.actor.display;
-    console.log(`Doctor Name for appointment ID ${id}: ${doctorName}`);
-  } else {
-    console.log(
-      `Doctor details not found in participant array for appointment ID ${id}:`,
-      appointment.participant
-    );
-    doctorName = "Unknown Doctor";
-  }
-
-  if (!doctorInfo) {
-    console.error("No practitioner found in appointment data for ID:", id);
-    return; // Exit the function if no doctor found
-  }
-
-  var match = appointment.start.match(
-    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
-  );
-  var appointmentDate = "Invalid Date";
-  var appointmentTime = "Invalid Time";
-  if (match) {
-    var date = new Date(
-      Date.UTC(
-        parseInt(match[1], 10),
-        parseInt(match[2], 10) - 1,
-        parseInt(match[3], 10),
-        parseInt(match[4], 10),
-        parseInt(match[5], 10),
-        parseInt(match[6], 10)
-      )
-    );
-    appointmentDate = date.toISOString().substring(0, 10);
-    appointmentTime = date.toISOString().substring(11, 16);
-  }
-
+function displaySentAppointmentRequest(id, appointment, status, doctorName, appointmentDate, appointmentTime) {
   var row = $("<tr>");
-  $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
-  $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
-  $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
+  $("<td>", { class: 'doctorName' }).text(doctorName).appendTo(row);
+  $("<td>", { class: 'appointmentDate' }).text(appointmentDate).appendTo(row);
+  $("<td>", { class: 'appointmentTime' }).text(appointmentTime).appendTo(row);
   var statusCell = $("<td>").text(status).appendTo(row);
+  if (status === "accepted") {
+      statusCell.addClass("accepted-status");
+  } else if (status === "rejected") {
+      statusCell.addClass("rejected-status");
+  } else if (status === "pending") {
+      statusCell.addClass("pending-status");
+  } else {
+      statusCell.addClass("unknown-status");
+  }
+
   $("#sentAppointmentRequests tbody").append(row);
 }
+
+
+
+
+
+
 
 function fetchFromIPFS(ipfsHash, callback) {
   $.get("http://localhost:8080/ipfs/" + ipfsHash)
