@@ -89,38 +89,43 @@ $(window).on("load", function () {
     populateDoctorDropdown("doctorInfoSelect");
 
     // print out the doctors who have access
-    var doctorAddressList = 0;
-    contractInstance.methods
-      .get_accessed_doctorlist_for_patient(key)
-      .call({ gas: 1000000 }, function (error, result) {
-        if (!error) {
-          doctorAddressList = result;
-          // console.log(result);
+    contractInstance.methods.get_accessed_doctorlist_for_patient(key)
+    .call({ gas: 1000000 }, function (error, result) {
+      if (!error) {
+        var doctorAddressList = result;
+        var table = document.getElementById("accessDoc");
 
-          doctorAddressList.forEach(function (doctorAddress, index) {
-            contractInstance.methods
-              .get_doctor(doctorAddress)
-              .call({ gas: 1000000 }, function (error, result) {
-                var table = document.getElementById("accessDoc");
-                if (!error) {
-                  var doctorName = result[0]; // Assuming the doctor name is at index 0
-                  var publicKey = doctorAddress;
+        // Clear existing rows except for the header before adding new ones
+        while (table.rows.length > 1) {
+          table.deleteRow(1);
+        }
 
-                  var row = table.insertRow(index + 1);
-                  var cell1 = row.insertCell(0);
-                  var cell2 = row.insertCell(1);
-                  var cell3 = row.insertCell(2);
-                  cell2.className = "publicKeyDoctor";
-                  cell1.innerHTML = doctorName;
-                  cell2.innerHTML = publicKey;
-                  cell3.innerHTML =
-                    '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
-                } else console.error(error);
-              });
-          });
-        } else console.error(error);
-      });
-  });
+        // Add each doctor to the table
+        doctorAddressList.forEach(function (doctorAddress) {
+          contractInstance.methods.get_doctor(doctorAddress)
+            .call({ gas: 1000000 }, function (error, result) {
+              if (!error) {
+                var fullName = result[0] + " " + result[1];  // Concatenate first name and last name
+                var publicKey = doctorAddress;
+
+                var row = table.insertRow(-1);  // Append new row at the end of the table
+                var cell1 = row.insertCell(0);
+                var cell2 = row.insertCell(1);
+                var cell3 = row.insertCell(2);
+                cell1.innerHTML = fullName;  // Display full name
+                cell2.innerHTML = publicKey;
+                cell3.innerHTML = '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+              } else {
+                console.error(error);
+              }
+            });
+        });
+      } else {
+        console.error(error);
+      }
+    });
+});
+    
 
   loadSentAppointmentRequests();
 
@@ -164,125 +169,66 @@ function showRecords(element) {
   }
 }
 
+
+
 function giveAccess() {
   var list = document.getElementById("permitDoctorList");
-  index = list.selectedIndex;
-
-  var DoctorList = 0;
+  var index = list.selectedIndex; // Corrected from the previous version where 'index' was not properly declared.
 
   contractInstance.methods
     .get_doctor_list()
     .call({ gas: 1000000 }, function (error, result) {
       if (!error) {
-        // console.log(index);
+        var DoctorList = result;
+        var doctorToBeAdded = DoctorList[index - 1]; // Make sure index adjustment is needed or correct here depending on the dropdown setup.
 
-        DoctorList = result;
-        doctorToBeAdded = DoctorList[index - 1];
-        contractInstance.methods.permit_access(doctorToBeAdded).send(
-          {
-            from: key,
-            gas: 1000000,
-            value: web3.utils.toWei("2", "ether"),
-          },
-          function (error) {
-            if (!error) {
-              var table = document.getElementById("accessDoc");
-              noRows = table.rows.length;
-              var row = table.insertRow(noRows);
-              var cell1 = row.insertCell(0);
-              var cell2 = row.insertCell(1);
-              var cell3 = row.insertCell(2);
-
-              cell2.className = "publicKeyDoctor";
-              cell1.innerHTML = $("#permitDoctorList").val();
-              cell2.innerHTML = doctorToBeAdded;
-              cell3.innerHTML =
-                '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+        // Before attempting to add, check if the doctor already has access
+        contractInstance.methods.get_accessed_doctorlist_for_patient(key)
+          .call({ gas: 1000000 }, function (err, accessedDoctors) {
+            if (!err) {
+              if (accessedDoctors.includes(doctorToBeAdded)) {
+                alert("The doctor already has access to your records.");
+              } else {
+                // Doctor not in the list, proceed to give access
+                contractInstance.methods.permit_access(doctorToBeAdded).send(
+                  {
+                    from: key,
+                    gas: 1000000,
+                    value: web3.utils.toWei("2", "ether"),
+                  },
+                  function (error) {
+                    if (!error) {
+                      // Access granted successfully, update UI accordingly
+                      var table = document.getElementById("accessDoc");
+                      var noRows = table.rows.length;
+                      var row = table.insertRow(noRows);
+                      var cell1 = row.insertCell(0);
+                      var cell2 = row.insertCell(1);
+                      var cell3 = row.insertCell(2);
+    
+                      cell2.className = "publicKeyDoctor";
+                      cell1.innerHTML = list.options[index].text; // Update to show the selected doctor's name
+                      cell2.innerHTML = doctorToBeAdded;
+                      cell3.innerHTML = '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+                    } else {
+                      console.error("Failed to grant access:", error);
+                      alert("Failed to grant access. Please try again.");
+                    }
+                  }
+                );
+              }
             } else {
-              $(".alert-info").show();
-              console.log(error);
+              console.error("Failed to retrieve accessed doctors list:", err);
+              alert("Failed to check existing access. Please try again.");
             }
-          }
-        );
-      } else console.log(error);
+          });
+      } else {
+        console.error("Failed to fetch doctors list:", error);
+        alert("Failed to fetch doctors list. Please try again.");
+      }
     });
 }
 
-// function giveAccess() {
-//   var list = document.getElementById("permitDoctorList");
-//   var index = list.selectedIndex;
-
-//   web3.eth.getAccounts().then((accounts) => {
-//     var key = accounts[0].toLowerCase(); // Ensure you get the current user's address
-
-//     contractInstance.methods
-//       .get_doctor_list()
-//       .call({ gas: 1000000 }, function (error, DoctorList) {
-//         if (!error) {
-//           var doctorToBeAdded = DoctorList[index - 1]; // Adjusted for array offset, assuming 0-based index
-
-//           // Retrieve the current patient's address or use the logged-in user's address
-//           var patientAddress = key; // Modify as per your application logic
-
-//           // Check if the selected doctor already has access
-//           contractInstance.methods
-//             .get_accessed_doctorlist_for_patient(patientAddress)
-//             .call({ gas: 1000000 }, function (error, accessedDoctorList) {
-//               if (!error) {
-//                 if (accessedDoctorList.includes(doctorToBeAdded)) {
-//                   // If doctor already has access, show the alert
-//                   $(".alert-info")
-//                     .show()
-//                     .text(
-//                       "Info! The doctor already has access to your records."
-//                     );
-//                   console.error(
-//                     "Attempt to grant access to a doctor who already has it."
-//                   );
-//                 } else {
-//                   // If doctor does not have access, hide the alert and proceed to grant access
-//                   $(".alert-info").hide();
-//                   contractInstance.methods.permit_access(doctorToBeAdded).send(
-//                     {
-//                       from: key,
-//                       gas: 1000000,
-//                       value: web3.utils.toWei("2", "ether"),
-//                     },
-//                     function (error) {
-//                       if (!error) {
-//                         var table = document.getElementById("accessDoc");
-//                         var noRows = table.rows.length;
-//                         var row = table.insertRow(noRows);
-//                         var cell1 = row.insertCell(0);
-//                         var cell2 = row.insertCell(1);
-//                         var cell3 = row.insertCell(2);
-
-//                         cell1.innerHTML = $(
-//                           "#permitDoctorList option:selected"
-//                         ).text();
-//                         cell2.innerHTML = doctorToBeAdded;
-//                         cell2.className = "publicKeyDoctor";
-//                         cell3.innerHTML =
-//                           '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
-//                       } else {
-//                         $(".alert-info")
-//                           .show()
-//                           .text("Error while granting access.");
-//                         console.error("Error while granting access:", error);
-//                       }
-//                     }
-//                   );
-//                 }
-//               } else {
-//                 console.error("Error fetching accessed doctors list:", error);
-//               }
-//             });
-//         } else {
-//           console.log("Error fetching doctor list:", error);
-//         }
-//       });
-//   });
-// }
 
 function revokeAccess(element) {
   rowNo = element.parentNode.parentNode.rowIndex;
