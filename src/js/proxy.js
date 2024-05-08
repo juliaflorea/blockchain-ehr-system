@@ -366,128 +366,69 @@ function viewDoctorInfo() {
   });
 }
 
-function giveAccessByProxy() {
-  var list = document.getElementById("permitDoctorList");
-  var index = list.selectedIndex;
-
-  contractInstance.methods
-    .get_doctor_list()
-    .call({ gas: 1000000 }, function (error, result) {
-      if (!error) {
-        var DoctorList = result;
-        var doctorToBeAdded = DoctorList[index - 1]; // Assuming index is adjusted for array offset
-
-        contractInstance.methods
-          .get_proxy(key)
-          .call({ gas: 1000000 }, function (error, proxyDetails) {
-            if (!error) {
-              var patientAddress = proxyDetails.patientAddress;
-
-              // Check if the selected doctor already has access
-              contractInstance.methods
-                .get_accessed_doctorlist_for_patient(patientAddress)
-                .call({ gas: 1000000 }, function (error, accessedDoctorList) {
-                  if (!error) {
-                    if (accessedDoctorList.includes(doctorToBeAdded)) {
-                      // If doctor already has access, show the alert
-                      $(".alert-info").show(); // Ensure this is the correct selector for your alert
-                      console.error(
-                        "Attempt to grant access to a doctor who already has it."
-                      );
-                    } else {
-                      // If doctor does not have access, hide the alert and proceed to grant access
-                      $(".alert-info").hide();
-                      // Proceed with access granting
-                      contractInstance.methods
-                        .permit_access_by_proxy(doctorToBeAdded, patientAddress)
-                        .send(
-                          {
-                            from: key,
-                            gas: 1000000,
-                            value: web3.utils.toWei("2", "ether"),
-                          },
-                          function (error) {
-                            if (!error) {
-                              console.log(
-                                "Access granted to doctor: ",
-                                doctorToBeAdded
-                              );
-                              // Update the UI accordingly
-                            } else {
-                              console.error(
-                                "Error while granting access:",
-                                error
-                              );
-                            }
-                          }
-                        );
-                    }
-                  } else {
-                    console.error(
-                      "Error fetching accessed doctors list:",
-                      error
-                    );
-                  }
-                });
-            } else {
-              console.error("Error fetching proxy details:", error);
-            }
-          });
-      } else {
-        console.error("Error fetching doctor list:", error);
-      }
-    });
-}
-
 // function giveAccessByProxy() {
 //   var list = document.getElementById("permitDoctorList");
-//   index = list.selectedIndex;
-
-//   var DoctorList = 0;
+//   var index = list.selectedIndex;
 
 //   contractInstance.methods
 //     .get_doctor_list()
 //     .call({ gas: 1000000 }, function (error, result) {
 //       if (!error) {
-//         // console.log(index);
+//         var DoctorList = result;
+//         var doctorToBeAdded = DoctorList[index - 1]; // Assuming index is adjusted for array offset
 
-//         DoctorList = result;
-//         doctorToBeAdded = DoctorList[index - 1];
 //         contractInstance.methods
 //           .get_proxy(key)
 //           .call({ gas: 1000000 }, function (error, proxyDetails) {
 //             if (!error) {
 //               var patientAddress = proxyDetails.patientAddress;
-//               contractInstance.methods
-//                 .permit_access_by_proxy(doctorToBeAdded, patientAddress)
-//                 .send(
-//                   {
-//                     from: key,
-//                     gas: 1000000,
-//                     value: web3.utils.toWei("2", "ether"),
-//                   },
-//                   function (error) {
-//                     if (!error) {
-//                       var table = document.getElementById("accessDoc");
-//                       noRows = table.rows.length;
-//                       var row = table.insertRow(noRows);
-//                       var cell1 = row.insertCell(0);
-//                       var cell2 = row.insertCell(1);
-//                       var cell3 = row.insertCell(2);
 
-//                       cell2.className = "publicKeyDoctor";
-//                       cell1.innerHTML = $("#permitDoctorList").val();
-//                       cell2.innerHTML = doctorToBeAdded;
-//                       cell3.innerHTML =
-//                         '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+//               // Check if the selected doctor already has access
+//               contractInstance.methods
+//                 .get_accessed_doctorlist_for_patient(patientAddress)
+//                 .call({ gas: 1000000 }, function (error, accessedDoctorList) {
+//                   if (!error) {
+//                     if (accessedDoctorList.includes(doctorToBeAdded)) {
+//                       // If doctor already has access, show the alert
+//                       $(".alert-info").show(); // Ensure this is the correct selector for your alert
+//                       console.error(
+//                         "Attempt to grant access to a doctor who already has it."
+//                       );
 //                     } else {
-                     
-//                       console.log("Error while granting access:", error);
-                     
-                      
+//                       // If doctor does not have access, hide the alert and proceed to grant access
+//                       $(".alert-info").hide();
+//                       // Proceed with access granting
+//                       contractInstance.methods
+//                         .permit_access_by_proxy(doctorToBeAdded, patientAddress)
+//                         .send(
+//                           {
+//                             from: key,
+//                             gas: 1000000,
+//                             value: web3.utils.toWei("2", "ether"),
+//                           },
+//                           function (error) {
+//                             if (!error) {
+//                               console.log(
+//                                 "Access granted to doctor: ",
+//                                 doctorToBeAdded
+//                               );
+//                               // Update the UI accordingly
+//                             } else {
+//                               console.error(
+//                                 "Error while granting access:",
+//                                 error
+//                               );
+//                             }
+//                           }
+//                         );
 //                     }
+//                   } else {
+//                     console.error(
+//                       "Error fetching accessed doctors list:",
+//                       error
+//                     );
 //                   }
-//                 );
+//                 });
 //             } else {
 //               console.error("Error fetching proxy details:", error);
 //             }
@@ -497,6 +438,65 @@ function giveAccessByProxy() {
 //       }
 //     });
 // }
+
+function giveAccessByProxy() {
+  var list = document.getElementById("permitDoctorList");
+  index = list.selectedIndex;
+
+  var DoctorList = 0;
+
+  contractInstance.methods
+    .get_doctor_list()
+    .call({ gas: 1000000 }, function (error, result) {
+      if (!error) {
+        // console.log(index);
+
+        DoctorList = result;
+        doctorToBeAdded = DoctorList[index - 1];
+        contractInstance.methods
+          .get_proxy(key)
+          .call({ gas: 1000000 }, function (error, proxyDetails) {
+            if (!error) {
+              var patientAddress = proxyDetails.patientAddress;
+              contractInstance.methods
+                .permit_access_by_proxy(doctorToBeAdded, patientAddress)
+                .send(
+                  {
+                    from: key,
+                    gas: 1000000,
+                    value: web3.utils.toWei("2", "ether"),
+                  },
+                  function (error) {
+                    if (!error) {
+                      var table = document.getElementById("accessDoc");
+                      noRows = table.rows.length;
+                      var row = table.insertRow(noRows);
+                      var cell1 = row.insertCell(0);
+                      var cell2 = row.insertCell(1);
+                      var cell3 = row.insertCell(2);
+
+                      cell2.className = "publicKeyDoctor";
+                      cell1.innerHTML = $("#permitDoctorList").val();
+                      cell2.innerHTML = doctorToBeAdded;
+                      cell3.innerHTML =
+                        '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+                    } else {
+                     
+                      console.log("Error while granting access:", error);
+                     
+                      
+                    }
+                  }
+                );
+            } else {
+              console.error("Error fetching proxy details:", error);
+            }
+          });
+      } else {
+        console.error("Error fetching doctor list:", error);
+      }
+    });
+}
 function revokeAccessByProxy(element) {
   var rowNo = element.parentNode.parentNode.rowIndex; // Improved variable declaration
   var row = element.parentNode.parentNode; // Use var for variable declaration

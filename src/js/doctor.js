@@ -252,17 +252,32 @@ function submitDiagnosis(element, index) {
         let acceptedAppointmentFound = false;
 
         // This creates a series of promises that resolve to true/false based on appointment acceptance.
+        // const checks = appointmentIds.map((id) =>
+        //   contractInstance.methods
+        //     .appointments(id)
+        //     .call()
+        //     .then(
+        //       (appointment) =>
+        //         appointment.patientAddress.toLowerCase() ===
+        //           patientAddress.toLowerCase() && appointment.isAccepted
+        //     )
+        // );
         const checks = appointmentIds.map((id) =>
-          contractInstance.methods
-            .appointments(id)
-            .call()
-            .then(
-              (appointment) =>
-                appointment.patientAddress.toLowerCase() ===
-                  patientAddress.toLowerCase() && appointment.isAccepted
-            )
-        );
-
+        contractInstance.methods
+          .appointments(id)
+          .call()
+          .then((appointment) => {
+            if (appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() && appointment.isAccepted) {
+              if (appointment.diagnosisSubmitted) {
+                alert("Diagnosis already submitted for this appointment. Please book another appointment.");
+                throw new Error("Diagnosis already submitted"); // Prevent further execution
+              }
+              appointmentFound = id; // Save the appointment ID for further use
+              return true;
+            }
+            return false;
+          })
+      );
         // Wait for all checks to complete.
         Promise.all(checks).then((results) => {
           acceptedAppointmentFound = results.includes(true);
@@ -426,24 +441,40 @@ function submitTreatmentPlan(element, index) {
         let foundAppointmentId = null;
 
         // Convert promises into a sequence to ensure we properly wait for all checks
+        // const checks = appointmentIds.map((id) =>
+        //   contractInstance.methods
+        //     .appointments(id)
+        //     .call()
+        //     .then((appointment) => {
+        //       console.log(`Checking appointment ${id}:`, appointment);
+        //       if (
+        //         appointment.patientAddress.toLowerCase() ===
+        //           patientAddress.toLowerCase() &&
+        //         appointment.isAccepted &&
+        //         !appointment.treatmentPlanSubmitted
+        //       ) {
+        //         foundAppointmentId = id; // Correctly capture the found ID
+
+        //         console.log(
+        //           `Found matching appointment ID: ${foundAppointmentId}`
+        //         );
+
+        //         return true;
+        //       }
+        //       return false;
+        //     })
+        // );
+
         const checks = appointmentIds.map((id) =>
           contractInstance.methods
             .appointments(id)
             .call()
             .then((appointment) => {
-              console.log(`Checking appointment ${id}:`, appointment);
-              if (
-                appointment.patientAddress.toLowerCase() ===
-                  patientAddress.toLowerCase() &&
-                appointment.isAccepted &&
-                !appointment.treatmentPlanSubmitted
-              ) {
+              if (appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() &&
+                  appointment.isAccepted &&
+                  appointment.diagnosisSubmitted &&
+                  !appointment.treatmentPlanSubmitted) {
                 foundAppointmentId = id; // Correctly capture the found ID
-
-                console.log(
-                  `Found matching appointment ID: ${foundAppointmentId}`
-                );
-
                 return true;
               }
               return false;
@@ -453,7 +484,7 @@ function submitTreatmentPlan(element, index) {
         Promise.all(checks).then((results) => {
           if (!foundAppointmentId) {
             console.error("No suitable appointment found.");
-            alert("No suitable appointment found.");
+            alert("No suitable appointment found or diagnosis not yet submitted.");
             return;
           }
 
