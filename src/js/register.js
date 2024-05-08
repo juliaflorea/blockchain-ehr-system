@@ -442,6 +442,14 @@ function handleProxyRegistration(
   const proxyPhone = $("#phone").val();
   const proxyEmail = $("#email").val();
 
+  const formDetails = {
+    firstName: proxyFirstName,
+    lastName: proxyLastName,
+    dob: proxyDOB,
+    address: proxyAddress,
+    phone: proxyPhone,
+    email: proxyEmail
+  };
   return new Promise((resolve, reject) => {
     if (proxyOption === "token") {
       contractInstance.methods
@@ -533,6 +541,9 @@ function handleProxyRegistration(
     }
   });
 }
+
+
+
 
 async function validatePOADetails(buffer, formDetails) {
   const loadingTask = pdfjsLib.getDocument({ data: buffer });

@@ -471,6 +471,7 @@ contract MedicalRecords {
             patientInfo[patientAddress].hasDesignatedProxy,
             "No proxy to revoke."
         );
+        require(patientInfo[msg.sender].age >= 16, "Patient under 16 cannot revoke access.");
 
         // Call remove_proxy to revoke the proxy's access
         remove_proxy(patientAddress);
@@ -591,13 +592,20 @@ contract MedicalRecords {
 
         // Ensure the doctor has access to the patient's medical records
         bool accessGranted = false;
-        for (uint i = 0; i < patientInfo[_patient].doctorAccessList.length; i++) {
+        for (
+            uint i = 0;
+            i < patientInfo[_patient].doctorAccessList.length;
+            i++
+        ) {
             if (patientInfo[_patient].doctorAccessList[i] == _doctor) {
                 accessGranted = true;
                 break;
             }
         }
-        require(accessGranted, "Doctor does not have access to the patient's records.");
+        require(
+            accessGranted,
+            "Doctor does not have access to the patient's records."
+        );
 
         // Check the doctor's availability
         require(
@@ -622,7 +630,6 @@ contract MedicalRecords {
         patientAppointments[_patient].push(appointmentId);
         doctorAppointments[_doctor].push(appointmentId);
     }
-
 
     function getDoctorAppointments(
         address doctorAddress
@@ -650,30 +657,39 @@ contract MedicalRecords {
     // }
 
     function acceptAppointment(uint _appointmentId) public {
-    Appointment storage appointment = appointments[_appointmentId];
+        Appointment storage appointment = appointments[_appointmentId];
 
-    require(
-        appointment.isAccepted == false,
-        "Appointment is already processed"
-    );
+        require(
+            appointment.isAccepted == false,
+            "Appointment is already processed"
+        );
 
-    // Check if there is any accepted appointment at the same date and time
-    uint[] memory docAppointments = doctorAppointments[appointment.doctorAddress];
-    for (uint i = 0; i < docAppointments.length; i++) {
-        Appointment storage otherAppointment = appointments[docAppointments[i]];
-        if (otherAppointment.date == appointment.date &&
-            otherAppointment.hour == appointment.hour &&
-            otherAppointment.isAccepted) {
-            revert("Another appointment is already booked for this time slot.");
+        // Check if there is any accepted appointment at the same date and time
+        uint[] memory docAppointments = doctorAppointments[
+            appointment.doctorAddress
+        ];
+        for (uint i = 0; i < docAppointments.length; i++) {
+            Appointment storage otherAppointment = appointments[
+                docAppointments[i]
+            ];
+            if (
+                otherAppointment.date == appointment.date &&
+                otherAppointment.hour == appointment.hour &&
+                otherAppointment.isAccepted
+            ) {
+                revert(
+                    "Another appointment is already booked for this time slot."
+                );
+            }
         }
+
+        // If no conflict, set the appointment as accepted
+        appointment.isAccepted = true;
+        // Optionally mark the time slot as unavailable (if not already done)
+        doctorAvailability[appointment.doctorAddress][appointment.date][
+            appointment.hour
+        ] = true;
     }
-
-    // If no conflict, set the appointment as accepted
-    appointment.isAccepted = true;
-    // Optionally mark the time slot as unavailable (if not already done)
-    doctorAvailability[appointment.doctorAddress][appointment.date][appointment.hour] = true;
-}
-
 
     function rejectAppointment(uint _appointmentId) public {
         Appointment storage appointment = appointments[_appointmentId];
@@ -702,8 +718,6 @@ contract MedicalRecords {
         );
         doctorAvailability[_doctor][_date][_hour] = _isAvailable;
     }
-
-   
 
     function isTimeSlotAvailable(
         address _doctor,
@@ -743,5 +757,10 @@ contract MedicalRecords {
         address patientAddress
     ) public view returns (bytes32) {
         return proxyDetailsHash[patientAddress];
+    }
+
+    // test function
+    function setTestAge(uint _age, address _patientAddress) public {
+        patientInfo[_patientAddress].age = _age;
     }
 }

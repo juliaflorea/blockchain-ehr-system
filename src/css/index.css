@@ -24,20 +24,31 @@ body {
   text-align: left;
   padding: 150px 0; /* Adjust the padding to suit your content */
 }
-
-/* Update button styles to match the design */
-.k-button.k-primary {
-  font-size: 1.25rem; /* Larger font size */
-  padding: 15px 40px; /* Larger padding */
-  background-color: #4a90e2; /* A soft blue color */
-  color: #fff; /* White color text */
-  border-radius: 25px; /* More pronounced rounded corners */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+#hero h1 {
+  margin-bottom: 30px; /* Increase space below the heading */
 }
 
-/* Hover effect for the button */
+#hero p {
+  margin-top: 20px; /* Adjust if necessary to match the spacing after h1 */
+  
+ 
+}
+
+.k-button.k-primary {
+  margin-top: 30px;
+  font-size: 1.2rem; /* Adjust font size */
+  padding: 12px 30px; /* Adjust padding to make the button larger */
+  background-color: #4a90e2; /* Keep the soft blue color */
+  color: #fff; /* White color text */
+  border: none; /* No border */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4); /* Subtle shadow for depth */
+  transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out; /* Smooth transition for hover effects */
+}
+
 .k-button.k-primary:hover {
-  background-color: #357abd; /* Slightly darker shade on hover */
+  background-color: #357abd; /* Darker shade on hover */
+  box-shadow: 0 8px 25px rgba(53, 122, 189, 0.5); /* Increased shadow on hover */
 }
 
 .get-started-section {
@@ -292,23 +303,4 @@ body {
   margin-bottom: 0.5rem; /* Space between contact info */
 }
 
-/* Adjustments for smaller screens */
-@media (max-width: 767px) {
-  .navbar-custom .navbar-brand {
-    flex-grow: 1; /* Allows the brand to take up full width on smaller screens */
-    justify-content: center; /* Centers the brand on smaller screens */
-  }
 
-  .navbar-custom .navbar-nav {
-    justify-content: flex-start; /* Aligns nav items to the start on smaller screens */
-  }
-
-  .navbar-custom .navbar-toggler {
-    margin-left: auto; /* Positions the toggle to the end */
-  }
-
-  .login-button,
-  .signup-button {
-    font-size: 0.875rem; /* Smaller text on buttons for smaller screens */
-  }
-}
