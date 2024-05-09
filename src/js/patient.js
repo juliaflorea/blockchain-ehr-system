@@ -89,43 +89,45 @@ $(window).on("load", function () {
     populateDoctorDropdown("doctorInfoSelect");
 
     // print out the doctors who have access
-    contractInstance.methods.get_accessed_doctorlist_for_patient(key)
-    .call({ gas: 1000000 }, function (error, result) {
-      if (!error) {
-        var doctorAddressList = result;
-        var table = document.getElementById("accessDoc");
+    contractInstance.methods
+      .get_accessed_doctorlist_for_patient(key)
+      .call({ gas: 1000000 }, function (error, result) {
+        if (!error) {
+          var doctorAddressList = result;
+          var table = document.getElementById("accessDoc");
 
-        // Clear existing rows except for the header before adding new ones
-        while (table.rows.length > 1) {
-          table.deleteRow(1);
+          // Clear existing rows except for the header before adding new ones
+          while (table.rows.length > 1) {
+            table.deleteRow(1);
+          }
+
+          // Add each doctor to the table
+          doctorAddressList.forEach(function (doctorAddress) {
+            contractInstance.methods
+              .get_doctor(doctorAddress)
+              .call({ gas: 1000000 }, function (error, result) {
+                if (!error) {
+                  var fullName = result[0] + " " + result[1]; // Concatenate first name and last name
+                  var publicKey = doctorAddress;
+
+                  var row = table.insertRow(-1); // Append new row at the end of the table
+                  var cell1 = row.insertCell(0);
+                  var cell2 = row.insertCell(1);
+                  var cell3 = row.insertCell(2);
+                  cell1.innerHTML = fullName; // Display full name
+                  cell2.innerHTML = publicKey;
+                  cell3.innerHTML =
+                    '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+                } else {
+                  console.error(error);
+                }
+              });
+          });
+        } else {
+          console.error(error);
         }
-
-        // Add each doctor to the table
-        doctorAddressList.forEach(function (doctorAddress) {
-          contractInstance.methods.get_doctor(doctorAddress)
-            .call({ gas: 1000000 }, function (error, result) {
-              if (!error) {
-                var fullName = result[0] + " " + result[1];  // Concatenate first name and last name
-                var publicKey = doctorAddress;
-
-                var row = table.insertRow(-1);  // Append new row at the end of the table
-                var cell1 = row.insertCell(0);
-                var cell2 = row.insertCell(1);
-                var cell3 = row.insertCell(2);
-                cell1.innerHTML = fullName;  // Display full name
-                cell2.innerHTML = publicKey;
-                cell3.innerHTML = '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
-              } else {
-                console.error(error);
-              }
-            });
-        });
-      } else {
-        console.error(error);
-      }
-    });
-});
-    
+      });
+  });
 
   loadSentAppointmentRequests();
 
@@ -169,8 +171,6 @@ function showRecords(element) {
   }
 }
 
-
-
 function giveAccess() {
   var list = document.getElementById("permitDoctorList");
   var index = list.selectedIndex; // Corrected from the previous version where 'index' was not properly declared.
@@ -183,7 +183,8 @@ function giveAccess() {
         var doctorToBeAdded = DoctorList[index - 1]; // Make sure index adjustment is needed or correct here depending on the dropdown setup.
 
         // Before attempting to add, check if the doctor already has access
-        contractInstance.methods.get_accessed_doctorlist_for_patient(key)
+        contractInstance.methods
+          .get_accessed_doctorlist_for_patient(key)
           .call({ gas: 1000000 }, function (err, accessedDoctors) {
             if (!err) {
               if (accessedDoctors.includes(doctorToBeAdded)) {
@@ -205,11 +206,12 @@ function giveAccess() {
                       var cell1 = row.insertCell(0);
                       var cell2 = row.insertCell(1);
                       var cell3 = row.insertCell(2);
-    
+
                       cell2.className = "publicKeyDoctor";
                       cell1.innerHTML = list.options[index].text; // Update to show the selected doctor's name
                       cell2.innerHTML = doctorToBeAdded;
-                      cell3.innerHTML = '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+                      cell3.innerHTML =
+                        '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
                     } else {
                       console.error("Failed to grant access:", error);
                       alert("Failed to grant access. Please try again.");
@@ -228,7 +230,6 @@ function giveAccess() {
       }
     });
 }
-
 
 function revokeAccess(element) {
   rowNo = element.parentNode.parentNode.rowIndex;
@@ -321,7 +322,7 @@ function viewDoctorInfo() {
     alert("Please select a doctor to view their information.");
     return;
   }
-
+  document.getElementById("doctorInfoDisplay").style.display = "none";
   // Fetch doctor's info from the smart contract
   contractInstance.methods
     .get_doctor(selectedDoctorAddress)
@@ -360,6 +361,7 @@ function viewDoctorInfo() {
               `;
 
         document.getElementById("doctorInfoDisplay").innerHTML = content;
+        document.getElementById("doctorInfoDisplay").style.display = "block";
       }).fail(function () {
         console.error("Failed to fetch data from IPFS.");
         document.getElementById("doctorInfoDisplay").innerHTML =
@@ -499,8 +501,6 @@ function scheduleAppointment() {
       });
   });
 }
-
-
 
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
@@ -1023,11 +1023,11 @@ function addPatientAllergy() {
       recordedDate: new Date().toISOString(),
     };
 
-    const formattedAllergy = `Allergy Substance: ${allergySubstance}
-    Reaction: ${allergyReaction}
-    Criticality: ${allergyCriticality}
-    Recorded on: ${new Date().toLocaleString()}\n`;
-
+    const formattedAllergy =
+      `<p><strong>Allergy Substance:</strong> ${allergySubstance}</p>` +
+      `<p><strong>Reaction:</strong> ${allergyReaction}</p>` +
+      `<p><strong>Criticality:</strong> ${allergyCriticality}</p>` +
+      `<p><strong>Recorded on:</strong> ${new Date().toLocaleString()}</p>`;
     // Fetch the current IPFS hash for the patient's record
     contractInstance.methods
       .get_hash(patientAddress)

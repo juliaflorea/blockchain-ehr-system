@@ -1,7 +1,7 @@
 /* Global Styles */
 body {
-  font-family: "Arial", sans-serif;
-  background-color: #f8f9fa; /* Light gray background */
+  font-family: "Roboto", "Arial", sans-serif; /* Modern, clean font */
+  color: #4a4e69;
 }
 
 #page-content-wrapper {
@@ -62,6 +62,40 @@ body {
   display: block; /* Show the personal info panel by default */
 }
 
+/* Styles for the medical records panel */
+#personalInfoPanel .panel-body {
+  background-color: #f7f7f7; /* Light background color for the panel body */
+  padding: 20px; /* Padding for spacing */
+  border-radius: 5px; /* Rounded corners */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+}
+
+#personalInfoPanel .record-title {
+  text-align: center; /* Center alignment for titles */
+  color: #333; /* Dark color for text */
+  margin-bottom: 20px; /* Margin below the title */
+  font-weight: bold; /* Bold font style */
+}
+
+#personalInfoPanel .record-item {
+  padding: 10px 0; /* Padding for each item */
+  border-bottom: 1px solid #eaeaea; /* Light border for separation */
+}
+
+#personalInfoPanel .record-item:last-child {
+  border-bottom: none; /* Remove border for the last item */
+}
+
+#personalInfoPanel .record-key {
+  font-weight: bold; /* Bold font for key */
+  color: #555; /* Slightly darker color for text */
+}
+
+#personalInfoPanel .record-value {
+  float: right; /* Align value to the right */
+  color: #666; /* Light color for text */
+}
+
 /* Form Styles */
 .form-group {
   margin-bottom: 15px;
@@ -73,11 +107,17 @@ body {
 
 .btn-primary,
 .btn-info {
+  padding: 6px 12px; /* Smaller padding */
+  font-size: 0.8rem; /* Smaller font size */
+  width: auto; /* Only as wide as necessary */
+  display: inline-block; /* Align correctly */
+  text-align: center; /* Center the text inside the button */
+  margin: 0 auto;
   background-color: #5e72e4; /* Primary button color to match the theme */
   border-color: #5e72e4; /* Border color to match the button */
-  border-radius: 20px; /* Rounded borders */
-  padding: 10px 25px; /* Padding for the buttons */
-  font-size: 1rem; /* Font size for the buttons */
+  padding: 8px 16px; /* Smaller padding */
+  font-size: 0.8rem; /* Smaller text */
+  border-radius: 5px; /* Font size for the buttons */
   color: #fff; /* White text color */
   text-transform: uppercase; /* Uppercase text */
   font-weight: bold; /* Bold font weight */
@@ -145,22 +185,27 @@ body {
 }
 
 #records {
-  background-color: #e9ecef; /* Light background for records */
-  padding: 1rem; /* Padding around records text */
-  border-radius: 5px; /* Rounded corners for records */
-  margin-top: 1rem; /* Margin above the records for spacing */
-  text-align: center; /* Center align records text */
-  font-family: "Courier New", monospace; /* Monospace font for records to mimic typewritten text */
+  width: 100%;
+  background-color: #ffffff; /* White background */
+  padding: 20px; /* More padding for better readability */
+  border-radius: 10px; /* Rounded corners */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  border: 1px solid #e3e6f0; /* Light border for subtle definition */
+  margin-top: 20px; /* Monospace font for records to mimic typewritten text */
+  max-width: 800px;
+  margin-left: 75px;
 }
 
 #recordsHash a {
-  color: #5e72e4; /* Color to match theme */
-  text-decoration: underline; /* Underline the link */
+  color: #5e72e4; /* Consistent with button colors for uniformity */
+  text-decoration: none; /* Removes underline */
+  font-weight: bold; /* Underline the link */
 }
 
 #recordsHash a:hover,
 #recordsHash a:focus {
   color: #324cdd; /* Darker shade when hovered/focused */
+  text-decoration: underline;
 }
 
 #records::-webkit-scrollbar {
@@ -177,7 +222,8 @@ body {
 }
 
 /* Adjust the panel width to be similar to the share record panels */
-#appointmentPanel, #sentAppointmentRequests {
+#appointmentPanel,
+#sentAppointmentRequests {
   width: 80%; /* Match the width to share record panels, or adjust as needed */
   margin: 0 auto; /* Center the panels */
   display: block; /* Ensure the panels are displayed */
@@ -211,10 +257,68 @@ label {
   margin-top: 10px;
   padding: 10px;
   background-color: #f4f4f4; /* Light grey background */
-  border-left: 5px solid #007BFF; /* Blue border on the left */
+  border-left: 5px solid #007bff; /* Blue border on the left */
   border-radius: 5px;
 }
 
 .prediction-entry p {
   margin: 5px 0; /* Small margin for paragraph */
+}
+
+.info-container {
+  display: none;
+  width: 100%;
+  background-color: #ffffff; /* White background */
+  padding: 20px; /* More padding for better readability */
+  border-radius: 10px; /* Rounded corners */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  border: 1px solid #e3e6f0; /* Light border for subtle definition */
+  margin-top: 20px; /* Monospace font for records to mimic typewritten text */
+  max-width: 800px;
+  margin-left: 65px;
+  text-align: center;
+}
+
+.info-container label {
+  font-weight: bold; /* Bold for labels */
+  display: block; /* Makes the label take full width */
+  margin-bottom: 10px; /* Space below the label */
+}
+
+.info-container span {
+  font-weight: normal; /* Normal weight for text */
+  display: block; /* Ensures the text is on a new line */
+  margin-bottom: 10px; /* Space below each item */
+}
+
+.doctor-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Align items to the start to ensure they line up */
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  width: 100%; /* Adjust width as needed */
+  max-width: 600px; /* Set a max-width for the container */
+  margin: 20px auto; /* Center the container horizontally */
+}
+
+.doctor-info p {
+  width: 100%; /* Ensure the paragraph uses the full width available */
+  display: flex;
+  justify-content: flex-start; /* Align content to the start */
+  margin-bottom: 10px; /* Space between entries */
+}
+
+.doctor-info label {
+  min-width: 180px; /* Ensure all labels have at least this width */
+  font-weight: bold;
+  margin-right: 10px; /* Space between label and value */
+}
+
+.doctor-info span {
+  font-weight: normal;
+  text-align: left; /* Ensures value aligns to the left */
 }

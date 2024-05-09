@@ -46,12 +46,6 @@
                     data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="diagnosisPanel diagnosisHistoryPanel"><i class="fas fa-stethoscope"></i> Quick Diagnosis Prediction</a>
-                <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
-                        class="fas fa-history"></i> Medical History</a> -->
-                <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
-                        class="fas fa-procedures"></i> Hospitalization History</a> -->
-                <!-- <a href="#" class="list-group-item list-group-item-action bg-purple text-white"><i
-                        class="fas fa-notes-medical"></i> Checkup History</a> -->
                 <hr class="sidebar-divider">
                 <p class="sidebar-category ">AVAILABLE DOCTORS</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
@@ -100,7 +94,7 @@
                                 </table>
 
                                 <div class="text-center">
-                                    <h5>Your records are stored here: http://localhost:8080/ipfs/<span
+                                    <h5>Your records are stored here:  http://localhost:8080/ipfs/<span
                                             id="recordsHash"></span>
                                     </h5>
                                     <button type="submit" class="btn btn-info btn-lg" onclick="showRecords(this)">View
@@ -176,7 +170,7 @@
                         </div>
                         <button id="viewDoctorInfoBtn" class="btn btn-primary" onclick="viewDoctorInfo()">View Doctor
                             Info</button>
-                        <div id="doctorInfoDisplay"></div>
+                            <div id="doctorInfoDisplay" class="info-container"></div>
 
                     </div>
                 </div>

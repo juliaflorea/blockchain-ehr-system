@@ -276,6 +276,8 @@ body {
   align-items: flex-start;
   flex: 1; /* Allow each column to grow equally */
   padding: 0 15px; /* This adds padding on both sides of each column */
+  white-space: nowrap;
+  height: 100%;
 }
 
 .footer-columns-container .footer-column:nth-child(1),
@@ -291,6 +293,15 @@ body {
 .footer-column:last-child {
   padding-right: 0;
 }
+.footer-column:nth-child(2) .footer-link:nth-child(2) {
+  margin-top: auto;  /* Existing property to push it to the bottom */
+   /* Add padding on top to move it down a bit more */
+}
+
+.footer-column:nth-child(3) .contact-info:nth-last-child(2) {
+  margin-top: auto; /* Existing property */
+  /* Add padding on top to move it down a bit more */
+}
 
 .footer-link {
   display: block; /* Links on their own line */
@@ -301,6 +312,7 @@ body {
 .contact-info {
   color: inherit; /* Inherits grey text color */
   margin-bottom: 0.5rem; /* Space between contact info */
+  white-space: nowrap;
 }
 
 
