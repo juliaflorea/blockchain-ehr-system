@@ -1214,9 +1214,13 @@ function storePredictionInIPFS(prediction) {
     const ipfsHash = result[0].hash;
     console.log("Stored in IPFS with hash:", ipfsHash);
 
-    // Update localStorage with the hash
-    const hashes = JSON.parse(localStorage.getItem("diagnosisHashes")) || [];
-    hashes.push(ipfsHash);
+    // Update local storage with the hash, linked to the current patient's key
+    const patientKey = window.location.href.split('patientId=')[1]; // Assuming patientId is in the URL
+    const hashes = JSON.parse(localStorage.getItem("diagnosisHashes") || "{}");
+    if (!hashes[patientKey]) {
+      hashes[patientKey] = [];
+    }
+    hashes[patientKey].push(ipfsHash);
     localStorage.setItem("diagnosisHashes", JSON.stringify(hashes));
     console.log("Updated localStorage with new hash:", hashes);
 
@@ -1224,6 +1228,7 @@ function storePredictionInIPFS(prediction) {
     appendPredictionToHistory(predictionData);
   });
 }
+
 
 function appendPredictionToHistory(predictionData) {
   const historyContainer = document.getElementById("predictionHistory");
@@ -1236,10 +1241,13 @@ function appendPredictionToHistory(predictionData) {
 
 function displayAllDiagnoses() {
   const ipfs = window.IpfsApi("localhost", "5001");
-  const hashes = JSON.parse(localStorage.getItem("diagnosisHashes")) || [];
-  console.log("Loaded hashes from localStorage:", hashes);
+  const patientKey = window.location.href.split('patientId=')[1]; // Assuming patientId is in the URL
+  const hashes = JSON.parse(localStorage.getItem("diagnosisHashes") || "{}");
+  const patientHashes = hashes[patientKey] || [];
 
-  hashes.forEach((hash) => {
+  console.log("Loaded hashes from localStorage for the current patient:", patientHashes);
+
+  patientHashes.forEach((hash) => {
     console.log("Fetching data for hash:", hash);
     ipfs.files.cat(hash, (error, file) => {
       if (error) {
@@ -1247,11 +1255,12 @@ function displayAllDiagnoses() {
         return;
       }
       const predictionData = JSON.parse(file.toString());
-      console.log("Retrieved prediction data:", predictionData);
+      console.log("Retrieved prediction data for the current patient:", predictionData);
       appendPredictionToHistory(predictionData);
     });
   });
 }
+
 
 document.addEventListener("DOMContentLoaded", function () {
   displayAllDiagnoses();
