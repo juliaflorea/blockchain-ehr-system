@@ -222,6 +222,9 @@ function showRecords(element) {
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           $.get("http://localhost:8080/ipfs/" + result, function (data) {
+            if (!data.startsWith('<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>')) {
+              data = '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>\n' + data;
+            }
             var downloadButton = $("<button/>", {
               text: "Download Medical Record",
               class: "btn btn-primary",
@@ -371,8 +374,6 @@ function viewDoctorInfo() {
   });
 }
 
-
-
 function giveAccessByProxy() {
   var list = document.getElementById("permitDoctorList");
   var index = list.selectedIndex;
@@ -397,26 +398,42 @@ function giveAccessByProxy() {
                   if (!error) {
                     if (accessedDoctorList.includes(doctorToBeAdded)) {
                       // Doctor already has access, show the alert
-                      alert("This doctor already has access to the patient's records.");
-                      console.error("Attempt to grant access to a doctor who already has it.");
+                      alert(
+                        "This doctor already has access to the patient's records."
+                      );
+                      console.error(
+                        "Attempt to grant access to a doctor who already has it."
+                      );
                     } else {
                       // Doctor does not have access, proceed to grant access
                       contractInstance.methods
                         .permit_access_by_proxy(doctorToBeAdded, patientAddress)
-                        .send({
-                          from: key,
-                          gas: 1000000,
-                          value: web3.utils.toWei("2", "ether"),
-                        }, function (error) {
-                          if (!error) {
-                            console.log("Access granted to doctor: ", doctorToBeAdded);
-                          } else {
-                            console.error("Error while granting access:", error);
+                        .send(
+                          {
+                            from: key,
+                            gas: 1000000,
+                            value: web3.utils.toWei("2", "ether"),
+                          },
+                          function (error) {
+                            if (!error) {
+                              console.log(
+                                "Access granted to doctor: ",
+                                doctorToBeAdded
+                              );
+                            } else {
+                              console.error(
+                                "Error while granting access:",
+                                error
+                              );
+                            }
                           }
-                        });
+                        );
                     }
                   } else {
-                    console.error("Error fetching accessed doctors list:", error);
+                    console.error(
+                      "Error fetching accessed doctors list:",
+                      error
+                    );
                   }
                 });
             } else {
@@ -428,9 +445,6 @@ function giveAccessByProxy() {
       }
     });
 }
-
-
-
 
 function revokeAccessByProxy(element) {
   var rowNo = element.parentNode.parentNode.rowIndex; // Improved variable declaration
@@ -639,130 +653,246 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
+// function loadSentAppointmentRequests() {
+//   web3.eth.getAccounts().then(function (accounts) {
+//     const proxyAddress = accounts[0];
+//     console.log("Proxy Address:", proxyAddress);
+
+//     contractInstance.methods
+//       .get_proxy(proxyAddress)
+//       .call()
+//       .then(function (proxyDetails) {
+//         const patientAddress = proxyDetails.patientAddress;
+//         console.log("Patient Address:", patientAddress);
+
+//         contractInstance.methods
+//           .getPatientAppointments(patientAddress)
+//           .call({ from: proxyAddress })
+//           .then(function (appointmentIds) {
+//             console.log("Appointment IDs:", appointmentIds);
+//             if (appointmentIds.length === 0) {
+//               console.log("No appointments found.");
+//             }
+//             appointmentIds.forEach(function (id, index) {
+//               contractInstance.methods
+//                 .appointments(id)
+//                 .call()
+//                 .then(function (appointment) {
+//                   console.log(`Appointment ${index}:`, appointment);
+//                   fetchFromIPFS(
+//                     appointment.ipfsHash,
+//                     function (appointmentData) {
+//                       console.log(
+//                         `Appointment Data ${index}:`,
+//                         appointmentData
+//                       );
+//                       displaySentAppointmentRequest(
+//                         id,
+//                         appointmentData,
+//                         appointmentData.status
+//                       );
+//                     }
+//                   );
+//                 });
+//             });
+//           })
+//           .catch(function (error) {
+//             console.error("Error loading appointment IDs:", error);
+//           });
+//       })
+//       .catch(function (error) {
+//         console.error("Error fetching proxy details:", error);
+//       });
+//   });
+// }
+
+// function displaySentAppointmentRequest(id, appointment, status) {
+//   var capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
+//   // Find the practitioner's Ethereum address in the participant list
+//   var doctorInfo = appointment.participant.find((p) =>
+//     p.actor.reference.startsWith("Practitioner")
+//   );
+
+//   if (!doctorInfo) {
+//     console.error("No practitioner found in appointment data.");
+//     return; // Exit the function if no doctor found
+//   }
+
+//   var doctorAddress = doctorInfo.actor.reference.split("/")[1]; // Assuming the reference format is "Practitioner/{ethereum_address}"
+
+//   // Fetch doctor name from the blockchain using the address
+//   contractInstance.methods
+//     .get_doctor(doctorAddress)
+//     .call()
+//     .then(function (doctorDetails) {
+//       var doctorName = doctorDetails[0] + " " + doctorDetails[1]; // Assuming the name is at index 0 and 1
+
+//       var match = appointment.start.match(
+//         /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+//       );
+
+//       var appointmentDate, appointmentTime;
+//       if (match) {
+//         var date = new Date(
+//           Date.UTC(
+//             parseInt(match[1], 10),
+//             parseInt(match[2], 10) - 1,
+//             parseInt(match[3], 10),
+//             parseInt(match[4], 10),
+//             parseInt(match[5], 10),
+//             parseInt(match[6], 10)
+//           )
+//         );
+//         appointmentDate = date.toISOString().substring(0, 10);
+//         appointmentTime = date.toISOString().substring(11, 16);
+//       } else {
+//         console.error("Invalid date format:", appointment.start);
+//         appointmentDate = "Invalid Date";
+//         appointmentTime = "Invalid Time";
+//       }
+
+//       // Create table row and cells
+//       var row = $("<tr>");
+//       $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+//       $("<td>", { class: "appointmentDate" })
+//         .text(appointmentDate)
+//         .appendTo(row);
+//       $("<td>", { class: "appointmentTime" })
+//         .text(appointmentTime)
+//         .appendTo(row);
+
+//       var statusCell = $("<td>").text(capitalizedStatus).appendTo(row);
+//       if (status === "accepted") {
+//         statusCell.addClass("accepted-status");
+//       } else if (status === "rejected") {
+//         statusCell.addClass("rejected-status");
+//       } else if (status === "pending") {
+//         statusCell.addClass("pending-status");
+//       } else {
+//         statusCell.addClass("unknown-status");
+//       }
+
+//       $("#sentAppointmentRequests tbody").append(row);
+//     })
+//     .catch(function (error) {
+//       console.error("Error fetching doctor details:", error);
+//     });
+// }
+
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
-    const proxyAddress = accounts[0];
-    console.log("Proxy Address:", proxyAddress);
-
+    const proxyAddress = accounts[0]; // Using proxy's address
     contractInstance.methods
-      .get_proxy(proxyAddress)
+      .get_accessed_patientlist_for_proxy(proxyAddress)
       .call()
-      .then(function (proxyDetails) {
-        const patientAddress = proxyDetails.patientAddress;
-        console.log("Patient Address:", patientAddress);
-
-        contractInstance.methods
-          .getPatientAppointments(patientAddress)
-          .call({ from: proxyAddress })
-          .then(function (appointmentIds) {
-            console.log("Appointment IDs:", appointmentIds);
-            if (appointmentIds.length === 0) {
-              console.log("No appointments found.");
-            }
-            appointmentIds.forEach(function (id, index) {
-              contractInstance.methods
-                .appointments(id)
-                .call()
-                .then(function (appointment) {
-                  console.log(`Appointment ${index}:`, appointment);
-                  fetchFromIPFS(
-                    appointment.ipfsHash,
-                    function (appointmentData) {
-                      console.log(
-                        `Appointment Data ${index}:`,
-                        appointmentData
+      .then(function (patientAddresses) {
+        patientAddresses.forEach(function (patientAddress) {
+          contractInstance.methods
+            .getPatientAppointments(patientAddress)
+            .call({ from: proxyAddress })
+            .then(function (appointmentIds) {
+              appointmentIds.forEach(function (id) {
+                contractInstance.methods
+                  .appointments(id)
+                  .call()
+                  .then(function (appointment) {
+                    if (
+                      !appointment.ipfsHash ||
+                      appointment.ipfsHash === "0x"
+                    ) {
+                      console.error(
+                        "Invalid or empty IPFS hash for appointment ID:",
+                        id
                       );
-                      displaySentAppointmentRequest(
-                        id,
-                        appointmentData,
-                        appointmentData.status
-                      );
+                      return;
                     }
-                  );
-                });
+                    fetchFromIPFS(
+                      appointment.ipfsHash,
+                      function (appointmentData) {
+                        var status = appointment.isAccepted
+                          ? "Accepted"
+                          : appointment.isRejected
+                          ? "Rejected"
+                          : "Pending";
+                        contractInstance.methods
+                          .get_doctor(appointment.doctorAddress)
+                          .call()
+                          .then(function (doctorDetails) {
+                            var doctorName =
+                              doctorDetails[0] + " " + doctorDetails[1];
+                            displaySentAppointmentRequest(
+                              id,
+                              appointmentData,
+                              status,
+                              doctorName
+                            );
+                          })
+                          .catch(function (error) {
+                            console.error(
+                              "Error fetching doctor details:",
+                              error
+                            );
+                            displaySentAppointmentRequest(
+                              id,
+                              appointmentData,
+                              status,
+                              "Unknown Doctor"
+                            );
+                          });
+                      }
+                    );
+                  });
+              });
+            })
+            .catch(function (error) {
+              console.error("Error loading sent appointment requests:", error);
             });
-          })
-          .catch(function (error) {
-            console.error("Error loading appointment IDs:", error);
-          });
+        });
       })
       .catch(function (error) {
-        console.error("Error fetching proxy details:", error);
+        console.error("Error fetching patient list for proxy:", error);
       });
   });
 }
 
-function displaySentAppointmentRequest(id, appointment, status) {
-  var capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
-  // Find the practitioner's Ethereum address in the participant list
-  var doctorInfo = appointment.participant.find((p) =>
-    p.actor.reference.startsWith("Practitioner")
-  );
+function displaySentAppointmentRequest(id, appointment, status, doctorName) {
+  console.log(`Full Appointment ${id} Data:`, appointment);
 
-  if (!doctorInfo) {
-    console.error("No practitioner found in appointment data.");
-    return; // Exit the function if no doctor found
+  var match = appointment.start.match(
+    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+  );
+  var appointmentDate = "Invalid Date";
+  var appointmentTime = "Invalid Time";
+  if (match) {
+    var date = new Date(
+      Date.UTC(
+        parseInt(match[1], 10),
+        parseInt(match[2], 10) - 1,
+        parseInt(match[3], 10),
+        parseInt(match[4], 10),
+        parseInt(match[5], 10),
+        parseInt(match[6], 10)
+      )
+    );
+    appointmentDate = date.toISOString().substring(0, 10);
+    appointmentTime = date.toISOString().substring(11, 16);
   }
 
-  var doctorAddress = doctorInfo.actor.reference.split("/")[1]; // Assuming the reference format is "Practitioner/{ethereum_address}"
-
-  // Fetch doctor name from the blockchain using the address
-  contractInstance.methods
-    .get_doctor(doctorAddress)
-    .call()
-    .then(function (doctorDetails) {
-      var doctorName = doctorDetails[0] + " " + doctorDetails[1]; // Assuming the name is at index 0 and 1
-
-      var match = appointment.start.match(
-        /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
-      );
-
-      var appointmentDate, appointmentTime;
-      if (match) {
-        var date = new Date(
-          Date.UTC(
-            parseInt(match[1], 10),
-            parseInt(match[2], 10) - 1,
-            parseInt(match[3], 10),
-            parseInt(match[4], 10),
-            parseInt(match[5], 10),
-            parseInt(match[6], 10)
-          )
-        );
-        appointmentDate = date.toISOString().substring(0, 10);
-        appointmentTime = date.toISOString().substring(11, 16);
-      } else {
-        console.error("Invalid date format:", appointment.start);
-        appointmentDate = "Invalid Date";
-        appointmentTime = "Invalid Time";
-      }
-
-      // Create table row and cells
-      var row = $("<tr>");
-      $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
-      $("<td>", { class: "appointmentDate" })
-        .text(appointmentDate)
-        .appendTo(row);
-      $("<td>", { class: "appointmentTime" })
-        .text(appointmentTime)
-        .appendTo(row);
-
-      var statusCell = $("<td>").text(capitalizedStatus).appendTo(row);
-      if (status === "accepted") {
-        statusCell.addClass("accepted-status");
-      } else if (status === "rejected") {
-        statusCell.addClass("rejected-status");
-      } else if (status === "pending") {
-        statusCell.addClass("pending-status");
-      } else {
-        statusCell.addClass("unknown-status");
-      }
-
-      $("#sentAppointmentRequests tbody").append(row);
-    })
-    .catch(function (error) {
-      console.error("Error fetching doctor details:", error);
-    });
+  var row = $("<tr>");
+  $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+  $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
+  $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
+  var statusCell = $("<td>").text(status).appendTo(row);
+  if (status === "Accepted") {
+    statusCell.addClass("accepted-status");
+  } else if (status === "Rejected") {
+    statusCell.addClass("rejected-status");
+  } else if (status === "Pending") {
+    statusCell.addClass("pending-status");
+  } else {
+    statusCell.addClass("unknown-status");
+  }
+  $("#sentAppointmentRequests tbody").append(row);
 }
 
 function fetchFromIPFS(ipfsHash, callback) {

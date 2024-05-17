@@ -4,26 +4,8 @@ body {
     background-color: #f8f9fa; /* Light gray background */
   }
   
-  #page-content-wrapper {
-    display: flex; /* Enables flexbox */
-    flex-direction: column;
-    justify-content: center; /* Centers horizontally */
-    align-items: center; /* Centers vertically */
-    min-height: 100vh; /* Full height minus navbar height, adjust as needed */
-    padding: 1rem;
-    flex-grow: 1;
-  }
   
-  .container-fluid {
-    flex-grow: 1; /* Takes up the available space */
-    max-width: none; /* Remove max-width restriction */
-    padding: 2rem; /* Add some padding */
-    display: flex;
-    flex-direction: column;
-    justify-content: center; /* Center horizontally */
-    align-items: center; /* Center vertically */
-    height: calc(100vh - 56px);
-  }
+ 
   
   /* Panel Styles */
   .panel-heading {

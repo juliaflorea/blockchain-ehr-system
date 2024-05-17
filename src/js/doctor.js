@@ -57,7 +57,7 @@ $(window).on("load", function () {
                   var patientLastName = result[1];
                   var publicKey = patientAddress;
 
-                  var row = table.insertRow(index + 1);
+                  var row = table.insertRow(-1);
                   var cell1 = row.insertCell(0);
                   var cell2 = row.insertCell(1);
                   var cell3 = row.insertCell(2);
@@ -75,7 +75,6 @@ $(window).on("load", function () {
   });
   loadAppointmentRequests();
   loadAppointmentHistory();
-  
 });
 
 function showRecords(element) {
@@ -91,7 +90,8 @@ function showRecords(element) {
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           $.get("http://localhost:8080/ipfs/" + result, function (data) {
-            patientRecord = data;
+            
+          patientRecord = data;
             var downloadButton = $("<button/>", {
               text: "Download Medical Record",
               class: "btn btn-primary",
@@ -107,8 +107,9 @@ function showRecords(element) {
                   <pre style="margin: 20px 0;" id="records${patientAddress}">${patientRecord}</pre>
                 </div>
               </div>
+              <hr>
               <div class=" section diagnosis-section">
-                <h4 class="diagnosis-title">Diagnosis Submission</h4>
+                <h5 class="diagnosis-title">Diagnosis Submission</h5>
                 <div class="form-group">
                   <label for="ailmentsList${patientAddress}" class="form-label">Diagnosis:</label>
                   <select class="form-control" id="ailmentsList${patientAddress}" required>
@@ -152,9 +153,11 @@ function showRecords(element) {
                   <button class="btn btn-primary " onclick="submitDiagnosis(this, ${index})">Submit</button>
                 </div>
               </div>
-            </div>`;
+            </div>
+            <hr>`;
+
             var treatmentPlanContent = `<div class=" section treatment-plan-section">
-                <h4>Treatment Plan</h4>
+                <h5>Treatment Plan</h5>
                 <div class="form-group">
                   <label>Medication Name:</label>
                   <input type="text" class="form-control" id="medicationName${patientAddress}">
@@ -251,33 +254,28 @@ function submitDiagnosis(element, index) {
       .then(function (appointmentIds) {
         let acceptedAppointmentFound = false;
 
-        // This creates a series of promises that resolve to true/false based on appointment acceptance.
-        // const checks = appointmentIds.map((id) =>
-        //   contractInstance.methods
-        //     .appointments(id)
-        //     .call()
-        //     .then(
-        //       (appointment) =>
-        //         appointment.patientAddress.toLowerCase() ===
-        //           patientAddress.toLowerCase() && appointment.isAccepted
-        //     )
-        // );
         const checks = appointmentIds.map((id) =>
-        contractInstance.methods
-          .appointments(id)
-          .call()
-          .then((appointment) => {
-            if (appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() && appointment.isAccepted) {
-              if (appointment.diagnosisSubmitted) {
-                alert("Diagnosis already submitted for this appointment. Please book another appointment.");
-                throw new Error("Diagnosis already submitted"); // Prevent further execution
+          contractInstance.methods
+            .appointments(id)
+            .call()
+            .then((appointment) => {
+              if (
+                appointment.patientAddress.toLowerCase() ===
+                  patientAddress.toLowerCase() &&
+                appointment.isAccepted
+              ) {
+                if (appointment.diagnosisSubmitted) {
+                  alert(
+                    "Diagnosis already submitted for this appointment. Please book another appointment."
+                  );
+                  throw new Error("Diagnosis already submitted"); // Prevent further execution
+                }
+                appointmentFound = id; // Save the appointment ID for further use
+                return true;
               }
-              appointmentFound = id; // Save the appointment ID for further use
-              return true;
-            }
-            return false;
-          })
-      );
+              return false;
+            })
+        );
         // Wait for all checks to complete.
         Promise.all(checks).then((results) => {
           acceptedAppointmentFound = results.includes(true);
@@ -470,10 +468,13 @@ function submitTreatmentPlan(element, index) {
             .appointments(id)
             .call()
             .then((appointment) => {
-              if (appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() &&
-                  appointment.isAccepted &&
-                  appointment.diagnosisSubmitted &&
-                  !appointment.treatmentPlanSubmitted) {
+              if (
+                appointment.patientAddress.toLowerCase() ===
+                  patientAddress.toLowerCase() &&
+                appointment.isAccepted &&
+                appointment.diagnosisSubmitted &&
+                !appointment.treatmentPlanSubmitted
+              ) {
                 foundAppointmentId = id; // Correctly capture the found ID
                 return true;
               }
@@ -484,7 +485,9 @@ function submitTreatmentPlan(element, index) {
         Promise.all(checks).then((results) => {
           if (!foundAppointmentId) {
             console.error("No suitable appointment found.");
-            alert("No suitable appointment found or diagnosis not yet submitted.");
+            alert(
+              "No suitable appointment found or diagnosis not yet submitted."
+            );
             return;
           }
 
@@ -707,10 +710,10 @@ function loadAppointmentHistory() {
               // Optionally, fetch additional details from IPFS
               fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
                 const status = appointment.isAccepted
-                  ? "accepted"
+                  ? "Accepted"
                   : appointment.isRejected
-                  ? "rejected"
-                  : "pending";
+                  ? "Rejected"
+                  : "Pending";
                 displayAppointmentHistory(id, appointmentData, status);
               });
             });
@@ -756,10 +759,16 @@ function displayAppointmentHistory(id, appointment, status) {
   $("<td>").text(patientName).appendTo(row);
   $("<td>").text(appointmentDate).appendTo(row);
   $("<td>").text(appointmentTime).appendTo(row);
-  $("<td>")
-    .text(status)
-    .addClass(status.toLowerCase() + "-status")
-    .appendTo(row);
+  var statusCell = $("<td>").text(status).appendTo(row);
+  if (status === "Accepted") {
+    statusCell.addClass("accepted-status");
+  } else if (status === "Rejected") {
+    statusCell.addClass("rejected-status");
+  } else if (status === "Pending") {
+    statusCell.addClass("pending-status");
+  } else {
+    statusCell.addClass("unknown-status");
+  }
 
   $("#appointmentHistory tbody").append(row); // Ensure you have a table with id="appointmentHistory"
 }
@@ -1018,40 +1027,44 @@ $(document).ready(function () {
       };
     },
   });
-  
+
   calendar.render();
-  
+
   function updateCalendarVisibility() {
     if ($("#calendar").is(":visible")) {
-        calendar.updateSize();
+      calendar.updateSize();
     }
-}
+  }
 
-// MutationObserver Configuration
-const config = { attributes: true, childList: true, subtree: true };
-const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            updateCalendarVisibility();
-        }
+  // MutationObserver Configuration
+  const config = { attributes: true, childList: true, subtree: true };
+  const observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "class"
+      ) {
+        updateCalendarVisibility();
+      }
     });
-});
+  });
 
-// Start observing the target node for configured mutations
-observer.observe(document.body, config);
+  // Start observing the target node for configured mutations
+  observer.observe(document.body, config);
 
-// Clean up observer on page unload
-$(window).on('unload', function() {
+  // Clean up observer on page unload
+  $(window).on("unload", function () {
     observer.disconnect();
-});
+  });
 
-  setTimeout(function() {
+  setTimeout(function () {
     loadAcceptedAppointments(calendar);
-}, 1000);
+  }, 1000);
 });
 
 function loadAcceptedAppointments(calendar) {
-  web3.eth.getAccounts()
+  web3.eth
+    .getAccounts()
     .then(function (accounts) {
       const doctorAddress = accounts[0];
       contractInstance.methods
@@ -1105,8 +1118,12 @@ function addEventToCalendar(appointmentData, calendar) {
     const formattedTime = date.format("HH:mm");
 
     // Find the patient's name in the participant array
-    const patientInfo = appointmentData.participant.find(p => p.actor.reference.startsWith("Patient"));
-    const patientName = patientInfo ? patientInfo.actor.display : "Unknown Patient";
+    const patientInfo = appointmentData.participant.find((p) =>
+      p.actor.reference.startsWith("Patient")
+    );
+    const patientName = patientInfo
+      ? patientInfo.actor.display
+      : "Unknown Patient";
 
     // Check if patient's name was found
     if (patientName === "Unknown Patient") {
@@ -1117,16 +1134,13 @@ function addEventToCalendar(appointmentData, calendar) {
       title: `${formattedTime} ${patientName}`,
       start: formattedDate + "T" + formattedTime,
       allDay: false,
-      color: 'rgba(255, 179, 128, 0.5)', // Peach background with transparency
-      textColor: '#f26d21', // Orange text
+      color: "rgba(255, 179, 128, 0.5)", // Peach background with transparency
+      textColor: "#f26d21", // Orange text
       extendedProps: {
         description: patientName, // Added to use in custom rendering
       },
     });
-    
   } catch (e) {
     console.error("Error in adding event to calendar:", e);
   }
 }
-
-

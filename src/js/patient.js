@@ -140,8 +140,21 @@ function showRecords(element) {
   if (toggleRecordsButton % 2 === 0) {
     $.get("http://localhost:8080/ipfs/" + recordHash)
       .done(function (data) {
+        // Display the fetched data
         $("#records").html(data);
         $("#records").show();
+
+        var content = $("#records").html();
+        if (
+          !data.startsWith(
+            '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>'
+          )
+        ) {
+          data =
+            '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>\n' +
+            data;
+        }
+        $("#records").html(data);
 
         var downloadButton = $("<button/>", {
           text: "Download Medical Record",
@@ -160,7 +173,6 @@ function showRecords(element) {
     toggleRecordsButton += 1;
 
     element.innerHTML = "Hide Medical Records";
-
     element.className = "btn btn-info btn-lg";
   } else {
     $("#records").hide();
@@ -505,100 +517,99 @@ function scheduleAppointment() {
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
     const patientAddress = accounts[0];
-
-    // Fetch the list of appointment IDs for the patient
     contractInstance.methods
       .getPatientAppointments(patientAddress)
       .call({ from: patientAddress })
       .then(function (appointmentIds) {
-        if (appointmentIds.length === 0) {
-          console.log("No appointments found.");
-          return; // Exit if no appointments
-        }
-        appointmentIds.forEach(function (id, index) {
+        appointmentIds.forEach(function (id) {
           contractInstance.methods
             .appointments(id)
             .call()
             .then(function (appointment) {
-              // Fetch the doctor's details
-              contractInstance.methods
-                .get_doctor(appointment.doctorAddress)
-                .call()
-                .then(function (doctorDetails) {
-                  var doctorName = doctorDetails[0] + " " + doctorDetails[1];
-                  // Fetch the appointment data from IPFS using the stored hash
-                  fetchFromIPFS(
-                    appointment.ipfsHash,
-                    function (appointmentData) {
-                      // Extract and format date and time from appointmentData.start
-                      var match = appointmentData.start.match(
-                        /^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/
-                      );
-                      var appointmentDate = "Invalid Date";
-                      var appointmentTime = "Invalid Time";
-                      if (match) {
-                        appointmentDate = `${match[1]}-${match[2]}-${match[3]}`;
-                        appointmentTime = `${match[4]}:${match[5]}`;
-                      }
-                      displaySentAppointmentRequest(
-                        id,
-                        appointmentData,
-                        appointmentData.status,
-                        doctorName,
-                        appointmentDate,
-                        appointmentTime
-                      );
-                    }
-                  );
-                })
-                .catch(function (error) {
-                  console.error("Error fetching doctor details:", error);
-                  fetchFromIPFS(
-                    appointment.ipfsHash,
-                    function (appointmentData) {
-                      displaySentAppointmentRequest(
-                        id,
-                        appointmentData,
-                        appointmentData.status,
-                        "Unknown Doctor",
-                        "Invalid Date",
-                        "Invalid Time"
-                      );
-                    }
-                  );
-                });
+              if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
+                console.error(
+                  "Invalid or empty IPFS hash for appointment ID:",
+                  id
+                );
+                return;
+              }
+              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
+                var status = "Pending"; // Default status
+                if (appointment.isAccepted) {
+                  status = "Accepted";
+                } else if (appointment.isRejected) {
+                  status = "Rejected";
+                }
+
+                // Fetch doctor details within this block
+                contractInstance.methods
+                  .get_doctor(appointment.doctorAddress)
+                  .call()
+                  .then(function (doctorDetails) {
+                    var doctorName = doctorDetails[0] + " " + doctorDetails[1];
+                    displaySentAppointmentRequest(
+                      id,
+                      appointmentData,
+                      status,
+                      doctorName
+                    );
+                  })
+                  .catch(function (error) {
+                    console.error("Error fetching doctor details:", error);
+                    displaySentAppointmentRequest(
+                      id,
+                      appointmentData,
+                      status,
+                      "Unknown Doctor"
+                    );
+                  });
+              });
             });
         });
       })
       .catch(function (error) {
-        console.error("Error loading appointment IDs:", error);
+        console.error("Error loading sent appointment requests:", error);
       });
   });
 }
 
-function displaySentAppointmentRequest(
-  id,
-  appointment,
-  status,
-  doctorName,
-  appointmentDate,
-  appointmentTime
-) {
+function displaySentAppointmentRequest(id, appointment, status, doctorName) {
+  console.log(`Full Appointment ${id} Data:`, appointment);
+
+  var match = appointment.start.match(
+    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+  );
+  var appointmentDate = "Invalid Date";
+  var appointmentTime = "Invalid Time";
+  if (match) {
+    var date = new Date(
+      Date.UTC(
+        parseInt(match[1], 10),
+        parseInt(match[2], 10) - 1,
+        parseInt(match[3], 10),
+        parseInt(match[4], 10),
+        parseInt(match[5], 10),
+        parseInt(match[6], 10)
+      )
+    );
+    appointmentDate = date.toISOString().substring(0, 10);
+    appointmentTime = date.toISOString().substring(11, 16);
+  }
+
   var row = $("<tr>");
   $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
   $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
   $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
   var statusCell = $("<td>").text(status).appendTo(row);
-  if (status === "accepted") {
+  if (status === "Accepted") {
     statusCell.addClass("accepted-status");
-  } else if (status === "rejected") {
+  } else if (status === "Rejected") {
     statusCell.addClass("rejected-status");
-  } else if (status === "pending") {
+  } else if (status === "Pending") {
     statusCell.addClass("pending-status");
   } else {
     statusCell.addClass("unknown-status");
   }
-
   $("#sentAppointmentRequests tbody").append(row);
 }
 
@@ -1024,10 +1035,10 @@ function addPatientAllergy() {
     };
 
     const formattedAllergy =
-      `<p><strong>Allergy Substance:</strong> ${allergySubstance}</p>` +
-      `<p><strong>Reaction:</strong> ${allergyReaction}</p>` +
-      `<p><strong>Criticality:</strong> ${allergyCriticality}</p>` +
-      `<p><strong>Recorded on:</strong> ${new Date().toLocaleString()}</p>`;
+      `Allergy Substance:</strong> ${allergySubstance}\n` +
+      `Reaction: ${allergyReaction}\n` +
+      `Criticality: ${allergyCriticality}\n` +
+      `Recorded on: ${new Date().toLocaleString()}\n`;
     // Fetch the current IPFS hash for the patient's record
     contractInstance.methods
       .get_hash(patientAddress)
@@ -1108,7 +1119,12 @@ function fetchSymptoms() {
 function displaySymptoms(symptoms) {
   const container = document.getElementById("symptomsContainer");
   container.innerHTML = ""; // Clear previous contents
-
+  if (!document.querySelector(".symptoms-header")) {
+    var header = document.createElement("h6");
+    header.className = "symptoms-header";
+    header.textContent = "Select Your Symptoms : ";
+    symptomsContainer.insertBefore(header, symptomsContainer.firstChild); // Ensures the header is the first child
+  }
   symptoms.forEach((symptom) => {
     // Use the cleanSymptomName function to format the symptom name
     const cleanName = cleanSymptomName(symptom);
@@ -1199,72 +1215,105 @@ function cleanSymptomName(symptom) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+
+
 function storePredictionInIPFS(prediction) {
   const ipfs = window.IpfsApi("localhost", "5001");
-  const timestamp = new Date().toLocaleString(); // Get the current timestamp
-  const predictionData = { prediction, timestamp }; // Include both prediction and timestamp
-  const buffer = ipfs.Buffer.from(JSON.stringify(predictionData));
-  console.log("Storing prediction with timestamp:", predictionData);
+  const timestamp = new Date().toLocaleString();
 
-  ipfs.files.add(buffer, (error, result) => {
-    if (error) {
-      console.error("Error uploading to IPFS:", error);
-      return;
-    }
-    const ipfsHash = result[0].hash;
-    console.log("Stored in IPFS with hash:", ipfsHash);
+  // Get the current patient address reliably
+  web3.eth
+    .getAccounts()
+    .then((accounts) => {
+      if (accounts.length === 0) {
+        console.error("No Ethereum accounts available.");
+        return;
+      }
+      const patientAddress = accounts[0];
 
-    // Update local storage with the hash, linked to the current patient's key
-    const patientKey = window.location.href.split('patientId=')[1]; // Assuming patientId is in the URL
-    const hashes = JSON.parse(localStorage.getItem("diagnosisHashes") || "{}");
-    if (!hashes[patientKey]) {
-      hashes[patientKey] = [];
-    }
-    hashes[patientKey].push(ipfsHash);
-    localStorage.setItem("diagnosisHashes", JSON.stringify(hashes));
-    console.log("Updated localStorage with new hash:", hashes);
+      const predictionData = { prediction, timestamp, patientAddress };
 
-    // Immediately display the prediction with timestamp
-    appendPredictionToHistory(predictionData);
-  });
+      const buffer = ipfs.Buffer.from(JSON.stringify(predictionData));
+      ipfs.files.add(buffer, (error, result) => {
+        if (error) {
+          console.error("Error uploading to IPFS:", error);
+          return;
+        }
+        const ipfsHash = result[0].hash;
+        console.log("IPFS hash:", ipfsHash);
+
+        // Store prediction data in local storage with patient ID
+        let predictions = JSON.parse(
+          localStorage.getItem("patientPredictions") || "{}"
+        );
+        console.log("Current predictions in localStorage:", predictions);
+
+        if (!predictions[patientAddress]) {
+          predictions[patientAddress] = [];
+        }
+        predictions[patientAddress].push(predictionData); // Store the actual prediction data
+        localStorage.setItem("patientPredictions", JSON.stringify(predictions));
+
+        console.log("Updated predictions in localStorage:", predictions); // Debug log
+
+        appendPredictionToHistory(predictionData);
+      });
+    })
+    .catch((error) => {
+      console.error("Error retrieving Ethereum accounts:", error);
+    });
 }
-
 
 function appendPredictionToHistory(predictionData) {
   const historyContainer = document.getElementById("predictionHistory");
   const entry = document.createElement("div");
   entry.className = "prediction-entry";
   entry.innerHTML = `<p>Prediction: ${predictionData.prediction}</p><p>Time: ${predictionData.timestamp}</p>`;
-
   historyContainer.appendChild(entry);
 }
 
 function displayAllDiagnoses() {
-  const ipfs = window.IpfsApi("localhost", "5001");
-  const patientKey = window.location.href.split('patientId=')[1]; // Assuming patientId is in the URL
-  const hashes = JSON.parse(localStorage.getItem("diagnosisHashes") || "{}");
-  const patientHashes = hashes[patientKey] || [];
-
-  console.log("Loaded hashes from localStorage for the current patient:", patientHashes);
-
-  patientHashes.forEach((hash) => {
-    console.log("Fetching data for hash:", hash);
-    ipfs.files.cat(hash, (error, file) => {
-      if (error) {
-        console.error("Error retrieving from IPFS:", error);
+  // Ensure Web3 is loaded and accounts are accessible
+  web3.eth
+    .getAccounts()
+    .then((accounts) => {
+      if (accounts.length === 0) {
+        console.error("No Ethereum accounts available.");
         return;
       }
-      const predictionData = JSON.parse(file.toString());
-      console.log("Retrieved prediction data for the current patient:", predictionData);
-      appendPredictionToHistory(predictionData);
+      const patientAddress = accounts[0];
+
+      // Retrieve predictions from localStorage
+      const allPredictions = JSON.parse(
+        localStorage.getItem("patientPredictions") || "{}"
+      );
+      const patientHashes = allPredictions[patientAddress] || [];
+
+      if (patientHashes.length === 0) {
+        console.log("No diagnosis predictions to display for this patient.");
+        return;
+      }
+
+      // Retrieve each prediction from IPFS
+      patientHashes.forEach((hash) => {
+        ipfs.files.cat(hash, (error, file) => {
+          if (error) {
+            console.error("Error retrieving from IPFS:", error);
+            return;
+          }
+          const predictionData = JSON.parse(file.toString());
+          appendPredictionToHistory(predictionData);
+        });
+      });
+    })
+    .catch((error) => {
+      console.error("Error retrieving Ethereum accounts:", error);
     });
-  });
 }
 
 
-document.addEventListener("DOMContentLoaded", function () {
-  displayAllDiagnoses();
-});
+
+
 
 document.addEventListener("DOMContentLoaded", function () {
   var panels = document.querySelectorAll(".panel");
@@ -1517,4 +1566,56 @@ function showProxyRegistration() {
   $(".list-group-item")
     .not('.list-group-item[data-target="designateProxyPanel"]')
     .hide(); // Hide other sidebar items
+}
+
+function changeAge() {
+  web3.eth
+    .getAccounts()
+    .then(function (accounts) {
+      if (accounts.length === 0) {
+        throw new Error("No accounts available.");
+      }
+
+      const patientAddress = accounts[0]; // Get the first account
+      const newAge = parseInt(document.getElementById("ageInput").value);
+
+      contractInstance.methods
+        .setTestAge(newAge, patientAddress)
+        .send({ from: patientAddress })
+        .then(function (result) {
+          alert("Age updated successfully!");
+          displayPatientAge(); // Refresh the UI to show the updated age
+        })
+        .catch(function (error) {
+          console.error("Error updating age:", error);
+          alert(`Failed to update age: ${error.message}`);
+        });
+    })
+    .catch(function (error) {
+      console.error("Error retrieving accounts:", error);
+      alert(`Failed to retrieve accounts: ${error.message}`);
+    });
+}
+
+function displayPatientAge() {
+  const patientAddress = web3.eth.accounts[0];
+  contractInstance.methods
+    .get_patient(patientAddress)
+    .call()
+    .then(function (patientInfo) {
+      document.getElementById("ageDisplay").innerText =
+        "Patient Age: " + patientInfo.age;
+    })
+    .catch(function (error) {
+      console.error("Error fetching patient age:", error);
+    });
+}
+
+function updateUIBasedOnAge(age) {
+  const revokeButton = document.getElementById("revokeButton");
+  if (age >= 16) {
+    revokeButton.disabled = false;
+  } else {
+    revokeButton.disabled = true;
+  }
 }

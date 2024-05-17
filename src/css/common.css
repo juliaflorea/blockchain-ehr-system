@@ -18,7 +18,7 @@ body {
   background-color: #392467; /* Darker shade */
   color: white;
   font-size: 1rem;
-  position: relative;
+  position: fixed;
 }
 
 /* Sidebar heading */
@@ -69,6 +69,16 @@ body {
   color: #fff; /* Text color */
 }
 
+#page-content-wrapper {
+  display: flex; /* Enables flexbox */
+  flex-direction: column;
+  justify-content: center; /* Centers horizontally */
+  align-items: center; /* Centers vertically */
+  margin-left: 300px; /* Adjust this value to match the width of your sidebar */
+  min-height: 100vh; /* Full height minus navbar height, adjust as needed */
+  width: calc(100% - 300px); /* Adjust width to prevent horizontal scrolling */
+}
+
 #logout {
   display: block; /* Make it always visible */
   position: fixed;
@@ -92,15 +102,14 @@ body {
 
 /* Content styles */
 
-.container-fluid {
-  flex-grow: 1; /* Takes up the available space */
-  max-width: none; /* Remove max-width restriction */
+container-fluid {
+  width: 100%; /* Takes up all available space within its container */
+  max-width: 1200px; /* Maximum width of the content, adjust as needed */
   padding: 2rem; /* Add some padding */
   display: flex;
   flex-direction: column;
   justify-content: center; /* Center horizontally */
   align-items: center; /* Center vertically */
-  height: calc(100vh - 56px);
 }
 
 .panel-heading {
@@ -154,7 +163,12 @@ body {
 
 .fc-event {
   border: none;
-  background-color: rgba(255, 179, 128, 0.5); /* Peach background with transparency */
+  background-color: rgba(
+    255,
+    179,
+    128,
+    0.5
+  ); /* Peach background with transparency */
   color: #f26d21 !important; /* Orange text */
   padding: 10px;
   border-radius: 5px;
@@ -165,10 +179,16 @@ body {
 }
 
 .fc-event:hover {
-  background-color: rgba(255, 165, 0, 0.8) !important; /* Darker orange on hover */
+  background-color: rgba(
+    255,
+    165,
+    0,
+    0.8
+  ) !important; /* Darker orange on hover */
 }
 
-.event-time, .event-title {
+.event-time,
+.event-title {
   font-size: 14px;
   line-height: 1.5;
 }
@@ -179,4 +199,115 @@ body {
 
 #calendar {
   min-height: 500px;
+}
+
+.accepted-status {
+  color: green;
+}
+
+.rejected-status {
+  color: red;
+}
+
+.pending-status {
+  color: blue;
+}
+
+.unknown-status {
+  color: rgb(
+    233,
+    193,
+    193
+  ); /* Optional: For any status that might not be recognized */
+}
+
+.fc-event {
+  position: relative; /* Needed for absolute positioning of the border */
+  border: none;
+  background-color: rgba(255, 179, 128, 0.5); /* Existing background */
+  color: #f26d21; /* Existing text color */
+  padding: 10px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: auto; /* Adjust based on content */
+  overflow: hidden; /* Ensures no spillover */
+  white-space: nowrap; /* Prevents text from wrapping to a new line */
+  text-overflow: ellipsis; /* Adds ellipsis if text overflows */
+}
+
+.fc-event::before {
+  content: ''; /* Required for pseudo-elements */
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px; /* Line thickness */
+  background-color: #f26d21; /* Orange color for the line */
+  border-radius: 5px 0 0 5px; /* Rounded corners on the left side */
+}
+
+.fc-event:hover {
+  background-color: rgba(255, 165, 0, 0.8) !important; /* Darker on hover */
+  overflow: visible; /* Allow text to be fully visible on hover */
+  white-space: normal; /* Allows text wrapping on hover */
+}
+
+.info-container {
+  display: none;
+  width: 100%;
+  background-color: #ffffff; /* White background */
+  padding: 20px; /* More padding for better readability */
+  border-radius: 10px; /* Rounded corners */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  border: 1px solid #e3e6f0; /* Light border for subtle definition */
+  margin-top: 20px; /* Monospace font for records to mimic typewritten text */
+  max-width: 800px;
+  margin-left: 65px;
+  text-align: center;
+}
+
+.info-container label {
+  font-weight: bold; /* Bold for labels */
+  display: block; /* Makes the label take full width */
+  margin-bottom: 10px; /* Space below the label */
+}
+
+.info-container span {
+  font-weight: normal; /* Normal weight for text */
+  display: block; /* Ensures the text is on a new line */
+  margin-bottom: 10px; /* Space below each item */
+}
+
+.doctor-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Align items to the start to ensure they line up */
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  width: 100%; /* Adjust width as needed */
+  max-width: 600px; /* Set a max-width for the container */
+  margin: 20px auto; /* Center the container horizontally */
+}
+
+.doctor-info p {
+  width: 100%; /* Ensure the paragraph uses the full width available */
+  display: flex;
+  justify-content: flex-start; /* Align content to the start */
+  margin-bottom: 10px; /* Space between entries */
+}
+
+.doctor-info label {
+  min-width: 180px; /* Ensure all labels have at least this width */
+  font-weight: bold;
+  margin-right: 10px; /* Space between label and value */
+}
+
+.doctor-info span {
+  font-weight: normal;
+  text-align: left; /* Ensures value aligns to the left */
 }

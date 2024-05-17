@@ -122,8 +122,10 @@ function addAgent() {
                 alert("Please upload your medical certificate.");
                 return false;
               }
-              $("#loadingMessage").text("Verifying medical certificate... Please wait.");
-    $("#loadingMessage").show(); 
+              $("#loadingMessage").text(
+                "Verifying medical certificate... Please wait."
+              );
+              $("#loadingMessage").show();
               validateDoctorCertificate(medicalCertificate, licenseNumber).then(
                 () => {
                   console.log("Certificate validated successfully.");
@@ -355,19 +357,19 @@ function toggleProxyOptionFields() {
 
 function formatPatientData(patientData, publicKey) {
   let dataString = '<div class="medical-record">'; // Start of the medical record block
-  dataString += '<h3 style="text-align: center;">Medical Record</h3>'; // Title centered
-  dataString += `<p><strong>First Name:</strong> ${patientData.name[0].given.join(" ")}</p>`; // Bold field name
-  dataString += `<p><strong>Last Name:</strong> ${patientData.name[0].family}</p>`;
-  dataString += `<p><strong>Gender:</strong> ${patientData.gender}</p>`;
-  dataString += `<p><strong>Birth Date:</strong> ${patientData.birthDate}</p>`;
-  dataString += `<p><strong>Contact:</strong> ${patientData.telecom.map(t => `${t.system}: ${t.value}`).join(", ")}</p>`;
-  dataString += `<p><strong>Address:</strong> ${patientData.address.map(a => a.line.join(", ")).join(", ")}</p>`;
-  dataString += `<p><strong>Public Key:</strong> ${publicKey}</p>`;
-  dataString += '</div>'; // End of the medical record block
-
+  dataString += `First Name: ${patientData.name[0].given.join(" ")}\n`;
+  dataString += `Last Name: ${patientData.name[0].family}\n`;
+  dataString += `Gender: ${patientData.gender}\n`;
+  dataString += `Birth Date: ${patientData.birthDate}\n`;
+  dataString += `Contact: ${patientData.telecom
+    .map((t) => `${t.system}: ${t.value}`)
+    .join(", ")}\n`;
+  dataString += `Address: ${patientData.address
+    .map((a) => a.line.join(", "))
+    .join(", ")}\n`;
   return dataString;
+  dataString += `Public Key: ${publicKey}\n`;
 }
-
 
 function formatDoctorData(doctorData, publicKey) {
   let dataString = `Doctor Information\n`;
@@ -447,7 +449,7 @@ function handleProxyRegistration(
     dob: proxyDOB,
     address: proxyAddress,
     phone: proxyPhone,
-    email: proxyEmail
+    email: proxyEmail,
   };
   return new Promise((resolve, reject) => {
     if (proxyOption === "token") {
@@ -540,9 +542,6 @@ function handleProxyRegistration(
     }
   });
 }
-
-
-
 
 async function validatePOADetails(buffer, formDetails) {
   const loadingTask = pdfjsLib.getDocument({ data: buffer });

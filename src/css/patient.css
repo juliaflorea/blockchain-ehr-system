@@ -1,28 +1,6 @@
-/* Global Styles */
 body {
   font-family: "Roboto", "Arial", sans-serif; /* Modern, clean font */
   color: #4a4e69;
-}
-
-#page-content-wrapper {
-  display: flex; /* Enables flexbox */
-  flex-direction: column;
-  justify-content: center; /* Centers horizontally */
-  align-items: center; /* Centers vertically */
-  min-height: 100vh; /* Full height minus navbar height, adjust as needed */
-  padding: 1rem;
-  flex-grow: 1;
-}
-
-.container-fluid {
-  flex-grow: 1; /* Takes up the available space */
-  max-width: none; /* Remove max-width restriction */
-  padding: 2rem; /* Add some padding */
-  display: flex;
-  flex-direction: column;
-  justify-content: center; /* Center horizontally */
-  align-items: center; /* Center vertically */
-  height: calc(100vh - 56px);
 }
 
 /* Panel Styles */
@@ -195,7 +173,6 @@ body {
   max-width: 800px;
   margin-left: 75px;
 }
-
 #recordsHash a {
   color: #5e72e4; /* Consistent with button colors for uniformity */
   text-decoration: none; /* Removes underline */
@@ -240,17 +217,26 @@ body {
   margin-right: 15px;
   margin-bottom: 10px;
 }
+.symptoms-header {
+  color: #ffffff; /* Adjust color to match your theme */
+  background-color: #392467; /* Dark background for visibility */
+  padding: 10px; /* Padding for better spacing */
+  margin-bottom: 10px; /* Space below the header */
+  width: 100%; /* Ensure it spans the full width */
+}
 
 label {
   margin-left: 5px;
 }
 
 #predictionResult {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-  margin-top: 10px; /* Add margin top for spacing */
+  width: 100%; /* Ensure it spans the full container width */
+
+  color: #ffffff; /* Set the text color to white for better readability */
+  text-align: center; /* Center the text */
+  padding: 10px; /* Add some padding for spacing */
+  border-radius: 5px; /* Optional: rounded corners */
+  font-size: 1.2em; /* Increase font size for better visibility */
 }
 
 .prediction-entry {
@@ -265,60 +251,24 @@ label {
   margin: 5px 0; /* Small margin for paragraph */
 }
 
-.info-container {
-  display: none;
-  width: 100%;
-  background-color: #ffffff; /* White background */
-  padding: 20px; /* More padding for better readability */
-  border-radius: 10px; /* Rounded corners */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-  border: 1px solid #e3e6f0; /* Light border for subtle definition */
-  margin-top: 20px; /* Monospace font for records to mimic typewritten text */
-  max-width: 800px;
-  margin-left: 65px;
+
+
+.record-key {
+  font-weight: bold; /* Makes text bold */
+}
+
+.medical-record > h1, /* If the title uses an <h1> */
+.medical-record > div:first-child {
+  /* If the title is the first <div> */
   text-align: center;
-}
-
-.info-container label {
-  font-weight: bold; /* Bold for labels */
-  display: block; /* Makes the label take full width */
-  margin-bottom: 10px; /* Space below the label */
-}
-
-.info-container span {
-  font-weight: normal; /* Normal weight for text */
-  display: block; /* Ensures the text is on a new line */
-  margin-bottom: 10px; /* Space below each item */
-}
-
-.doctor-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start; /* Align items to the start to ensure they line up */
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-top: 20px;
-  width: 100%; /* Adjust width as needed */
-  max-width: 600px; /* Set a max-width for the container */
-  margin: 20px auto; /* Center the container horizontally */
-}
-
-.doctor-info p {
-  width: 100%; /* Ensure the paragraph uses the full width available */
-  display: flex;
-  justify-content: flex-start; /* Align content to the start */
-  margin-bottom: 10px; /* Space between entries */
-}
-
-.doctor-info label {
-  min-width: 180px; /* Ensure all labels have at least this width */
   font-weight: bold;
-  margin-right: 10px; /* Space between label and value */
 }
 
-.doctor-info span {
-  font-weight: normal;
-  text-align: left; /* Ensures value aligns to the left */
+.medical-record > div:not(:last-child):after {
+  content: "";
+  display: block;
+  height: 1px;
+  width: 100%;
+  background-color: #ccc; /* Subtle line color */
+  margin: 10px 0; /* Spacing around the line */
 }

@@ -45,7 +45,8 @@
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="diagnosisPanel diagnosisHistoryPanel"><i class="fas fa-stethoscope"></i> Quick Diagnosis Prediction</a>
+                    data-target="diagnosisPanel diagnosisHistoryPanel"><i class="fas fa-stethoscope"></i> Quick
+                    Diagnosis Prediction</a>
                 <hr class="sidebar-divider">
                 <p class="sidebar-category ">AVAILABLE DOCTORS</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
@@ -91,10 +92,16 @@
                                         <th>Age:</th>
                                         <td id="age"></td>
                                     </tr>
+                                    <!-- <tr>
+                                        <input id="ageInput" type="number" placeholder="Enter new age">
+                                        <button onclick="changeAge()">Set New Age</button>
+                                        <div id="ageDisplay">Patient Age: </div>
+                                    </tr>  -->
+                                  
                                 </table>
 
                                 <div class="text-center">
-                                    <h5>Your records are stored here:  http://localhost:8080/ipfs/<span
+                                    <h5>Your records are stored here: http://localhost:8080/ipfs/<span
                                             id="recordsHash"></span>
                                     </h5>
                                     <button type="submit" class="btn btn-info btn-lg" onclick="showRecords(this)">View
@@ -170,7 +177,7 @@
                         </div>
                         <button id="viewDoctorInfoBtn" class="btn btn-primary" onclick="viewDoctorInfo()">View Doctor
                             Info</button>
-                            <div id="doctorInfoDisplay" class="info-container"></div>
+                        <div id="doctorInfoDisplay" class="info-container"></div>
 
                     </div>
                 </div>
@@ -429,6 +436,8 @@
                 <div class="panel panel-default" id="diagnosisPanel">
                     <div class="panel-heading">
                         <h3 class="text-center">Diagnosis Prediction</h3>
+                       
+                        
                     </div>
                     <div class="panel-body">
                         <form id="diagnosisForm" class="form-horizontal">
@@ -449,11 +458,12 @@
                         <h3 class="text-center">Diagnosis History Prediction</h3>
                     </div>
                     <div class="panel-body">
+
                         <div id="predictionHistory"></div>
                     </div>
                 </div>
 
-                
+
 
 
                 <div class="panel panel-default" id="appointmentCalendarPanel" style="display:none;">
