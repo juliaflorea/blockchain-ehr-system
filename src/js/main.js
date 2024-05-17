@@ -94,23 +94,7 @@ function calculateAge(dob) {
 
 // main.js - Adjusted for event delegation
 document.addEventListener("DOMContentLoaded", function () {
-  document.body.addEventListener("change", function (event) {
-    if (event.target.id === "dob") {
-      var dob = event.target.value;
-      var age = calculateAge(new Date(dob));
-      var ageInput = document.getElementById("age");
-      if (ageInput) ageInput.value = age;
-    }
-    // For proxyDOB in patient.js
-    if (event.target.id === "proxyDOB") {
-      var dob = event.target.value;
-      var age = calculateAge(new Date(dob));
-      document.getElementById("proxyAge").value = age;
-    }
-  });
-});
 
-$(document).ready(function () {
   $(".list-group-item").click(function (e) {
     e.preventDefault(); // Prevent the default anchor behavior
 
@@ -132,4 +116,31 @@ $(document).ready(function () {
     // Redirect to login page or logout user
     window.location.href = "/index.html"; // Modify as needed
   });
+  document.body.addEventListener("change", function (event) {
+    if (event.target.id === "dob") {
+      var dob = event.target.value;
+      var age = calculateAge(new Date(dob));
+      var ageInput = document.getElementById("age");
+      if (ageInput) ageInput.value = age;
+    }
+    // For proxyDOB in patient.js
+    if (event.target.id === "proxyDOB") {
+      var dob = event.target.value;
+      var age = calculateAge(new Date(dob));
+      document.getElementById("proxyAge").value = age;
+    }
+  });
 });
+
+
+function fetchFromIPFS(ipfsHash, callback) {
+  $.get("http://localhost:8080/ipfs/" + ipfsHash)
+    .done(function (data) {
+      console.log("Data from IPFS:", data);
+      // Directly use the data object if it's already in the correct format
+      callback(data);
+    })
+    .fail(function () {
+      console.error("Failed to fetch data from IPFS.");
+    });
+}

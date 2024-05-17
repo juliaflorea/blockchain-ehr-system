@@ -613,17 +613,7 @@ function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   $("#sentAppointmentRequests tbody").append(row);
 }
 
-function fetchFromIPFS(ipfsHash, callback) {
-  $.get("http://localhost:8080/ipfs/" + ipfsHash)
-    .done(function (data) {
-      console.log("Data from IPFS:", data);
-      // Directly use the data object if it's already in the correct format
-      callback(data);
-    })
-    .fail(function () {
-      console.error("Failed to fetch data from IPFS.");
-    });
-}
+
 
 document.addEventListener("DOMContentLoaded", function () {
   var today = new Date().toISOString().split("T")[0]; // Format today's date as YYYY-MM-DD
@@ -647,6 +637,125 @@ document.addEventListener("DOMContentLoaded", function () {
     // Proceed to populate hours dropdown
     populateHoursDropdown();
   });
+
+   // Event delegation for revoke access buttons within the accessProxy table
+  $("#accessProxy").on("click", ".revoke-proxy-access", function () {
+    var proxyAddress = $(this).data("proxy-address");
+    if (!proxyAddress) {
+      console.error("Proxy address is undefined.");
+      return;
+    }
+    // Pass the button itself and the proxy address
+    revokeProxyAccess(proxyAddress);
+  });
+
+   // Fetch symptoms when the document is ready (this could be tied to a specific event or page load)
+   fetchSymptoms();
+
+   // initialize views
+   var panels = document.querySelectorAll(".panel");
+  // Initially hide all panels except the personalInfoPanel
+  panels.forEach(function (panel) {
+    if (panel.id !== "personalInfoPanel") {
+      panel.style.display = "none";
+    } else {
+      panel.style.display = "block"; // Ensure personalInfoPanel is visible
+    }
+  });
+
+  // Setup event listeners for sidebar links
+  var sidebarLinks = document.querySelectorAll(".list-group-item");
+  sidebarLinks.forEach(function (link) {
+    link.addEventListener("click", function () {
+      var targetPanelId = this.getAttribute("data-target");
+      panels.forEach(function (panel) {
+        if (panel.id === targetPanelId) {
+          panel.style.display = "block"; // Show the clicked panel
+        } else {
+          panel.style.display = "none"; // Hide others
+        }
+      });
+    });
+  });
+
+  // reset symptoms
+  const resetButton = document.getElementById("resetButton");
+  if (resetButton) {
+    resetButton.addEventListener("click", function () {
+      // Reset all checkboxes
+      const checkboxes = document.querySelectorAll(
+        '#symptomsContainer input[type="checkbox"]'
+      );
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+
+      // Clear diagnosis display and reset any styles
+      const diagnosisResult = document.getElementById("predictionResult");
+      if (diagnosisResult) {
+        diagnosisResult.innerHTML = ""; // Clears the content
+        diagnosisResult.style.display = "none"; // Hide the element
+        diagnosisResult.style.color = "black"; // Set text color to black
+      }
+    });
+  }
+
+  //calendar initialization
+
+  var calendarEl = document.getElementById("calendar"); // Ensure this ID matches your HTML
+  var calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: "dayGridMonth",
+    headerToolbar: {
+      left: "prev,next today",
+      center: "title",
+      right: "dayGridMonth,timeGridWeek,timeGridDay",
+    },
+    events: [],
+    eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
+    eventContent: function (arg) {
+      // Custom rendering of events, splitting time and patient name
+      return {
+        html: `<div class="event-time">${
+          arg.event.title.split(" ")[0]
+        }</div><div class="event-title">${
+          arg.event.extendedProps.description
+        }</div>`,
+      };
+    },
+  });
+
+  calendar.render();
+  function updateCalendarVisibility() {
+    if ($("#calendar").is(":visible")) {
+      calendar.updateSize();
+    }
+  }
+
+  // MutationObserver Configuration
+  const config = { attributes: true, childList: true, subtree: true };
+  const observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "class"
+      ) {
+        updateCalendarVisibility();
+      }
+    });
+  });
+
+  // Start observing the target node for configured mutations
+  observer.observe(document.body, config);
+
+  // Clean up observer on page unload
+  $(window).on("unload", function () {
+    observer.disconnect();
+  });
+
+  setTimeout(function () {
+    loadAcceptedAppointments(calendar);
+  }, 1000);
+
 });
 
 function populateHoursDropdown() {
@@ -890,18 +999,7 @@ function displayProxiesWithAccess() {
   });
 }
 
-$(document).ready(function () {
-  // Event delegation for revoke access buttons within the accessProxy table
-  $("#accessProxy").on("click", ".revoke-proxy-access", function () {
-    var proxyAddress = $(this).data("proxy-address");
-    if (!proxyAddress) {
-      console.error("Proxy address is undefined.");
-      return;
-    }
-    // Pass the button itself and the proxy address
-    revokeProxyAccess(proxyAddress);
-  });
-});
+
 
 function revokeProxyAccess() {
   web3.eth.getAccounts().then((accounts) => {
@@ -1116,17 +1214,19 @@ function fetchSymptoms() {
       console.error("Error fetching symptoms:", error);
     });
 }
+
 function displaySymptoms(symptoms) {
   const container = document.getElementById("symptomsContainer");
   container.innerHTML = ""; // Clear previous contents
+
   if (!document.querySelector(".symptoms-header")) {
     var header = document.createElement("h6");
     header.className = "symptoms-header";
-    header.textContent = "Select Your Symptoms : ";
-    symptomsContainer.insertBefore(header, symptomsContainer.firstChild); // Ensures the header is the first child
+    header.textContent = "Select Your Symptoms:";
+    container.insertBefore(header, container.firstChild); // Ensure the header is the first child
   }
+
   symptoms.forEach((symptom) => {
-    // Use the cleanSymptomName function to format the symptom name
     const cleanName = cleanSymptomName(symptom);
 
     const checkbox = document.createElement("input");
@@ -1137,7 +1237,7 @@ function displaySymptoms(symptoms) {
 
     const label = document.createElement("label");
     label.htmlFor = symptom;
-    label.textContent = cleanName; // Use the cleaned and formatted name
+    label.textContent = cleanName;
 
     const div = document.createElement("div");
     div.appendChild(checkbox);
@@ -1146,6 +1246,18 @@ function displaySymptoms(symptoms) {
     container.appendChild(div);
   });
 }
+
+function displayPredictionResult(result) {
+  const resultContainer = document.getElementById("predictionResult");
+  resultContainer.innerHTML = result;
+  resultContainer.style.display = "block"; // Ensure the result section is displayed
+  resultContainer.style.fontWeight = "bold"; // Make the text bold
+  resultContainer.style.fontSize = "2em"; // Increase the font size
+  resultContainer.style.marginTop = "30px"; // Add more space above the result
+  resultContainer.style.backgroundColor = "transparent"; // Ensure no background color
+  resultContainer.style.color = result.includes("Error") ? "#d9534f" : "#000"; // Red text for error, black for normal
+}
+
 
 // Function to send selected symptoms to the Flask API for diagnosis prediction
 document
@@ -1194,17 +1306,9 @@ function predictDiagnosis(symptoms) {
     });
 }
 
-function displayPredictionResult(result) {
-  const resultContainer = document.getElementById("predictionResult");
-  resultContainer.innerHTML = result;
-  resultContainer.style.display = "block"; // Make sure to display the result section if it was hidden
-}
 
-// Example usage (ensure these are called appropriately within your app's logic)
-document.addEventListener("DOMContentLoaded", function () {
-  // Fetch symptoms when the document is ready (this could be tied to a specific event or page load)
-  fetchSymptoms();
-});
+
+
 
 // You might call predictDiagnosis() based on specific user actions, such as form submission
 function cleanSymptomName(symptom) {
@@ -1314,112 +1418,6 @@ function displayAllDiagnoses() {
 
 
 
-
-document.addEventListener("DOMContentLoaded", function () {
-  var panels = document.querySelectorAll(".panel");
-  // Initially hide all panels except the personalInfoPanel
-  panels.forEach(function (panel) {
-    if (panel.id !== "personalInfoPanel") {
-      panel.style.display = "none";
-    } else {
-      panel.style.display = "block"; // Ensure personalInfoPanel is visible
-    }
-  });
-
-  // Setup event listeners for sidebar links
-  var sidebarLinks = document.querySelectorAll(".list-group-item");
-  sidebarLinks.forEach(function (link) {
-    link.addEventListener("click", function () {
-      var targetPanelId = this.getAttribute("data-target");
-      panels.forEach(function (panel) {
-        if (panel.id === targetPanelId) {
-          panel.style.display = "block"; // Show the clicked panel
-        } else {
-          panel.style.display = "none"; // Hide others
-        }
-      });
-    });
-  });
-});
-
-document.addEventListener("DOMContentLoaded", function () {
-  const resetButton = document.getElementById("resetButton");
-  if (resetButton) {
-    resetButton.addEventListener("click", function () {
-      // Reset all checkboxes
-      const checkboxes = document.querySelectorAll(
-        '#symptomsContainer input[type="checkbox"]'
-      );
-      checkboxes.forEach((checkbox) => {
-        checkbox.checked = false;
-      });
-
-      // Clear diagnosis display and reset any styles
-      const diagnosisResult = document.getElementById("predictionResult");
-      if (diagnosisResult) {
-        diagnosisResult.innerHTML = ""; // Clears the content
-        diagnosisResult.style.display = "none"; // Hide the element
-        diagnosisResult.style.color = "black"; // Set text color to black
-      }
-    });
-  }
-});
-
-$(document).ready(function () {
-  var calendarEl = document.getElementById("calendar"); // Ensure this ID matches your HTML
-  var calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: "dayGridMonth",
-    headerToolbar: {
-      left: "prev,next today",
-      center: "title",
-      right: "dayGridMonth,timeGridWeek,timeGridDay",
-    },
-    events: [],
-    eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
-    eventContent: function (arg) {
-      // Custom rendering of events, splitting time and patient name
-      return {
-        html: `<div class="event-time">${
-          arg.event.title.split(" ")[0]
-        }</div><div class="event-title">${
-          arg.event.extendedProps.description
-        }</div>`,
-      };
-    },
-  });
-
-  calendar.render();
-  function updateCalendarVisibility() {
-    if ($("#calendar").is(":visible")) {
-      calendar.updateSize();
-    }
-  }
-
-  // MutationObserver Configuration
-  const config = { attributes: true, childList: true, subtree: true };
-  const observer = new MutationObserver(function (mutations) {
-    mutations.forEach(function (mutation) {
-      if (
-        mutation.type === "attributes" &&
-        mutation.attributeName === "class"
-      ) {
-        updateCalendarVisibility();
-      }
-    });
-  });
-
-  // Start observing the target node for configured mutations
-  observer.observe(document.body, config);
-
-  // Clean up observer on page unload
-  $(window).on("unload", function () {
-    observer.disconnect();
-  });
-
-  setTimeout(function () {
-    loadAcceptedAppointments(calendar);
-  }, 1000);
-});
 
 function loadAcceptedAppointments(calendar) {
   web3.eth

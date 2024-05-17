@@ -773,17 +773,7 @@ function displayAppointmentHistory(id, appointment, status) {
   $("#appointmentHistory tbody").append(row); // Ensure you have a table with id="appointmentHistory"
 }
 
-function fetchFromIPFS(ipfsHash, callback) {
-  $.get("http://localhost:8080/ipfs/" + ipfsHash)
-    .done(function (data) {
-      console.log("Data from IPFS:", data);
-      // Directly use the data object if it's already in the correct format
-      callback(data);
-    })
-    .fail(function () {
-      console.error("Failed to fetch data from IPFS.");
-    });
-}
+
 
 function acceptAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {

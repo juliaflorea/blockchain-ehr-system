@@ -630,6 +630,29 @@ function scheduleAppointmentByProxy() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+
+  $(".list-group-item").click(function (e) {
+    e.preventDefault(); // Prevent the default anchor behavior
+
+    $(".list-group-item").removeClass("active");
+
+    // Add active class to the clicked sidebar item
+    $(this).addClass("active");
+    var targets = $(this).attr("data-target").split(" "); // Split the targets by space
+    $(".panel").hide(); // Hide all panels initially
+
+    targets.forEach(function (target) {
+      $("#" + target).show(); // Show each targeted panel
+    });
+  });
+
+  $("#logout").click(function () {
+    // Implement your logout logic here
+    console.log("Logout button clicked");
+    // Redirect to login page or logout user
+    window.location.href = "/index.html"; // Modify as needed
+  });
+
   var today = new Date().toISOString().split("T")[0]; // Format today's date as YYYY-MM-DD
   $("#appointmentDate").attr("min", today);
   $("#appointmentDate").change(function () {
@@ -653,131 +676,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
-// function loadSentAppointmentRequests() {
-//   web3.eth.getAccounts().then(function (accounts) {
-//     const proxyAddress = accounts[0];
-//     console.log("Proxy Address:", proxyAddress);
 
-//     contractInstance.methods
-//       .get_proxy(proxyAddress)
-//       .call()
-//       .then(function (proxyDetails) {
-//         const patientAddress = proxyDetails.patientAddress;
-//         console.log("Patient Address:", patientAddress);
-
-//         contractInstance.methods
-//           .getPatientAppointments(patientAddress)
-//           .call({ from: proxyAddress })
-//           .then(function (appointmentIds) {
-//             console.log("Appointment IDs:", appointmentIds);
-//             if (appointmentIds.length === 0) {
-//               console.log("No appointments found.");
-//             }
-//             appointmentIds.forEach(function (id, index) {
-//               contractInstance.methods
-//                 .appointments(id)
-//                 .call()
-//                 .then(function (appointment) {
-//                   console.log(`Appointment ${index}:`, appointment);
-//                   fetchFromIPFS(
-//                     appointment.ipfsHash,
-//                     function (appointmentData) {
-//                       console.log(
-//                         `Appointment Data ${index}:`,
-//                         appointmentData
-//                       );
-//                       displaySentAppointmentRequest(
-//                         id,
-//                         appointmentData,
-//                         appointmentData.status
-//                       );
-//                     }
-//                   );
-//                 });
-//             });
-//           })
-//           .catch(function (error) {
-//             console.error("Error loading appointment IDs:", error);
-//           });
-//       })
-//       .catch(function (error) {
-//         console.error("Error fetching proxy details:", error);
-//       });
-//   });
-// }
-
-// function displaySentAppointmentRequest(id, appointment, status) {
-//   var capitalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
-//   // Find the practitioner's Ethereum address in the participant list
-//   var doctorInfo = appointment.participant.find((p) =>
-//     p.actor.reference.startsWith("Practitioner")
-//   );
-
-//   if (!doctorInfo) {
-//     console.error("No practitioner found in appointment data.");
-//     return; // Exit the function if no doctor found
-//   }
-
-//   var doctorAddress = doctorInfo.actor.reference.split("/")[1]; // Assuming the reference format is "Practitioner/{ethereum_address}"
-
-//   // Fetch doctor name from the blockchain using the address
-//   contractInstance.methods
-//     .get_doctor(doctorAddress)
-//     .call()
-//     .then(function (doctorDetails) {
-//       var doctorName = doctorDetails[0] + " " + doctorDetails[1]; // Assuming the name is at index 0 and 1
-
-//       var match = appointment.start.match(
-//         /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
-//       );
-
-//       var appointmentDate, appointmentTime;
-//       if (match) {
-//         var date = new Date(
-//           Date.UTC(
-//             parseInt(match[1], 10),
-//             parseInt(match[2], 10) - 1,
-//             parseInt(match[3], 10),
-//             parseInt(match[4], 10),
-//             parseInt(match[5], 10),
-//             parseInt(match[6], 10)
-//           )
-//         );
-//         appointmentDate = date.toISOString().substring(0, 10);
-//         appointmentTime = date.toISOString().substring(11, 16);
-//       } else {
-//         console.error("Invalid date format:", appointment.start);
-//         appointmentDate = "Invalid Date";
-//         appointmentTime = "Invalid Time";
-//       }
-
-//       // Create table row and cells
-//       var row = $("<tr>");
-//       $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
-//       $("<td>", { class: "appointmentDate" })
-//         .text(appointmentDate)
-//         .appendTo(row);
-//       $("<td>", { class: "appointmentTime" })
-//         .text(appointmentTime)
-//         .appendTo(row);
-
-//       var statusCell = $("<td>").text(capitalizedStatus).appendTo(row);
-//       if (status === "accepted") {
-//         statusCell.addClass("accepted-status");
-//       } else if (status === "rejected") {
-//         statusCell.addClass("rejected-status");
-//       } else if (status === "pending") {
-//         statusCell.addClass("pending-status");
-//       } else {
-//         statusCell.addClass("unknown-status");
-//       }
-
-//       $("#sentAppointmentRequests tbody").append(row);
-//     })
-//     .catch(function (error) {
-//       console.error("Error fetching doctor details:", error);
-//     });
-// }
 
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
@@ -895,17 +794,6 @@ function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   $("#sentAppointmentRequests tbody").append(row);
 }
 
-function fetchFromIPFS(ipfsHash, callback) {
-  $.get("http://localhost:8080/ipfs/" + ipfsHash)
-    .done(function (data) {
-      console.log("Data from IPFS:", data);
-      // Directly use the data object if it's already in the correct format
-      callback(data);
-    })
-    .fail(function () {
-      console.error("Failed to fetch data from IPFS.");
-    });
-}
 
 function populateHoursDropdown() {
   const selectedDate = $("#appointmentDate").val(); // Assuming "YYYY-MM-DD" format
@@ -965,26 +853,3 @@ function populateHoursDropdown() {
     });
 }
 
-$(document).ready(function () {
-  $(".list-group-item").click(function (e) {
-    e.preventDefault(); // Prevent the default anchor behavior
-
-    $(".list-group-item").removeClass("active");
-
-    // Add active class to the clicked sidebar item
-    $(this).addClass("active");
-    var targets = $(this).attr("data-target").split(" "); // Split the targets by space
-    $(".panel").hide(); // Hide all panels initially
-
-    targets.forEach(function (target) {
-      $("#" + target).show(); // Show each targeted panel
-    });
-  });
-
-  $("#logout").click(function () {
-    // Implement your logout logic here
-    console.log("Logout button clicked");
-    // Redirect to login page or logout user
-    window.location.href = "/index.html"; // Modify as needed
-  });
-});

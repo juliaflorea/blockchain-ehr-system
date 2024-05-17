@@ -206,6 +206,7 @@ body {
   display: block; /* Ensure the panels are displayed */
 }
 
+/* Symptoms container and header styles */
 #symptomsContainer {
   display: flex;
   flex-wrap: wrap;
@@ -213,45 +214,87 @@ body {
   justify-content: flex-start;
 }
 
-#symptomsContainer div {
-  margin-right: 15px;
-  margin-bottom: 10px;
+#symptomsContainer > div {
+  margin: 10px 15px;
 }
+
 .symptoms-header {
-  color: #ffffff; /* Adjust color to match your theme */
-  background-color: #392467; /* Dark background for visibility */
-  padding: 10px; /* Padding for better spacing */
-  margin-bottom: 10px; /* Space below the header */
-  width: 100%; /* Ensure it spans the full width */
+  width: 100%;
+  color: #392467;
+  padding: 10px 0;
+  margin-bottom: 10px;
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+#symptomsContainer input[type="checkbox"] {
+  margin-right: 5px;
 }
 
 label {
   margin-left: 5px;
+  font-weight: normal;
+  color: #5a5c69;
 }
 
+#diagnosisForm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#diagnosisForm .form-group {
+  width: 100%;
+  max-width: 600px;
+}
+
+#diagnosisForm .btn {
+  margin-top: 20px;
+}
+
+/* Prediction result styles */
 #predictionResult {
-  width: 100%; /* Ensure it spans the full container width */
-
-  color: #ffffff; /* Set the text color to white for better readability */
-  text-align: center; /* Center the text */
-  padding: 10px; /* Add some padding for spacing */
-  border-radius: 5px; /* Optional: rounded corners */
-  font-size: 1.2em; /* Increase font size for better visibility */
+  text-align: center;
+  font-size: 2em; /* Increase font size */
+  margin-top: 30px; /* Add more space above the prediction result */
+  display: none; /* Hidden by default */
+  color: #000; /* Text color black */
+  font-weight: bold; /* Bold text */
+  background-color: transparent; /* Ensure no background color */
 }
 
+/* Reset button styles */
+#resetButton {
+  display: block;
+  margin: 20px auto;
+  background-color: #6c757d;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#resetButton:hover {
+  background-color: #5a6268;
+}
+
+/* Prediction entry styles */
 .prediction-entry {
   margin-top: 10px;
   padding: 10px;
-  background-color: #f4f4f4; /* Light grey background */
-  border-left: 5px solid #007bff; /* Blue border on the left */
+  background-color: #f4f4f4;
+  border-left: 5px solid #007bff;
   border-radius: 5px;
 }
 
 .prediction-entry p {
-  margin: 5px 0; /* Small margin for paragraph */
+  margin: 5px 0;
 }
-
-
 
 .record-key {
   font-weight: bold; /* Makes text bold */
