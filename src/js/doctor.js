@@ -77,6 +77,147 @@ $(window).on("load", function () {
   loadAppointmentHistory();
 });
 
+// function showRecords(element) {
+//   var table = document.getElementById("viewPatient");
+//   var index = element.parentNode.parentNode.rowIndex;
+//   var patientAddress = table.rows[index].cells[1].innerHTML;
+
+//   if (toggleRecordsButton % 2 == 0) {
+//     var patientRecord = "";
+
+//     contractInstance.methods
+//       .get_hash(patientAddress)
+//       .call({ gas: 1000000 }, function (error, result) {
+//         if (!error) {
+//           $.get("http://localhost:8080/ipfs/" + result, function (data) {
+
+//           patientRecord = data;
+//             var downloadButton = $("<button/>", {
+//               text: "Download Medical Record",
+//               class: "btn btn-primary",
+//               click: function () {
+//                 downloadMedicalRecord(data);
+//               },
+//             });
+//             $("#downloadLinkContainer").html(downloadButton);
+//             content = `<div class="tab-content">
+//             <div id="view${patientAddress}">
+//               <div class="row">
+//                 <div class="col-sm-12">
+//                   <pre style="margin: 20px 0;" id="records${patientAddress}">${patientRecord}</pre>
+//                 </div>
+//               </div>
+//               <hr>
+//               <div class=" section diagnosis-section">
+//                 <h5 class="diagnosis-title">Diagnosis Submission</h5>
+//                 <div class="form-group">
+//                   <label for="ailmentsList${patientAddress}" class="form-label">Diagnosis:</label>
+//                   <select class="form-control" id="ailmentsList${patientAddress}" required>
+//                     <option selected disabled>-- Please Select --</option>
+//                     <option value="0">Common Flu</option>
+//                     <option value="1">Viral Infection</option>
+//                     <option value="2">Cancer</option>
+//                     <option value="3">Tumor</option>
+//                     <option value="4">Covid-19</option>
+//                     <option value="5">Heart Disorder</option>
+//                     <option value="6">Other</option>
+//                   </select>
+//                 </div>
+//                 <div class="form-group">
+//                   <label for="clinicalStatus${patientAddress}" class="form-label">Clinical Status:</label>
+//                   <select class="form-control" id="clinicalStatus${patientAddress}" required>
+//                     <option selected disabled>-- Please Select --</option>
+//                     <option value="active">Active</option>
+//                     <option value="remission">Remission</option>
+//                     <option value="resolved">Resolved</option>
+//                   </select>
+//                 </div>
+//                 <div class="form-group">
+//                   <label for="severity${patientAddress}" class="form-label">Severity:</label>
+//                   <select class="form-control" id="severity${patientAddress}" required>
+//                     <option selected disabled>-- Please Select --</option>
+//                     <option value="low">Low</option>
+//                     <option value="medium">Medium</option>
+//                     <option value="high">High</option>
+//                   </select>
+//                 </div>
+//                 <div class="form-group">
+//                   <label for="affectedArea${patientAddress}" class="form-label">Affected Area:</label>
+//                   <input type="text" class="form-control" id="affectedArea${patientAddress}" placeholder="Enter affected body area" required>
+//                 </div>
+//                 <div class="form-group">
+//                   <label for="details" class="form-label">Details:</label>
+//                   <textarea class="form-control" rows="5" id="details" placeholder="Enter details to be added" name="Details" required autofocus></textarea>
+//                 </div>
+//                 <div class="form-group">
+//                   <button class="btn btn-primary " onclick="submitDiagnosis(this, ${index})">Submit</button>
+//                 </div>
+//               </div>
+//             </div>
+//             <hr>`;
+
+//             var treatmentPlanContent = `<div class=" section treatment-plan-section">
+//                 <h5>Treatment Plan</h5>
+//                 <div class="form-group">
+//                   <label>Medication Name:</label>
+//                   <input type="text" class="form-control" id="medicationName${patientAddress}">
+//                 </div>
+//                 <div class="form-group">
+//                   <label>Dose:</label>
+//                   <input type="text" class="form-control" id="dose${patientAddress}">
+//                 </div>
+//                 <div class="form-group">
+//                   <label>Route of Administration:</label>
+//                   <select id="route${patientAddress}" class="form-control">
+//                     <option value="">Select</option>
+//                     <option value="oral">Oral</option>
+//                     <option value="intravenous">Intravenous</option>
+//                     <option value="inhalation">Inhalation</option>
+//                     <option value="subcutaneous">Subcutaneous</option>
+//                     <option value="intramuscular">Intramuscular</option>
+//                     <option value="topical">Topical</option>
+//                     <option value="rectal">Rectal</option>
+//                     <option value="sublingual">Sublingual</option>
+//                     <option value="nasal">Nasal</option>
+//                     <option value="ophthalmic">Ophthalmic</option>
+//                     <option value="otic">Otic</option>
+//                   </select>
+//                 </div>
+//                 <div class="form-group">
+//                   <label>Frequency:</label>
+//                   <input type="text" class="form-control" id="frequency${patientAddress}">
+//                 </div>
+//                 <div class="form-group">
+//                   <label>Additional Instructions:</label>
+//                   <textarea class="form-control" id="instructions${patientAddress}"></textarea>
+//                 </div>
+//                 <button class="btn btn-primary" onclick="submitTreatmentPlan(this, ${index})">Submit</button>
+//               </div>`;
+//             content += treatmentPlanContent;
+
+//             var row1 = table.insertRow(index + 1);
+//             var cell1 = row1.insertCell(0);
+//             cell1.colSpan = 3;
+//             cell1.innerHTML = content;
+//           });
+//         } else {
+//           console.log(error);
+//         }
+//       });
+
+//     toggleRecordsButton += 1;
+//     element.value = "Hide Records";
+//     element.className = "btn btn-danger";
+//   } else {
+//     row = table.rows[index + 1];
+//     $(row).hide();
+//     $("#downloadLinkContainer").empty();
+//     toggleRecordsButton -= 1;
+//     element.value = "View Records";
+//     element.className = "btn btn-success";
+//   }
+// }
+
 function showRecords(element) {
   var table = document.getElementById("viewPatient");
   var index = element.parentNode.parentNode.rowIndex;
@@ -90,8 +231,9 @@ function showRecords(element) {
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           $.get("http://localhost:8080/ipfs/" + result, function (data) {
-            
-          patientRecord = data;
+            patientRecord = data;
+
+            // Create download button
             var downloadButton = $("<button/>", {
               text: "Download Medical Record",
               class: "btn btn-primary",
@@ -99,106 +241,117 @@ function showRecords(element) {
                 downloadMedicalRecord(data);
               },
             });
-            $("#downloadLinkContainer").html(downloadButton);
-            content = `<div class="tab-content">
-            <div id="view${patientAddress}">
-              <div class="row">
-                <div class="col-sm-12">
-                  <pre style="margin: 20px 0;" id="records${patientAddress}">${patientRecord}</pre>
+            
+            // Insert download button above the patient records
+            var downloadButtonContainer = $("<div/>", {
+              id: "downloadButtonContainer",
+              class: "download-button-container",
+            }).append(downloadButton);
+
+            // Create the content for the patient records
+            var content = `
+              <div class="tab-content">
+                <div id="view${patientAddress}">
+                  <div class="row">
+                    <div class="col-sm-12">
+                      <pre style="margin: 20px 0;" id="records${patientAddress}">${patientRecord}</pre>
+                    </div>
+                  </div>
+                  <hr>
+                  <div class="section diagnosis-section">
+                    <h5 class="diagnosis-title">Diagnosis Submission</h5>
+                    <div class="form-group">
+                      <label for="ailmentsList${patientAddress}" class="form-label">Diagnosis:</label>
+                      <select class="form-control" id="ailmentsList${patientAddress}" required>
+                        <option selected disabled>-- Please Select --</option>
+                        <option value="0">Common Flu</option>
+                        <option value="1">Viral Infection</option>
+                        <option value="2">Cancer</option>
+                        <option value="3">Tumor</option>
+                        <option value="4">Covid-19</option>
+                        <option value="5">Heart Disorder</option>
+                        <option value="6">Other</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="clinicalStatus${patientAddress}" class="form-label">Clinical Status:</label>
+                      <select class="form-control" id="clinicalStatus${patientAddress}" required>
+                        <option selected disabled>-- Please Select --</option>
+                        <option value="active">Active</option>
+                        <option value="remission">Remission</option>
+                        <option value="resolved">Resolved</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="severity${patientAddress}" class="form-label">Severity:</label>
+                      <select class="form-control" id="severity${patientAddress}" required>
+                        <option selected disabled>-- Please Select --</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="affectedArea${patientAddress}" class="form-label">Affected Area:</label>
+                      <input type="text" class="form-control" id="affectedArea${patientAddress}" placeholder="Enter affected body area" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="details" class="form-label">Details:</label>
+                      <textarea class="form-control" rows="5" id="details" placeholder="Enter details to be added" name="Details" required autofocus></textarea>
+                    </div>
+                    <div class="form-group">
+                      <button class="btn btn-primary" onclick="submitDiagnosis(this, ${index})">Submit</button>
+                    </div>
+                  </div>
+                  <hr>
+                  <div class="section treatment-plan-section">
+                    <h5>Treatment Plan</h5>
+                    <div class="form-group">
+                      <label>Medication Name:</label>
+                      <input type="text" class="form-control" id="medicationName${patientAddress}">
+                    </div>
+                    <div class="form-group">
+                      <label>Dose:</label>
+                      <input type="text" class="form-control" id="dose${patientAddress}">
+                    </div>
+                    <div class="form-group">
+                      <label>Route of Administration:</label>
+                      <select id="route${patientAddress}" class="form-control">
+                        <option value="">Select</option>
+                        <option value="oral">Oral</option>
+                        <option value="intravenous">Intravenous</option>
+                        <option value="inhalation">Inhalation</option>
+                        <option value="subcutaneous">Subcutaneous</option>
+                        <option value="intramuscular">Intramuscular</option>
+                        <option value="topical">Topical</option>
+                        <option value="rectal">Rectal</option>
+                        <option value="sublingual">Sublingual</option>
+                        <option value="nasal">Nasal</option>
+                        <option value="ophthalmic">Ophthalmic</option>
+                        <option value="otic">Otic</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Frequency:</label>
+                      <input type="text" class="form-control" id="frequency${patientAddress}">
+                    </div>
+                    <div class="form-group">
+                      <label>Additional Instructions:</label>
+                      <textarea class="form-control" id="instructions${patientAddress}"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitTreatmentPlan(this, ${index})">Submit</button>
+                  </div>
                 </div>
               </div>
-              <hr>
-              <div class=" section diagnosis-section">
-                <h5 class="diagnosis-title">Diagnosis Submission</h5>
-                <div class="form-group">
-                  <label for="ailmentsList${patientAddress}" class="form-label">Diagnosis:</label>
-                  <select class="form-control" id="ailmentsList${patientAddress}" required>
-                    <option selected disabled>-- Please Select --</option>
-                    <option value="0">Common Flu</option>
-                    <option value="1">Viral Infection</option>
-                    <option value="2">Cancer</option>
-                    <option value="3">Tumor</option>
-                    <option value="4">Covid-19</option>
-                    <option value="5">Heart Disorder</option>
-                    <option value="6">Other</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="clinicalStatus${patientAddress}" class="form-label">Clinical Status:</label>
-                  <select class="form-control" id="clinicalStatus${patientAddress}" required>
-                    <option selected disabled>-- Please Select --</option>
-                    <option value="active">Active</option>
-                    <option value="remission">Remission</option>
-                    <option value="resolved">Resolved</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="severity${patientAddress}" class="form-label">Severity:</label>
-                  <select class="form-control" id="severity${patientAddress}" required>
-                    <option selected disabled>-- Please Select --</option>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="affectedArea${patientAddress}" class="form-label">Affected Area:</label>
-                  <input type="text" class="form-control" id="affectedArea${patientAddress}" placeholder="Enter affected body area" required>
-                </div>
-                <div class="form-group">
-                  <label for="details" class="form-label">Details:</label>
-                  <textarea class="form-control" rows="5" id="details" placeholder="Enter details to be added" name="Details" required autofocus></textarea>
-                </div>
-                <div class="form-group">
-                  <button class="btn btn-primary " onclick="submitDiagnosis(this, ${index})">Submit</button>
-                </div>
-              </div>
-            </div>
-            <hr>`;
+            `;
 
-            var treatmentPlanContent = `<div class=" section treatment-plan-section">
-                <h5>Treatment Plan</h5>
-                <div class="form-group">
-                  <label>Medication Name:</label>
-                  <input type="text" class="form-control" id="medicationName${patientAddress}">
-                </div>
-                <div class="form-group">
-                  <label>Dose:</label>
-                  <input type="text" class="form-control" id="dose${patientAddress}">
-                </div>
-                <div class="form-group">
-                  <label>Route of Administration:</label>
-                  <select id="route${patientAddress}" class="form-control">
-                    <option value="">Select</option>
-                    <option value="oral">Oral</option>
-                    <option value="intravenous">Intravenous</option>
-                    <option value="inhalation">Inhalation</option>
-                    <option value="subcutaneous">Subcutaneous</option>
-                    <option value="intramuscular">Intramuscular</option>
-                    <option value="topical">Topical</option>
-                    <option value="rectal">Rectal</option>
-                    <option value="sublingual">Sublingual</option>
-                    <option value="nasal">Nasal</option>
-                    <option value="ophthalmic">Ophthalmic</option>
-                    <option value="otic">Otic</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Frequency:</label>
-                  <input type="text" class="form-control" id="frequency${patientAddress}">
-                </div>
-                <div class="form-group">
-                  <label>Additional Instructions:</label>
-                  <textarea class="form-control" id="instructions${patientAddress}"></textarea>
-                </div>
-                <button class="btn btn-primary" onclick="submitTreatmentPlan(this, ${index})">Submit</button>
-              </div>`;
-            content += treatmentPlanContent;
+            // Insert the new row after the current row and include the download button and patient records
+            var newRow = table.insertRow(index + 1);
+            var newCell = newRow.insertCell(0);
+            newCell.colSpan = 3;
+            newCell.append(downloadButtonContainer[0]);
+            newCell.innerHTML += content;
 
-            var row1 = table.insertRow(index + 1);
-            var cell1 = row1.insertCell(0);
-            cell1.colSpan = 3;
-            cell1.innerHTML = content;
           });
         } else {
           console.log(error);
@@ -209,14 +362,15 @@ function showRecords(element) {
     element.value = "Hide Records";
     element.className = "btn btn-danger";
   } else {
-    row = table.rows[index + 1];
-    $(row).hide();
+    var row = table.rows[index + 1];
+    $(row).remove();
     $("#downloadLinkContainer").empty();
     toggleRecordsButton -= 1;
     element.value = "View Records";
     element.className = "btn btn-success";
   }
 }
+
 
 function getDateTime() {
   function AddZero(num) {
@@ -772,8 +926,6 @@ function displayAppointmentHistory(id, appointment, status) {
 
   $("#appointmentHistory tbody").append(row); // Ensure you have a table with id="appointmentHistory"
 }
-
-
 
 function acceptAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {

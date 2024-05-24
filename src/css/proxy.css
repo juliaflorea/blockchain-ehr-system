@@ -1,156 +1,152 @@
 /* Global Styles */
 body {
-    font-family: "Arial", sans-serif;
-    background-color: #f8f9fa; /* Light gray background */
-  }
-  
-  
- 
-  
-  /* Panel Styles */
-  .panel-heading {
-    margin: 1rem 0; /* Add margin top and bottom */
-    width: 100%; /* Full width panels */
-    max-width: 1000px;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e3e6f0; /* Subtle border for heading */
-    background-color: #392467; /* A nice shade of blue for heading background */
-    color: #fff; /* White text color */
-    border-top-left-radius: 0.35rem; /* Rounded top corners */
-    border-top-right-radius: 0.35rem; /* Rounded top corners */
-  }
-  
-  .form-group .form-control,
-  .form-group .btn {
-    max-width: 100%; /* Full width form elements */
-  }
-  
-  .panel {
-    background-color: #fff; /* Light background for the content */
-    border: none; /* Remove border */
-    border-radius: 10px; /* Rounded corners for the panel */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Soft shadow */
-    margin: 2rem auto; /* Center the panel with margin */
-    width: 80%; /* Adjust the width */
-    display: none;
-  }
-  
-  .panel-body {
-    padding: 2rem; /* More padding inside the panel body for spacing */
-    color: #5a5c69; /* Dark grey color for text for better readability */
-  }
-  
-  #personalInfoPanel {
-    display: block; /* Show the personal info panel by default */
-  }
-  
-  /* Form Styles */
-  .form-group {
-    margin-bottom: 15px;
-  }
-  
-  .form-control {
-    width: 100%;
-  }
-  
-  .btn-primary,
-  .btn-info {
-    background-color: #5e72e4; /* Primary button color to match the theme */
-    border-color: #5e72e4; /* Border color to match the button */
-    border-radius: 20px; /* Rounded borders */
-    padding: 10px 25px; /* Padding for the buttons */
-    font-size: 1rem; /* Font size for the buttons */
-    color: #fff; /* White text color */
-    text-transform: uppercase; /* Uppercase text */
-    font-weight: bold; /* Bold font weight */
-    letter-spacing: 1px; /* Space between letters */
-  }
-  
-  .btn-primary:hover,
-  .btn-info:hover {
-    background-color: #324cdd; /* Darker shade on hover */
-    border-color: #324cdd; /* Darker border on hover */
-  }
-  
-  /* Table Styles */
-  .table th,
-  .table td {
-    padding: 0.75rem; /* More padding for table cells */
-    vertical-align: middle; /* Align items in the middle vertically */
-    border-top: 1px solid #e3e6f0; /* Subtle top border for table rows */
-  }
-  
-  .table th {
-    color: #392467; /* Dark text to match the theme */
-    padding: 12px 15px;
-  }
-  
-  /* Alert Styles */
-  .alert {
-    border: 1px solid #ced4da; /* Light gray border */
-  }
-  
-  .btn-info {
-    display: block; /* Ensure the button is a block element */
-    width: 50%; /* Set a width */
-    margin: 1rem auto; /* Center the button */
-  }
-  
-  .btn-info:hover,
-  .btn-info:focus {
-    background-color: #324cdd; /* Darker light blue background on hover/focus */
-    border-color: #324cdd; /* Darker light blue border on hover/focus */
-  }
-  
-  /* Error Alert Styles */
-  .alert-danger {
-    background-color: #d9534f; /* Red background for error alerts */
-    color: #ffffff; /* White text */
-  }
-  
-  /* Revoke Access Button Styles */
-  .btn-danger {
-    background-color: #d9534f; /* Red background */
-    border-color: #d9534f; /* Red border */
-  }
-  
-  .btn-danger:hover,
-  .btn-danger:focus {
-    background-color: #c9302c; /* Darker red background on hover/focus */
-    border-color: #c9302c; /* Darker red border on hover/focus */
-  }
-  
-  /* Info Alert Styles */
-  .alert-info {
-    background-color: #5bc0de; /* Light blue background for info alerts */
-    color: #ffffff; /* White text */
-  }
-  
-  #records {
-    background-color: #e9ecef; /* Light background for records */
-    padding: 1rem; /* Padding around records text */
-    border-radius: 5px; /* Rounded corners for records */
-    margin-top: 1rem; /* Margin above the records for spacing */
-    text-align: center; /* Center align records text */
-    font-family: "Courier New", monospace; /* Monospace font for records to mimic typewritten text */
-  }
-  
-  #recordsHash a {
-    color: #5e72e4; /* Color to match theme */
-    text-decoration: underline; /* Underline the link */
-  }
-  
-  #recordsHash a:hover,
-  #recordsHash a:focus {
-    color: #324cdd; /* Darker shade when hovered/focused */
-  }
-  
-  #records::-webkit-scrollbar {
-    width: 8px;
-  }
-  
-  #records::-webkit-scrollbar-thumb {
-    background: #5e72e4; /* Scrollbar color to match theme */
-    border-radius: 10px;
-  }
-  
+  font-family: "Arial", sans-serif;
+  background-color: #f8f9fa; /* Light gray background */
+}
+
+/* Panel Styles */
+.panel-heading {
+  margin: 1rem 0; /* Add margin top and bottom */
+  width: 100%; /* Full width panels */
+  max-width: 1000px;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e3e6f0; /* Subtle border for heading */
+  background-color: #392467; /* A nice shade of blue for heading background */
+  color: #fff; /* White text color */
+  border-top-left-radius: 0.35rem; /* Rounded top corners */
+  border-top-right-radius: 0.35rem; /* Rounded top corners */
+}
+
+.form-group .form-control,
+.form-group .btn {
+  max-width: 100%; /* Full width form elements */
+}
+
+.panel {
+  background-color: #fff; /* Light background for the content */
+  border: none; /* Remove border */
+  border-radius: 10px; /* Rounded corners for the panel */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Soft shadow */
+  margin: 2rem auto; /* Center the panel with margin */
+  width: 80%; /* Adjust the width */
+  display: none;
+}
+
+.panel-body {
+  padding: 2rem; /* More padding inside the panel body for spacing */
+  color: #5a5c69; /* Dark grey color for text for better readability */
+}
+
+#personalInfoPanel {
+  display: block; /* Show the personal info panel by default */
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-control {
+  width: 100%;
+}
+
+.btn-primary,
+.btn-info {
+  background-color: #5e72e4; /* Primary button color to match the theme */
+  border-color: #5e72e4; /* Border color to match the button */
+  border-radius: 20px; /* Rounded borders */
+  padding: 10px 25px; /* Padding for the buttons */
+  font-size: 1rem; /* Font size for the buttons */
+  color: #fff; /* White text color */
+  text-transform: uppercase; /* Uppercase text */
+  font-weight: bold; /* Bold font weight */
+  letter-spacing: 1px; /* Space between letters */
+}
+
+.btn-primary:hover,
+.btn-info:hover {
+  background-color: #324cdd; /* Darker shade on hover */
+  border-color: #324cdd; /* Darker border on hover */
+}
+
+/* Table Styles */
+.table th,
+.table td {
+  padding: 0.75rem; /* More padding for table cells */
+  vertical-align: middle; /* Align items in the middle vertically */
+  border-top: 1px solid #e3e6f0; /* Subtle top border for table rows */
+}
+
+.table th {
+  color: #392467; /* Dark text to match the theme */
+  padding: 12px 15px;
+}
+
+/* Alert Styles */
+.alert {
+  border: 1px solid #ced4da; /* Light gray border */
+}
+
+.btn-info {
+  display: block; /* Ensure the button is a block element */
+  width: 50%; /* Set a width */
+  margin: 1rem auto; /* Center the button */
+}
+
+.btn-info:hover,
+.btn-info:focus {
+  background-color: #324cdd; /* Darker light blue background on hover/focus */
+  border-color: #324cdd; /* Darker light blue border on hover/focus */
+}
+
+/* Error Alert Styles */
+.alert-danger {
+  background-color: #d9534f; /* Red background for error alerts */
+  color: #ffffff; /* White text */
+}
+
+/* Revoke Access Button Styles */
+.btn-danger {
+  background-color: #d9534f; /* Red background */
+  border-color: #d9534f; /* Red border */
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+  background-color: #c9302c; /* Darker red background on hover/focus */
+  border-color: #c9302c; /* Darker red border on hover/focus */
+}
+
+/* Info Alert Styles */
+.alert-info {
+  background-color: #5bc0de; /* Light blue background for info alerts */
+  color: #ffffff; /* White text */
+}
+
+#records {
+  background-color: #e9ecef; /* Light background for records */
+  padding: 1rem; /* Padding around records text */
+  border-radius: 5px; /* Rounded corners for records */
+  margin-top: 1rem; /* Margin above the records for spacing */
+  text-align: center; /* Center align records text */
+  font-family: "Courier New", monospace; /* Monospace font for records to mimic typewritten text */
+}
+
+#recordsHash a {
+  color: #5e72e4; /* Color to match theme */
+  text-decoration: underline; /* Underline the link */
+}
+
+#recordsHash a:hover,
+#recordsHash a:focus {
+  color: #324cdd; /* Darker shade when hovered/focused */
+}
+
+#records::-webkit-scrollbar {
+  width: 8px;
+}
+
+#records::-webkit-scrollbar-thumb {
+  background: #5e72e4; /* Scrollbar color to match theme */
+  border-radius: 10px;
+}

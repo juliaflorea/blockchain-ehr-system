@@ -180,6 +180,8 @@ $(window).on("load", function () {
             $(".list-group-item")
               .not('[data-target="personalInfoPanel"]')
               .hide();
+
+              $(".alert-danger").show().html('<strong>Notice!</strong> The patient has revoked your access to their records.');
           }
         } else {
           console.error("Error fetching proxy data:", error);
@@ -195,9 +197,7 @@ function showRecords(element) {
   var index = element.parentNode.parentNode.rowIndex;
   var patientAddress = table.rows[index].cells[1].innerHTML;
 
-  // Toggle logic adjustment
   if (element.value === "Hide Records") {
-    // If hiding, just remove the next row if it's a record row
     if (
       table.rows[index + 1] &&
       table.rows[index + 1].classList.contains("recordsRow")
@@ -206,9 +206,8 @@ function showRecords(element) {
     }
     element.value = "View Records";
     element.className = "btn btn-success";
-    return; // Exit the function to prevent further actions
+    return;
   } else {
-    // Clear any previously added record rows to avoid duplication
     while (
       table.rows[index + 1] &&
       table.rows[index + 1].classList.contains("recordsRow")
@@ -216,7 +215,6 @@ function showRecords(element) {
       table.deleteRow(index + 1);
     }
 
-    // Proceed to fetch and display records
     contractInstance.methods
       .get_hash(patientAddress)
       .call({ gas: 1000000 }, function (error, result) {
@@ -233,22 +231,23 @@ function showRecords(element) {
               },
             });
             $("#downloadLinkContainer").html(downloadButton);
-            var content = `<div class="tab-content">
-                              <div id="view${patientAddress}">
-                                  <div class="row">
-                                      <div class="col-sm-12">
-                                          <pre style="margin: 20px 0;" id="records${patientAddress}">${data}</pre>
-                                      </div>
-                                  </div>
-                              </div>
-                            </div>`;
+            
+            // Split the data into different sections
+            var sections = data.split('\n\n'); // Split sections by double newlines
 
-            // Inserting the new content row
+            var content = sections.map(section => {
+              return `<div class="medical-record">
+                        <pre>${section}</pre>
+                      </div>`;
+            }).join('');
+
+            content = `<div class="medical-record-container">${content}</div>`;
+
             var row1 = table.insertRow(index + 1);
-            row1.classList.add("recordsRow"); // Add a class for easy identification
+            row1.classList.add("recordsRow");
             var cell1 = row1.insertCell(0);
             cell1.colSpan = 3;
-            cell1.innerHTML = content;
+            cell1.innerHTML = `<div class="d-flex justify-content-center w-100">${content}</div>`;
           });
         } else {
           console.error("Error retrieving IPFS hash:", error);
@@ -259,6 +258,7 @@ function showRecords(element) {
     element.className = "btn btn-danger";
   }
 }
+
 
 function populateDoctorDropdown(dropdownId) {
   console.log("populateDoctorDropdown called for:", dropdownId);

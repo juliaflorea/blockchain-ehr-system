@@ -356,7 +356,7 @@ function toggleProxyOptionFields() {
 }
 
 function formatPatientData(patientData, publicKey) {
-  let dataString = '<div class="medical-record">'; // Start of the medical record block
+  let dataString = ''; // Start of the medical record block
   dataString += `First Name: ${patientData.name[0].given.join(" ")}\n`;
   dataString += `Last Name: ${patientData.name[0].family}\n`;
   dataString += `Gender: ${patientData.gender}\n`;
@@ -628,6 +628,7 @@ function validateDoctorCertificate(file, licenseNumber) {
         if (
           !licenseRegex.test(text.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
         ) {
+          alert("License number does not match any found in the document.");
           reject("License number does not match any found in the document.");
           return;
         }
@@ -638,6 +639,9 @@ function validateDoctorCertificate(file, licenseNumber) {
         if (dateMatch && dateMatch[1]) {
           const expirationDate = new Date(dateMatch[1]);
           if (expirationDate.getTime() < new Date().getTime()) {
+            alert(
+              `The certificate has expired on ${expirationDate.toLocaleDateString()}.`
+            );
             reject(
               `The certificate has expired on ${expirationDate.toLocaleDateString()}.`
             );
@@ -646,6 +650,7 @@ function validateDoctorCertificate(file, licenseNumber) {
           }
         } else {
           // If the date format in the document differs from the expected format, modify the regex accordingly.
+          alert("Expiration date could not be extracted from the document.");
           reject("Expiration date could not be extracted from the document.");
         }
       })
