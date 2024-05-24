@@ -226,14 +226,14 @@ container-fluid {
   border: none;
   background-color: rgba(255, 179, 128, 0.5); /* Existing background */
   color: #f26d21; /* Existing text color */
-  padding: 10px;
+  padding: 5px; /* Reduced padding for better fit */
   border-radius: 5px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   height: auto; /* Adjust based on content */
   overflow: hidden; /* Ensures no spillover */
-  white-space: nowrap; /* Prevents text from wrapping to a new line */
+  white-space: normal; /* Allow wrapping */
   text-overflow: ellipsis; /* Adds ellipsis if text overflows */
 }
 
@@ -253,6 +253,34 @@ container-fluid {
   overflow: visible; /* Allow text to be fully visible on hover */
   white-space: normal; /* Allows text wrapping on hover */
 }
+
+.event-time,
+.event-title {
+  font-size: 14px;
+  line-height: 1.2; /* Adjusted line height */
+}
+
+.event-time {
+  font-weight: bold;
+}
+
+/* Ensure event titles within daygrid and timegrid views wrap correctly */
+.fc-daygrid-event .fc-event-title,
+.fc-timegrid-event .fc-event-title {
+  white-space: normal; /* Allow wrapping */
+  overflow: hidden; /* Ensure text is contained within the box */
+  text-overflow: ellipsis; /* Add ellipsis if text overflows */
+  font-size: 14px; /* Adjust font size */
+  line-height: 1.2; /* Adjust line height */
+}
+
+/* Adjust height and padding for better readability */
+.fc-timegrid-event {
+  height: auto; /* Adjust height based on content */
+  min-height: 40px; /* Minimum height to ensure visibility */
+  padding: 5px; /* Add padding for better readability */
+}
+
 
 .info-container {
   display: none;
