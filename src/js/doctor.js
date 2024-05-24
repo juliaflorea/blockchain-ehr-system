@@ -77,147 +77,6 @@ $(window).on("load", function () {
   loadAppointmentHistory();
 });
 
-// function showRecords(element) {
-//   var table = document.getElementById("viewPatient");
-//   var index = element.parentNode.parentNode.rowIndex;
-//   var patientAddress = table.rows[index].cells[1].innerHTML;
-
-//   if (toggleRecordsButton % 2 == 0) {
-//     var patientRecord = "";
-
-//     contractInstance.methods
-//       .get_hash(patientAddress)
-//       .call({ gas: 1000000 }, function (error, result) {
-//         if (!error) {
-//           $.get("http://localhost:8080/ipfs/" + result, function (data) {
-
-//           patientRecord = data;
-//             var downloadButton = $("<button/>", {
-//               text: "Download Medical Record",
-//               class: "btn btn-primary",
-//               click: function () {
-//                 downloadMedicalRecord(data);
-//               },
-//             });
-//             $("#downloadLinkContainer").html(downloadButton);
-//             content = `<div class="tab-content">
-//             <div id="view${patientAddress}">
-//               <div class="row">
-//                 <div class="col-sm-12">
-//                   <pre style="margin: 20px 0;" id="records${patientAddress}">${patientRecord}</pre>
-//                 </div>
-//               </div>
-//               <hr>
-//               <div class=" section diagnosis-section">
-//                 <h5 class="diagnosis-title">Diagnosis Submission</h5>
-//                 <div class="form-group">
-//                   <label for="ailmentsList${patientAddress}" class="form-label">Diagnosis:</label>
-//                   <select class="form-control" id="ailmentsList${patientAddress}" required>
-//                     <option selected disabled>-- Please Select --</option>
-//                     <option value="0">Common Flu</option>
-//                     <option value="1">Viral Infection</option>
-//                     <option value="2">Cancer</option>
-//                     <option value="3">Tumor</option>
-//                     <option value="4">Covid-19</option>
-//                     <option value="5">Heart Disorder</option>
-//                     <option value="6">Other</option>
-//                   </select>
-//                 </div>
-//                 <div class="form-group">
-//                   <label for="clinicalStatus${patientAddress}" class="form-label">Clinical Status:</label>
-//                   <select class="form-control" id="clinicalStatus${patientAddress}" required>
-//                     <option selected disabled>-- Please Select --</option>
-//                     <option value="active">Active</option>
-//                     <option value="remission">Remission</option>
-//                     <option value="resolved">Resolved</option>
-//                   </select>
-//                 </div>
-//                 <div class="form-group">
-//                   <label for="severity${patientAddress}" class="form-label">Severity:</label>
-//                   <select class="form-control" id="severity${patientAddress}" required>
-//                     <option selected disabled>-- Please Select --</option>
-//                     <option value="low">Low</option>
-//                     <option value="medium">Medium</option>
-//                     <option value="high">High</option>
-//                   </select>
-//                 </div>
-//                 <div class="form-group">
-//                   <label for="affectedArea${patientAddress}" class="form-label">Affected Area:</label>
-//                   <input type="text" class="form-control" id="affectedArea${patientAddress}" placeholder="Enter affected body area" required>
-//                 </div>
-//                 <div class="form-group">
-//                   <label for="details" class="form-label">Details:</label>
-//                   <textarea class="form-control" rows="5" id="details" placeholder="Enter details to be added" name="Details" required autofocus></textarea>
-//                 </div>
-//                 <div class="form-group">
-//                   <button class="btn btn-primary " onclick="submitDiagnosis(this, ${index})">Submit</button>
-//                 </div>
-//               </div>
-//             </div>
-//             <hr>`;
-
-//             var treatmentPlanContent = `<div class=" section treatment-plan-section">
-//                 <h5>Treatment Plan</h5>
-//                 <div class="form-group">
-//                   <label>Medication Name:</label>
-//                   <input type="text" class="form-control" id="medicationName${patientAddress}">
-//                 </div>
-//                 <div class="form-group">
-//                   <label>Dose:</label>
-//                   <input type="text" class="form-control" id="dose${patientAddress}">
-//                 </div>
-//                 <div class="form-group">
-//                   <label>Route of Administration:</label>
-//                   <select id="route${patientAddress}" class="form-control">
-//                     <option value="">Select</option>
-//                     <option value="oral">Oral</option>
-//                     <option value="intravenous">Intravenous</option>
-//                     <option value="inhalation">Inhalation</option>
-//                     <option value="subcutaneous">Subcutaneous</option>
-//                     <option value="intramuscular">Intramuscular</option>
-//                     <option value="topical">Topical</option>
-//                     <option value="rectal">Rectal</option>
-//                     <option value="sublingual">Sublingual</option>
-//                     <option value="nasal">Nasal</option>
-//                     <option value="ophthalmic">Ophthalmic</option>
-//                     <option value="otic">Otic</option>
-//                   </select>
-//                 </div>
-//                 <div class="form-group">
-//                   <label>Frequency:</label>
-//                   <input type="text" class="form-control" id="frequency${patientAddress}">
-//                 </div>
-//                 <div class="form-group">
-//                   <label>Additional Instructions:</label>
-//                   <textarea class="form-control" id="instructions${patientAddress}"></textarea>
-//                 </div>
-//                 <button class="btn btn-primary" onclick="submitTreatmentPlan(this, ${index})">Submit</button>
-//               </div>`;
-//             content += treatmentPlanContent;
-
-//             var row1 = table.insertRow(index + 1);
-//             var cell1 = row1.insertCell(0);
-//             cell1.colSpan = 3;
-//             cell1.innerHTML = content;
-//           });
-//         } else {
-//           console.log(error);
-//         }
-//       });
-
-//     toggleRecordsButton += 1;
-//     element.value = "Hide Records";
-//     element.className = "btn btn-danger";
-//   } else {
-//     row = table.rows[index + 1];
-//     $(row).hide();
-//     $("#downloadLinkContainer").empty();
-//     toggleRecordsButton -= 1;
-//     element.value = "View Records";
-//     element.className = "btn btn-success";
-//   }
-// }
-
 function showRecords(element) {
   var table = document.getElementById("viewPatient");
   var index = element.parentNode.parentNode.rowIndex;
@@ -241,7 +100,7 @@ function showRecords(element) {
                 downloadMedicalRecord(data);
               },
             });
-            
+
             // Insert download button above the patient records
             var downloadButtonContainer = $("<div/>", {
               id: "downloadButtonContainer",
@@ -351,7 +210,6 @@ function showRecords(element) {
             newCell.colSpan = 3;
             newCell.append(downloadButtonContainer[0]);
             newCell.innerHTML += content;
-
           });
         } else {
           console.log(error);
@@ -371,7 +229,6 @@ function showRecords(element) {
   }
 }
 
-
 function getDateTime() {
   function AddZero(num) {
     return num >= 0 && num < 10 ? "0" + num : num + "";
@@ -388,6 +245,184 @@ function getDateTime() {
   ].join(" ");
   return strDateTime;
 }
+
+// function submitDiagnosis(element, index) {
+//   var table = document.getElementById("viewPatient");
+//   var patientAddress = table.rows[index].cells[1].innerHTML;
+
+//   var diagnosisIndex = $("#ailmentsList" + patientAddress).val();
+//   var clinicalStatus = $("#clinicalStatus" + patientAddress).val();
+//   var severity = $("#severity" + patientAddress).val();
+//   var affectedArea = $("#affectedArea" + patientAddress).val();
+//   var otherDetails = $("#details").val();
+
+//   web3.eth.getAccounts().then(function (accounts) {
+//     const doctorAddress = accounts[0]; // Assuming the doctor is logged in
+
+//     contractInstance.methods
+//       .getDoctorAppointments(doctorAddress)
+//       .call({ from: doctorAddress })
+//       .then(function (appointmentIds) {
+//         let acceptedAppointmentFound = false;
+
+//         const checks = appointmentIds.map((id) =>
+//           contractInstance.methods
+//             .appointments(id)
+//             .call()
+//             .then((appointment) => {
+//               if (
+//                 appointment.patientAddress.toLowerCase() ===
+//                   patientAddress.toLowerCase() &&
+//                 appointment.isAccepted
+//               ) {
+//                 if (appointment.diagnosisSubmitted) {
+//                   alert(
+//                     "Diagnosis already submitted for this appointment. Please book another appointment."
+//                   );
+//                   throw new Error("Diagnosis already submitted"); // Prevent further execution
+//                 }
+//                 appointmentFound = id; // Save the appointment ID for further use
+//                 return true;
+//               }
+//               return false;
+//             })
+//         );
+//         // Wait for all checks to complete.
+//         Promise.all(checks).then((results) => {
+//           acceptedAppointmentFound = results.includes(true);
+
+//           if (!acceptedAppointmentFound) {
+//             alert("No accepted appointment found for this patient.");
+//             return; // Stop the function execution if no accepted appointment found
+//           }
+
+//           if (
+//             !diagnosisIndex ||
+//             !clinicalStatus ||
+//             !severity ||
+//             !affectedArea
+//           ) {
+//             alert("Please fill in all fields.");
+//             return;
+//           }
+
+//           console.log("Submitting diagnosis for patient:", patientAddress);
+//           var diagnosis = $("#ailmentsList" + patientAddress).val();
+//           diagnosis = parseInt(diagnosis);
+//           var diagnosed = ailmentsDict[diagnosis];
+//           var comments = document.getElementById("details").value;
+//           var datetime = getDateTime();
+
+//           var fhirConditionResource = {
+//             resourceType: "Condition",
+//             clinicalStatus: {
+//               coding: [
+//                 {
+//                   system:
+//                     "http://terminology.hl7.org/CodeSystem/condition-clinical",
+//                   code: clinicalStatus,
+//                 },
+//               ],
+//             },
+//             severity: {
+//               coding: [
+//                 {
+//                   system:
+//                     "http://terminology.hl7.org/CodeSystem/condition-severity",
+//                   code: severity,
+//                 },
+//               ],
+//             },
+//             code: {
+//               text: diagnosis,
+//             },
+//             bodySite: [
+//               {
+//                 text: affectedArea,
+//               },
+//             ],
+//             onsetDateTime: datetime,
+//             note: [
+//               {
+//                 text: otherDetails,
+//               },
+//             ],
+//           };
+
+//           var oldRecords = $("#records" + patientAddress).html();
+
+//           var newRecords = `Diagnosed By : ${docName}
+// Diagnosis Time : ${datetime}
+// Diagnosis : ${diagnosed}
+// Clinical Status: ${clinicalStatus}
+// Severity: ${severity}
+// Affected Area: ${affectedArea}
+// Comments : ${comments}
+// `;
+
+//           console.log("New records to be added:", newRecords);
+//           var updatedRecords = oldRecords + newRecords;
+
+//           updatedRecords.fhirConditionResource = fhirConditionResource;
+
+//           if (!isNaN(diagnosis)) {
+//             var buffer = Buffer.from(updatedRecords);
+
+//             ipfs.files.add(buffer, (error, result) => {
+//               if (error) {
+//                 console.error("Error adding file to IPFS:", error);
+//               } else {
+//                 ipfshash = result[0].hash;
+//                 console.log("IPFS hash received:", result[0].hash);
+
+//                 ethereum
+//                   .request({ method: "eth_accounts" })
+//                   .then(function (accounts) {
+//                     var fromAddress = accounts[0].toLowerCase();
+
+//                     contractInstance.methods
+//                       .insurance_claim(patientAddress, diagnosis, ipfshash)
+//                       .send({ gas: 1000000, from: fromAddress })
+//                       .on("transactionHash", function (hash) {
+//                         // Handle the transaction hash if needed
+//                         console.log("Transaction Hash:", hash);
+//                       })
+//                       .on(
+//                         "confirmation",
+//                         function (confirmationNumber, receipt) {
+//                           // Handle confirmations if needed
+//                           console.log(
+//                             "Confirmation:",
+//                             confirmationNumber,
+//                             receipt
+//                           );
+//                         }
+//                       )
+//                       .on("receipt", function (receipt) {
+//                         // Handle the receipt if needed
+//                         console.log("Receipt:", receipt);
+//                         alert("Your diagnosis has been submitted.");
+
+//                         table.deleteRow(index + 1);
+//                         table.deleteRow(index);
+//                       })
+//                       .on("error", function (error) {
+//                         $(".alert-danger").show();
+//                         console.error(error);
+//                       });
+//                   });
+//               }
+//             });
+//           } else {
+//             alert("Select a diagnosis");
+//           }
+//         });
+//       })
+//       .catch(function (error) {
+//         console.error("Error loading appointment requests:", error);
+//       });
+//   });
+// }
 
 function submitDiagnosis(element, index) {
   var table = document.getElementById("viewPatient");
@@ -406,7 +441,7 @@ function submitDiagnosis(element, index) {
       .getDoctorAppointments(doctorAddress)
       .call({ from: doctorAddress })
       .then(function (appointmentIds) {
-        let acceptedAppointmentFound = false;
+        let foundAppointment = null;
 
         const checks = appointmentIds.map((id) =>
           contractInstance.methods
@@ -416,27 +451,20 @@ function submitDiagnosis(element, index) {
               if (
                 appointment.patientAddress.toLowerCase() ===
                   patientAddress.toLowerCase() &&
-                appointment.isAccepted
+                appointment.isAccepted &&
+                !appointment.diagnosisSubmitted
               ) {
-                if (appointment.diagnosisSubmitted) {
-                  alert(
-                    "Diagnosis already submitted for this appointment. Please book another appointment."
-                  );
-                  throw new Error("Diagnosis already submitted"); // Prevent further execution
-                }
-                appointmentFound = id; // Save the appointment ID for further use
+                foundAppointment = appointment;
                 return true;
               }
               return false;
             })
         );
-        // Wait for all checks to complete.
-        Promise.all(checks).then((results) => {
-          acceptedAppointmentFound = results.includes(true);
 
-          if (!acceptedAppointmentFound) {
+        Promise.all(checks).then((results) => {
+          if (!foundAppointment) {
             alert("No accepted appointment found for this patient.");
-            return; // Stop the function execution if no accepted appointment found
+            return;
           }
 
           if (
@@ -450,10 +478,9 @@ function submitDiagnosis(element, index) {
           }
 
           console.log("Submitting diagnosis for patient:", patientAddress);
-          var diagnosis = $("#ailmentsList" + patientAddress).val();
-          diagnosis = parseInt(diagnosis);
+          var diagnosis = parseInt(diagnosisIndex);
           var diagnosed = ailmentsDict[diagnosis];
-          var comments = document.getElementById("details").value;
+          var comments = otherDetails;
           var datetime = getDateTime();
 
           var fhirConditionResource = {
@@ -487,7 +514,7 @@ function submitDiagnosis(element, index) {
             onsetDateTime: datetime,
             note: [
               {
-                text: otherDetails,
+                text: comments,
               },
             ],
           };
