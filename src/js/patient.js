@@ -19,14 +19,13 @@ $(window).on("load", function () {
     key = accounts[0];
     key = key.toLowerCase();
 
-    // var a = "";
-    // var b = 0;
     var firstName = "";
     var lastName = "";
     var age = 0;
     var ailments = [];
     var proxyDesignationDetails = {};
 
+    // Display patient information
     console.log("Getting Patient Data");
     contractInstance.methods
       .get_patient(key)
@@ -54,41 +53,41 @@ $(window).on("load", function () {
         }
       });
 
-    // print out the doctors to share emr
-
-    var DoctorList = 0;
+    // Print out the available  doctors to share emr
     console.log("Getting Doctor List");
     contractInstance.methods
       .get_doctor_list()
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
-          DoctorList = result;
+          var DoctorList = result;
+          var list = document.getElementById("permitDoctorList");
+          list.innerHTML = ""; // Clear existing options
 
-          for (var i = 0; i < DoctorList.length; i++) {
-            (function (index) {
-              contractInstance.methods
-                .get_doctor(DoctorList[index])
-                .call({ gas: 1000000 }, function (error, result) {
-                  var list = document.getElementById("permitDoctorList");
-
-                  if (!error) {
-                    var fullName = result[0] + " " + result[1];
-                    var option = document.createElement("option");
-                    option.text = fullName;
-                    list.add(option);
-                  } else {
-                    console.error(error);
-                  }
-                });
-            })(i);
-          }
-        } else console.error(error);
+          DoctorList.forEach(function (doctorAddress) {
+            contractInstance.methods
+              .get_doctor(doctorAddress)
+              .call({ gas: 1000000 }, function (error, result) {
+                if (!error) {
+                  var fullName = result[0] + " " + result[1];
+                  var option = document.createElement("option");
+                  option.text = fullName;
+                  option.value = doctorAddress;
+                  list.add(option);
+                } else {
+                  console.error(error);
+                }
+              });
+          });
+        } else {
+          console.error(error);
+        }
       });
 
-    populateDoctorDropdown("doctorSelect");
-    populateDoctorDropdown("doctorInfoSelect");
+      populateDoctorDropdown("doctorSelect");
+      populateDoctorDropdown("doctorInfoSelect");
 
-    // print out the doctors who have access
+    // Fetch and display doctors who have access
+    console.log("Getting Accessed Doctor List");
     contractInstance.methods
       .get_accessed_doctorlist_for_patient(key)
       .call({ gas: 1000000 }, function (error, result) {
@@ -107,14 +106,14 @@ $(window).on("load", function () {
               .get_doctor(doctorAddress)
               .call({ gas: 1000000 }, function (error, result) {
                 if (!error) {
-                  var fullName = result[0] + " " + result[1]; // Concatenate first name and last name
+                  var fullName = result[0] + " " + result[1];
                   var publicKey = doctorAddress;
 
-                  var row = table.insertRow(-1); // Append new row at the end of the table
+                  var row = table.insertRow(-1);
                   var cell1 = row.insertCell(0);
                   var cell2 = row.insertCell(1);
                   var cell3 = row.insertCell(2);
-                  cell1.innerHTML = fullName; // Display full name
+                  cell1.innerHTML = fullName;
                   cell2.innerHTML = publicKey;
                   cell3.innerHTML =
                     '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
@@ -129,6 +128,8 @@ $(window).on("load", function () {
       });
   });
 
+
+
   loadSentAppointmentRequests();
 
   displayProxiesWithAccess();
@@ -136,8 +137,11 @@ $(window).on("load", function () {
   fetchSymptoms();
 });
 
+// Function to display medical records
 function showRecords(element) {
   if (toggleRecordsButton % 2 === 0) {
+    // Get the record with the specified hash from IPFS
+
     $.get("http://localhost:8080/ipfs/" + recordHash)
       .done(function (data) {
         // Display the fetched data
@@ -183,65 +187,63 @@ function showRecords(element) {
   }
 }
 
+// Function to grant access to doctor
 function giveAccess() {
   var list = document.getElementById("permitDoctorList");
-  var index = list.selectedIndex; // Corrected from the previous version where 'index' was not properly declared.
+  var index = list.selectedIndex;
 
+  if (index === -1) {
+    alert("Please select a doctor.");
+    return;
+  }
+
+  var doctorToBeAdded = list.options[index].value;
+
+  // Before attempting to add, check if the doctor already has access
   contractInstance.methods
-    .get_doctor_list()
-    .call({ gas: 1000000 }, function (error, result) {
-      if (!error) {
-        var DoctorList = result;
-        var doctorToBeAdded = DoctorList[index - 1]; // Make sure index adjustment is needed or correct here depending on the dropdown setup.
+    .get_accessed_doctorlist_for_patient(key)
+    .call({ gas: 1000000 }, function (err, accessedDoctors) {
+      if (!err) {
+        if (accessedDoctors.includes(doctorToBeAdded)) {
+          alert("The doctor already has access to your records.");
+        } else {
+          // Doctor not in the list, proceed to give access
+          contractInstance.methods.permit_access(doctorToBeAdded).send(
+            {
+              from: key,
+              gas: 1000000,
+              value: web3.utils.toWei("2", "ether"),
+            },
+            function (error) {
+              if (!error) {
+                var table = document.getElementById("accessDoc");
+                var noRows = table.rows.length;
+                var row = table.insertRow(noRows);
+                var cell1 = row.insertCell(0);
+                var cell2 = row.insertCell(1);
+                var cell3 = row.insertCell(2);
 
-        // Before attempting to add, check if the doctor already has access
-        contractInstance.methods
-          .get_accessed_doctorlist_for_patient(key)
-          .call({ gas: 1000000 }, function (err, accessedDoctors) {
-            if (!err) {
-              if (accessedDoctors.includes(doctorToBeAdded)) {
-                alert("The doctor already has access to your records.");
+                cell2.className = "publicKeyDoctor";
+                cell1.innerHTML = list.options[index].text;
+                cell2.innerHTML = doctorToBeAdded;
+                cell3.innerHTML =
+                  '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
+                alert("Access granted successfully.");
               } else {
-                // Doctor not in the list, proceed to give access
-                contractInstance.methods.permit_access(doctorToBeAdded).send(
-                  {
-                    from: key,
-                    gas: 1000000,
-                    value: web3.utils.toWei("2", "ether"),
-                  },
-                  function (error) {
-                    if (!error) {
-                      // Access granted successfully, update UI accordingly
-                      var table = document.getElementById("accessDoc");
-                      var noRows = table.rows.length;
-                      var row = table.insertRow(noRows);
-                      var cell1 = row.insertCell(0);
-                      var cell2 = row.insertCell(1);
-                      var cell3 = row.insertCell(2);
-
-                      cell2.className = "publicKeyDoctor";
-                      cell1.innerHTML = list.options[index].text; // Update to show the selected doctor's name
-                      cell2.innerHTML = doctorToBeAdded;
-                      cell3.innerHTML =
-                        '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
-                    } else {
-                      console.error("Failed to grant access:", error);
-                      alert("Failed to grant access. Please try again.");
-                    }
-                  }
-                );
+                console.error("Failed to grant access:", error);
+                alert("Failed to grant access. Please try again.");
               }
-            } else {
-              console.error("Failed to retrieve accessed doctors list:", err);
-              alert("Failed to check existing access. Please try again.");
             }
-          });
+          );
+        }
       } else {
-        console.error("Failed to fetch doctors list:", error);
-        alert("Failed to fetch doctors list. Please try again.");
+        console.error("Failed to retrieve accessed doctors list:", err);
+        alert("Failed to check existing access. Please try again.");
       }
     });
 }
+
+// Function to revoke access to doctor
 
 function revokeAccess(element) {
   rowNo = element.parentNode.parentNode.rowIndex;
@@ -261,22 +263,20 @@ function revokeAccess(element) {
         gas: 1000000,
       })
       .on("transactionHash", function (hash) {
-        // Transaction sent, you can show loading or wait for confirmation
         console.log("Transaction Hash:", hash);
       })
       .on("confirmation", function (confirmationNumber, receipt) {
-        // Transaction confirmed
         console.log("Confirmation:", confirmationNumber, receipt);
         document.getElementById("accessDoc").deleteRow(rowNo);
       })
       .on("error", function (error) {
-        // Error occurred
         $(".alert-danger").show();
         console.error("Error:", error);
       });
   });
 }
 
+// Function to populate  dropdown for selecting doctors
 function populateDoctorDropdown(dropdownId) {
   console.log("populateDoctorDropdown called for:", dropdownId);
 
@@ -316,13 +316,14 @@ function populateDoctorDropdown(dropdownId) {
             var fullName = doctorDetails[0] + " " + doctorDetails[1];
             var option = document.createElement("option");
             option.text = fullName;
-            option.value = doctorAddress; // Optionally, you can set the doctor's address as the option value
+            option.value = doctorAddress;
             list.appendChild(option);
           });
       });
     });
 }
 
+// Function to display doctor's information
 function viewDoctorInfo() {
   var doctorSelect = document.getElementById("doctorInfoSelect");
   var selectedDoctorAddress = doctorSelect.value;
@@ -340,7 +341,7 @@ function viewDoctorInfo() {
     .get_doctor(selectedDoctorAddress)
     .call({ from: key })
     .then(function (doctorDetails) {
-      var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
+      var ipfsHash = doctorDetails[3];
 
       if (!ipfsHash) {
         document.getElementById("doctorInfoDisplay").innerHTML =
@@ -360,7 +361,6 @@ function viewDoctorInfo() {
         );
         var yearsOfExperience = yearsOfExperienceLine.split(":")[1].trim();
 
-        // Constructing the display content with new lines after each field
         var content = `
                   <div class="doctor-info">
                       <p>First Name: ${doctorDetails[0]}</p>
@@ -387,6 +387,7 @@ function viewDoctorInfo() {
     });
 }
 
+// Function to request appointment with doctor
 function scheduleAppointment() {
   const doctorId = $("#doctorSelect").val();
   let appointmentDate = $("#appointmentDate").val().replace(/-/g, "");
@@ -396,19 +397,17 @@ function scheduleAppointment() {
   const paddedMinute = minute.toString().padStart(2, "0");
   appointmentDate = appointmentDate.replace(/-/g, "");
   const dateAsNumber = parseInt(appointmentDate, 10);
-  // const hourAsNumber = parseInt(appointmentHour, 10);
   const hourAsNumber = hour;
   const minuteAsNumber = minute;
 
-  // Check if all fields are filled
   if (!doctorId || !appointmentDate || !appointmentHour) {
     alert("Please fill in all the fields.");
     return;
   }
 
-  // Assuming web3 and contractInstance are available globally
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0]; // Using the first account as the patient address
+    // Check if the selected doctor has access to the patient
     contractInstance.methods
       .get_accessed_patientlist_for_doctor(doctorId)
       .call({ from: patientAddress })
@@ -421,6 +420,7 @@ function scheduleAppointment() {
           return;
         }
 
+        // Get patient and doctor details
         contractInstance.methods
           .get_patient(patientAddress)
           .call({ gas: 1000000 }, function (error, patientResult) {
@@ -428,7 +428,6 @@ function scheduleAppointment() {
               const patientFirstName = patientResult[0];
               const patientLastName = patientResult[1];
 
-              // Fetch doctor's details
               contractInstance.methods
                 .get_doctor(doctorId)
                 .call({ gas: 1000000 }, function (error, doctorResult) {
@@ -437,7 +436,8 @@ function scheduleAppointment() {
                     const doctorLastName = doctorResult[1];
                     const initialStatus = "Pending";
 
-                    // Create FHIR Appointment Resource with patient and doctor names
+                    // Create FHIR Appointment Resource
+
                     const fhirAppointmentResource = {
                       resourceType: "Appointment",
                       status: initialStatus,
@@ -461,10 +461,12 @@ function scheduleAppointment() {
                     };
 
                     const ipfs = window.IpfsApi("localhost", "5001"); // Connect to IPFS
+
+                    // Convrt the resource to JSON and then take the JSON string and convert it to a binary buffer that IPFS can store
                     const buffer = ipfs.Buffer.from(
                       JSON.stringify(fhirAppointmentResource)
                     );
-
+                    // Add buffer to IPFS
                     ipfs.files.add(buffer, (error, result) => {
                       if (error) {
                         console.error("Error uploading to IPFS:", error);
@@ -514,6 +516,7 @@ function scheduleAppointment() {
   });
 }
 
+// Function to load  appointment requests sent to doctors
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
     const patientAddress = accounts[0];
@@ -573,6 +576,7 @@ function loadSentAppointmentRequests() {
   });
 }
 
+// Function to display the requests
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   console.log(`Full Appointment ${id} Data:`, appointment);
 
@@ -613,8 +617,6 @@ function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   $("#sentAppointmentRequests tbody").append(row);
 }
 
-
-
 document.addEventListener("DOMContentLoaded", function () {
   var today = new Date().toISOString().split("T")[0]; // Format today's date as YYYY-MM-DD
   $("#appointmentDate").attr("min", today);
@@ -623,6 +625,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var dayOfWeek = selectedDate.getDay();
 
     // Check if the selected day is Saturday (6) or Sunday (0)
+    // TRestrict patient to schedule appointment only on weekdays
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       alert(
         "Appointments cannot be scheduled on weekends. Please select a weekday."
@@ -638,7 +641,7 @@ document.addEventListener("DOMContentLoaded", function () {
     populateHoursDropdown();
   });
 
-   // Event delegation for revoke access buttons within the accessProxy table
+  // Event delegation for revoke access buttons within the accessProxy table
   $("#accessProxy").on("click", ".revoke-proxy-access", function () {
     var proxyAddress = $(this).data("proxy-address");
     if (!proxyAddress) {
@@ -649,11 +652,11 @@ document.addEventListener("DOMContentLoaded", function () {
     revokeProxyAccess(proxyAddress);
   });
 
-   // Fetch symptoms when the document is ready (this could be tied to a specific event or page load)
-   fetchSymptoms();
+  // Fetch symptoms when the document is ready
+  fetchSymptoms();
 
-   // initialize views
-   var panels = document.querySelectorAll(".panel");
+  // initialize views
+  var panels = document.querySelectorAll(".panel");
   // Initially hide all panels except the personalInfoPanel
   panels.forEach(function (panel) {
     if (panel.id !== "personalInfoPanel") {
@@ -694,15 +697,15 @@ document.addEventListener("DOMContentLoaded", function () {
       const diagnosisResult = document.getElementById("predictionResult");
       if (diagnosisResult) {
         diagnosisResult.innerHTML = ""; // Clears the content
-        diagnosisResult.style.display = "none"; // Hide the element
-        diagnosisResult.style.color = "black"; // Set text color to black
+        diagnosisResult.style.display = "none";
+        diagnosisResult.style.color = "black";
       }
     });
   }
 
   //calendar initialization
 
-  var calendarEl = document.getElementById("calendar"); // Ensure this ID matches your HTML
+  var calendarEl = document.getElementById("calendar");
   var calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: "dayGridMonth",
     headerToolbar: {
@@ -713,7 +716,6 @@ document.addEventListener("DOMContentLoaded", function () {
     events: [],
     eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
     eventContent: function (arg) {
-      // Custom rendering of events, splitting time and patient name
       return {
         html: `<div class="event-time">${
           arg.event.title.split(" ")[0]
@@ -755,11 +757,11 @@ document.addEventListener("DOMContentLoaded", function () {
   setTimeout(function () {
     loadAcceptedAppointments(calendar);
   }, 1000);
-
 });
 
+// Function to populate dropdown for displaying only the available times for appointments based on the date selected
 function populateHoursDropdown() {
-  const selectedDate = $("#appointmentDate").val(); // Assuming "YYYY-MM-DD" format
+  const selectedDate = $("#appointmentDate").val(); //  "YYYY-MM-DD" format
   const formattedDate = selectedDate.replace(/-/g, ""); // Convert date to "YYYYMMDD" format
   const doctorId = $("#doctorSelect").val(); // Get selected doctor's Ethereum address
 
@@ -767,7 +769,7 @@ function populateHoursDropdown() {
   const hoursDropdown = $("#appointmentHour");
   hoursDropdown.empty();
 
-  // Define operational hours (8 AM to 7 PM)
+  // Define  hours (8 AM to 7 PM)
   const startHour = 8;
   const endHour = 19;
 
@@ -816,6 +818,7 @@ function populateHoursDropdown() {
     });
 }
 
+// Function to designate proxy
 function designateProxy() {
   const proxyFirstName = $("#proxyFirstName").val();
   const proxyLastName = $("#proxyLastName").val();
@@ -826,7 +829,10 @@ function designateProxy() {
   const proxyEmail = $("#proxyEmail").val();
   const consentGiven = $("#consentDropdown").val() === "yes";
 
+  // Concatenate details entered in form to create a single object
   const detailsConcat = `${proxyFirstName}${proxyLastName}${proxyDOB}${proxyAddress}${proxyPhone}${proxyEmail}`;
+  // Generate a unique hash from the details by using Secure Hash Algorithm 3 method
+  // This is done for comparing this hash to the hash of the details enetered by proxy at registration, to see if they match
   const detailsHash = web3.utils.sha3(detailsConcat);
 
   if (!consentGiven) {
@@ -840,7 +846,7 @@ function designateProxy() {
   // Call your smart contract to designate the proxy
   web3.eth.getAccounts().then(function (accounts) {
     const patientAddress = accounts[0];
-    // Assuming your contract instance is already initialized and has a method for designating a proxy
+
     contractInstance.methods
       .designateProxy(token, detailsHash)
       .send({ from: patientAddress })
@@ -858,6 +864,7 @@ function designateProxy() {
   });
 }
 
+// Function to generate token to send to proxy's email
 function generateTokenForProxy() {
   // Create a random string of 16 characters (letters and numbers)
   let token = "";
@@ -868,18 +875,19 @@ function generateTokenForProxy() {
     token += characters.charAt(Math.floor(Math.random() * charactersLength));
   }
 
-  // Optionally, append a timestamp for added uniqueness
+  // Append a timestamp for added uniqueness
   token += "-" + new Date().getTime().toString(36);
 
   return token;
 }
 
+// Function to send tpken to proxy's email
 function sendTokenToProxyEmail(proxyEmail, token) {
   // Fetch current patient's details from the smart contract
   web3.eth.getAccounts().then(function (accounts) {
     const patientAddress = accounts[0]; // Using the first account as the patient address
 
-    // Assuming get_hash() retrieves the IPFS hash for the patient's data
+    //  Retrieve the IPFS hash for the patient's data
     contractInstance.methods
       .get_hash(patientAddress)
       .call()
@@ -903,7 +911,7 @@ function sendTokenToProxyEmail(proxyEmail, token) {
             : "";
           const patientName = `${firstName} ${lastName}`;
 
-          // Prepare the template parameters
+          // Create the template parameters
           var templateParams = {
             proxy_email: proxyEmail,
             proxy_name:
@@ -935,6 +943,7 @@ function sendTokenToProxyEmail(proxyEmail, token) {
   });
 }
 
+// Function to display the proxies that have access
 function displayProxiesWithAccess() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0];
@@ -954,7 +963,7 @@ function displayProxiesWithAccess() {
             for (var i = rowCount - 1; i > 0; i--) {
               table.deleteRow(i);
             }
-
+            // Check if the proxy address is null, if it is null it means the proxy does not exist
             proxyAddressList.forEach((proxyAddress, index) => {
               if (
                 proxyAddress !== "0x0000000000000000000000000000000000000000"
@@ -999,8 +1008,7 @@ function displayProxiesWithAccess() {
   });
 }
 
-
-
+// Function to revoke access to proxy
 function revokeProxyAccess() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0]; // The account invoking the transaction
@@ -1028,11 +1036,9 @@ function revokeProxyAccess() {
           .send({ from: patientAddress, gas: 1000000 })
           .then((receipt) => {
             console.log("Proxy access revoked successfully:", receipt);
-            // Handle successful revocation (e.g., update UI)
           })
           .catch((error) => {
             console.error("Error revoking proxy access:", error);
-            // Handle errors (e.g., show error message to the user)
           });
       })
       .catch((error) => {
@@ -1041,6 +1047,7 @@ function revokeProxyAccess() {
   });
 }
 
+// Function to display former proxies
 function displayFormerProxies() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0]; // Assuming the patient is logged in
@@ -1059,8 +1066,7 @@ function displayFormerProxies() {
                 proxy.patientAddress.toLowerCase() ===
                   patientAddress.toLowerCase()
               ) {
-                // This is a former proxy; display it accordingly
-                const table = document.getElementById("formerProxyTable"); // Ensure you have a table with this ID in your HTML
+                const table = document.getElementById("formerProxyTable");
                 const row = table.insertRow(-1);
                 const nameCell = row.insertCell(0);
                 const publicKeyCell = row.insertCell(1);
@@ -1076,6 +1082,7 @@ function displayFormerProxies() {
   });
 }
 
+// Function to grant again access to a proxy that has been revoked access
 function regrantProxyAccess(proxyAddress) {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0];
@@ -1083,13 +1090,12 @@ function regrantProxyAccess(proxyAddress) {
       `Attempting to regrant access for proxy: ${proxyAddress} by patient: ${patientAddress}`
     );
 
-    // Ensure to adjust gas limit and value as per your contract requirements and test findings
     contractInstance.methods
       .regrantProxyAccess(proxyAddress)
       .send({
         from: patientAddress,
-        gas: 1000000, // This is an estimated gas limit, ensure to adjust based on actual contract needs
-        value: web3.utils.toWei("2", "ether"), // Ensure this matches the contract's expectations
+        gas: 1000000,
+        value: web3.utils.toWei("2", "ether"),
       })
       .then((receipt) => {
         console.log("Transaction receipt:", receipt);
@@ -1105,6 +1111,7 @@ function regrantProxyAccess(proxyAddress) {
   });
 }
 
+// Function to add allergy data to existing record
 function addPatientAllergy() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0];
@@ -1142,7 +1149,7 @@ function addPatientAllergy() {
       .get_hash(patientAddress)
       .call()
       .then(function (ipfsHash) {
-        // Download the existing medical record from IPFS
+        // Fetch the existing medical record from IPFS
         fetch(`http://localhost:8080/ipfs/${ipfsHash}`)
           .then((response) => response.text())
           .then(function (patientRecord) {
@@ -1169,7 +1176,6 @@ function addPatientAllergy() {
                 .then(function (receipt) {
                   console.log("Record updated successfully:", receipt);
                   alert("Allergy information successfully added.");
-                  // Optionally, you might want to trigger a re-fetch of the records here or redirect the user
                 })
                 .catch(function (error) {
                   console.error(
@@ -1197,13 +1203,16 @@ function addPatientAllergy() {
 
 // Function to fetch symptoms from the Flask API
 function fetchSymptoms() {
+  // Send a GET request to the Replit URL with th symptoms endpoint, to retrive the symptoms so that they can be displayed to the user
   fetch(
     "https://0bd9bf90-247c-40e9-adff-c9f302d7a747-00-3g8iecfpf4ugs.picard.replit.dev/symptoms"
   )
+    // Check if the response is ok
     .then((response) => {
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
+      // If ok, return the response as JSON
       return response.json();
     })
     .then((data) => {
@@ -1215,6 +1224,7 @@ function fetchSymptoms() {
     });
 }
 
+// Function to display the symptoms
 function displaySymptoms(symptoms) {
   const container = document.getElementById("symptomsContainer");
   container.innerHTML = ""; // Clear previous contents
@@ -1223,7 +1233,7 @@ function displaySymptoms(symptoms) {
     var header = document.createElement("h6");
     header.className = "symptoms-header";
     header.textContent = "Select Your Symptoms:";
-    container.insertBefore(header, container.firstChild); // Ensure the header is the first child
+    container.insertBefore(header, container.firstChild);
   }
 
   symptoms.forEach((symptom) => {
@@ -1247,37 +1257,39 @@ function displaySymptoms(symptoms) {
   });
 }
 
+// Function to display prediction
 function displayPredictionResult(result) {
   const resultContainer = document.getElementById("predictionResult");
   resultContainer.innerHTML = result;
-  resultContainer.style.display = "block"; // Ensure the result section is displayed
-  resultContainer.style.fontWeight = "bold"; // Make the text bold
-  resultContainer.style.fontSize = "2em"; // Increase the font size
-  resultContainer.style.marginTop = "30px"; // Add more space above the result
-  resultContainer.style.backgroundColor = "transparent"; // Ensure no background color
-  resultContainer.style.color = result.includes("Error") ? "#d9534f" : "#000"; // Red text for error, black for normal
+  resultContainer.style.display = "block";
+  resultContainer.style.fontWeight = "bold";
+  resultContainer.style.fontSize = "2em";
+  resultContainer.style.marginTop = "30px";
+  resultContainer.style.backgroundColor = "transparent";
+  resultContainer.style.color = result.includes("Error") ? "#d9534f" : "#000";
 }
-
 
 // Function to send selected symptoms to the Flask API for diagnosis prediction
 document
   .getElementById("diagnosisForm")
   .addEventListener("submit", function (event) {
-    event.preventDefault(); // Prevent the form from submitting traditionally
+    event.preventDefault(); // Prevent the form from submitting
 
     // Collect checked symptoms
     const symptomsData = {};
     document
       .querySelectorAll('[name="symptoms[]"]:checked')
       .forEach((checkbox) => {
-        symptomsData[checkbox.value] = 1; // Assuming your model expects '1' for present symptoms
+        symptomsData[checkbox.value] = 1; // Th model expects value 1 for the existent symptoms
       });
 
-    // Send the symptoms data to your predict endpoint
+    // Send the symptoms data to the predict endpoint
     predictDiagnosis(symptomsData);
   });
 
+// Function to predict diagnosis
 function predictDiagnosis(symptoms) {
+  // Send  POST requst to predict endpoint
   fetch(
     "https://0bd9bf90-247c-40e9-adff-c9f302d7a747-00-3g8iecfpf4ugs.picard.replit.dev/predict",
     {
@@ -1306,21 +1318,15 @@ function predictDiagnosis(symptoms) {
     });
 }
 
-
-
-
-
-// You might call predictDiagnosis() based on specific user actions, such as form submission
+// Function to display  the symptoms names in a clean way
 function cleanSymptomName(symptom) {
-  // Removes any trailing numbers and dots, replaces underscores with spaces, and capitalizes each word
   return symptom
     .replace(/(\.\d+)?$/, "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-
-
+// Function to store predictions to IPFS
 function storePredictionInIPFS(prediction) {
   const ipfs = window.IpfsApi("localhost", "5001");
   const timestamp = new Date().toLocaleString();
@@ -1368,6 +1374,7 @@ function storePredictionInIPFS(prediction) {
     });
 }
 
+// Function to append prediction data to history
 function appendPredictionToHistory(predictionData) {
   const historyContainer = document.getElementById("predictionHistory");
   const entry = document.createElement("div");
@@ -1375,6 +1382,7 @@ function appendPredictionToHistory(predictionData) {
   entry.innerHTML = `<p>Prediction: ${predictionData.prediction}</p><p>Time: ${predictionData.timestamp}</p>`;
   historyContainer.appendChild(entry);
 }
+// Function to display all diagnosis predicted
 
 function displayAllDiagnoses() {
   // Ensure Web3 is loaded and accounts are accessible
@@ -1415,10 +1423,7 @@ function displayAllDiagnoses() {
     });
 }
 
-
-
-
-
+// Function to load accepted appointments
 function loadAcceptedAppointments(calendar) {
   web3.eth
     .getAccounts()
@@ -1462,6 +1467,7 @@ function loadAcceptedAppointments(calendar) {
     });
 }
 
+// function to add details of appointment to calendar
 function addEventToCalendar(appointmentData, calendar) {
   if (!calendar) {
     console.error("Calendar not defined");
@@ -1500,6 +1506,7 @@ function addEventToCalendar(appointmentData, calendar) {
   }
 }
 
+// Function to check the age of patient and handle the display of data and proxy designation
 function checkAndHandleProxy(key) {
   contractInstance.methods
     .get_patient(key)
@@ -1537,6 +1544,7 @@ function checkAndHandleProxy(key) {
     });
 }
 
+// Function to display all panels to patient
 function displayRegularPatientDashboard() {
   // Hide all panels initially
   var panels = document.querySelectorAll(".panel");
@@ -1554,6 +1562,7 @@ function displayRegularPatientDashboard() {
   $("#alertBox").hide();
 }
 
+// function to show only designation panel
 function showProxyRegistration() {
   $("#designateProxyPanel").show();
   $('.list-group-item[data-target="designateProxyPanel"]').show();
@@ -1566,6 +1575,7 @@ function showProxyRegistration() {
     .hide(); // Hide other sidebar items
 }
 
+// Test function for changing age
 function changeAge() {
   web3.eth
     .getAccounts()
@@ -1595,6 +1605,7 @@ function changeAge() {
     });
 }
 
+// Test function to display age
 function displayPatientAge() {
   const patientAddress = web3.eth.accounts[0];
   contractInstance.methods
@@ -1609,6 +1620,7 @@ function displayPatientAge() {
     });
 }
 
+// Test function to update UI
 function updateUIBasedOnAge(age) {
   const revokeButton = document.getElementById("revokeButton");
   if (age >= 16) {

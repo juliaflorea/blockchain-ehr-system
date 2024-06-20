@@ -1,10 +1,8 @@
-/* Global styles */
 body {
   font-family: "Arial", sans-serif;
-  background-color: #f8f9fa; /* Light gray background */
+  background-color: #f8f9fa;
 }
 
-/* Sidebar styles */
 .sidebar-category {
   padding: 10px 15px;
   font-size: 1rem;
@@ -14,177 +12,161 @@ body {
 
 #sidebar-wrapper {
   min-height: 100vh;
-  width: 300px; /* Adjust based on your preference */
-  background-color: #392467; /* Darker shade */
+  width: 300px;
+  background-color: #392467;
   color: white;
   font-size: 1rem;
   position: fixed;
 }
 
-/* Sidebar heading */
 .sidebar-heading {
   padding: 20px;
-  background-color: #392467; /* Slightly lighter than sidebar background */
+  background-color: #392467;
   color: #fff;
   font-size: 1.2rem;
   text-align: left;
 }
 
 .sidebar-heading i {
-  font-size: 1.5rem; /* Larger icon size */
+  font-size: 1.5rem;
   margin-right: 10px;
   vertical-align: middle;
 }
 
-/* Styling for list items */
 .list-group-item {
   padding: 15px 20px;
   border: none;
   border-radius: 0;
-  color: #fff; /* Text color for non-active items */
+  color: #fff;
   background-color: transparent;
   display: flex;
   align-items: center;
 }
 
 .list-group-item i {
-  min-width: 20px; /* Ensures alignment */
-  margin-right: 10px; /* Space between icon and text */
+  min-width: 20px;
+  margin-right: 10px;
 }
 
 .sidebar-divider {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2); /* Subtle white line */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   margin-left: 20px;
   margin-right: 20px;
 }
 
-/* Hover and active state for list items */
 .list-group-item:hover {
-  background: #5e72e4; /* Highlight color */
+  background: #5e72e4;
   color: #fff;
 }
 
 #sidebar-wrapper .list-group-item.active {
-  background: #5e72e4; /* Highlight color */
-  color: #fff; /* Text color */
+  background: #5e72e4;
+  color: #fff;
 }
 
 #page-content-wrapper {
-  display: flex; /* Enables flexbox */
+  display: flex;
   flex-direction: column;
-  justify-content: center; /* Centers horizontally */
-  align-items: center; /* Centers vertically */
-  margin-left: 300px; /* Adjust this value to match the width of your sidebar */
-  min-height: 100vh; /* Full height minus navbar height, adjust as needed */
-  width: calc(100% - 300px); /* Adjust width to prevent horizontal scrolling */
+  justify-content: center;
+  align-items: center;
+  margin-left: 300px;
+  min-height: 100vh;
+  width: calc(100% - 300px);
 }
 
 #logout {
-  display: block; /* Make it always visible */
+  display: block;
   position: fixed;
   top: 20px;
   right: 20px;
-  background-color: #5e72e4; /* Main color */
+  background-color: #5e72e4;
   color: #ffffff;
   padding: 10px 15px;
-  border-radius: 15px; /* Rounded corners */
+  border-radius: 15px;
 }
 
 #logout i {
-  font-size: 1.2rem; /* Adjust icon size as needed */
-  margin-right: 5px; /* Space between icon and text */
+  font-size: 1.2rem;
+  margin-right: 5px;
 }
 
 #logout:hover {
-  background-color: #324cdd; /* Darker shade for hover effect */
+  background-color: #324cdd;
   color: #ffffff;
 }
 
-/* Content styles */
-
 container-fluid {
-  width: 100%; /* Takes up all available space within its container */
-  max-width: 1200px; /* Maximum width of the content, adjust as needed */
-  padding: 2rem; /* Add some padding */
+  width: 100%;
+  max-width: 1200px;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
-  justify-content: center; /* Center horizontally */
-  align-items: center; /* Center vertically */
+  justify-content: center;
+  align-items: center;
 }
 
 .panel-heading {
-  margin: 1rem 0; /* Add margin top and bottom */
-  width: 100%; /* Full width panels */
+  margin: 1rem 0;
+  width: 100%;
   max-width: 1000px;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e3e6f0; /* Subtle border for heading */
-  background-color: #392467; /* A nice shade of blue for heading background */
-  color: #fff; /* White text color */
-  border-top-left-radius: 0.35rem; /* Rounded top corners */
-  border-top-right-radius: 0.35rem; /* Rounded top corners */
+  border-bottom: 1px solid #e3e6f0;
+  background-color: #392467;
+  color: #fff;
+  border-top-left-radius: 0.35rem;
+  border-top-right-radius: 0.35rem;
 }
 
 .alert {
-  border: 1px solid #ced4da; /* Light gray border */
-  background-color: #d9534f; /* Red background for error alerts */
-  color: #ffffff; /* White text */
+  border: 1px solid #ced4da;
+  color: #ffffff;
 }
 
 .table th,
 .table td {
-  padding: 0.75rem; /* More padding for table cells */
-  vertical-align: middle; /* Align items in the middle vertically */
-  border-top: 1px solid #e3e6f0; /* Subtle top border for table rows */
+  padding: 0.75rem;
+  vertical-align: middle;
+  border-top: 1px solid #e3e6f0;
 }
 
 .btn-primary,
 .btn-info {
-  background-color: #5e72e4; /* Primary button color to match the theme */
-  border-color: #5e72e4; /* Border color to match the button */
-  border-radius: 20px; /* Rounded borders */
-  padding: 10px 25px; /* Padding for the buttons */
-  font-size: 1rem; /* Font size for the buttons */
-  color: #fff; /* White text color */
-  text-transform: uppercase; /* Uppercase text */
-  font-weight: bold; /* Bold font weight */
-  letter-spacing: 1px; /* Space between letters */
+  background-color: #5e72e4;
+  border-color: #5e72e4;
+  border-radius: 20px;
+  padding: 10px 25px;
+  font-size: 1rem;
+  color: #fff;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 1px;
 }
 
 .btn {
-  margin-right: 7px; /* Right margin for all buttons */
+  margin-right: 7px;
 }
 
 .btn-primary:hover,
 .btn-info:hover,
 .btn-danger:hover {
-  background-color: #324cdd; /* Darker shade on hover */
-  border-color: #324cdd; /* Darker border on hover */
+  background-color: #324cdd;
+  border-color: #324cdd;
 }
 
 .fc-event {
   border: none;
-  background-color: rgba(
-    255,
-    179,
-    128,
-    0.5
-  ); /* Peach background with transparency */
-  color: #f26d21 !important; /* Orange text */
+  background-color: rgba(255, 179, 128, 0.5);
+  color: #f26d21 !important;
   padding: 10px;
   border-radius: 5px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height: 40px !important; /* Adjust height as needed */
+  height: 40px !important;
 }
 
 .fc-event:hover {
-  background-color: rgba(
-    255,
-    165,
-    0,
-    0.8
-  ) !important; /* Darker orange on hover */
+  background-color: rgba(255, 165, 0, 0.8) !important;
 }
 
 .event-time,
@@ -214,128 +196,121 @@ container-fluid {
 }
 
 .unknown-status {
-  color: rgb(
-    233,
-    193,
-    193
-  ); /* Optional: For any status that might not be recognized */
+  color: rgb(233, 193, 193);
 }
 
 .fc-event {
-  position: relative; /* Needed for absolute positioning of the border */
+  position: relative;
   border: none;
-  background-color: rgba(255, 179, 128, 0.5); /* Existing background */
-  color: #f26d21; /* Existing text color */
-  padding: 5px; /* Reduced padding for better fit */
+  background-color: rgba(255, 179, 128, 0.5);
+  color: #f26d21;
+  padding: 5px;
   border-radius: 5px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height: auto; /* Adjust based on content */
-  overflow: hidden; /* Ensures no spillover */
-  white-space: normal; /* Allow wrapping */
-  text-overflow: ellipsis; /* Adds ellipsis if text overflows */
+  height: auto;
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: ellipsis;
 }
 
 .fc-event::before {
-  content: ''; /* Required for pseudo-elements */
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 5px; /* Line thickness */
-  background-color: #f26d21; /* Orange color for the line */
-  border-radius: 5px 0 0 5px; /* Rounded corners on the left side */
+  width: 5px;
+  background-color: #f26d21;
+  border-radius: 5px 0 0 5px;
 }
 
 .fc-event:hover {
-  background-color: rgba(255, 165, 0, 0.8) !important; /* Darker on hover */
-  overflow: visible; /* Allow text to be fully visible on hover */
-  white-space: normal; /* Allows text wrapping on hover */
+  background-color: rgba(255, 165, 0, 0.8) !important;
+  overflow: visible;
+  white-space: normal;
 }
 
 .event-time,
 .event-title {
   font-size: 14px;
-  line-height: 1.2; /* Adjusted line height */
+  line-height: 1.2;
 }
 
 .event-time {
   font-weight: bold;
 }
 
-/* Ensure event titles within daygrid and timegrid views wrap correctly */
 .fc-daygrid-event .fc-event-title,
 .fc-timegrid-event .fc-event-title {
-  white-space: normal; /* Allow wrapping */
-  overflow: hidden; /* Ensure text is contained within the box */
-  text-overflow: ellipsis; /* Add ellipsis if text overflows */
-  font-size: 14px; /* Adjust font size */
-  line-height: 1.2; /* Adjust line height */
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
-/* Adjust height and padding for better readability */
 .fc-timegrid-event {
-  height: auto; /* Adjust height based on content */
-  min-height: 40px; /* Minimum height to ensure visibility */
-  padding: 5px; /* Add padding for better readability */
+  height: auto;
+  min-height: 40px;
+  padding: 5px;
 }
-
 
 .info-container {
   display: none;
   width: 100%;
-  background-color: #ffffff; /* White background */
-  padding: 20px; /* More padding for better readability */
-  border-radius: 10px; /* Rounded corners */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow */
-  border: 1px solid #e3e6f0; /* Light border for subtle definition */
-  margin-top: 20px; /* Monospace font for records to mimic typewritten text */
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e3e6f0;
+  margin-top: 20px;
   max-width: 800px;
   margin-left: 65px;
   text-align: center;
 }
 
 .info-container label {
-  font-weight: bold; /* Bold for labels */
-  display: block; /* Makes the label take full width */
-  margin-bottom: 10px; /* Space below the label */
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10px;
 }
 
 .info-container span {
-  font-weight: normal; /* Normal weight for text */
-  display: block; /* Ensures the text is on a new line */
-  margin-bottom: 10px; /* Space below each item */
+  font-weight: normal;
+  display: block;
+  margin-bottom: 10px;
 }
 
 .doctor-info {
   display: flex;
   flex-direction: column;
-  align-items: flex-start; /* Align items to the start to ensure they line up */
+  align-items: flex-start;
   padding: 20px;
   background-color: #fff;
   border-radius: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   margin-top: 20px;
-  width: 100%; /* Adjust width as needed */
-  max-width: 600px; /* Set a max-width for the container */
-  margin: 20px auto; /* Center the container horizontally */
+  width: 100%;
+  max-width: 600px;
+  margin: 20px auto;
 }
 
 .doctor-info p {
-  width: 100%; /* Ensure the paragraph uses the full width available */
+  width: 100%;
   display: flex;
-  justify-content: flex-start; /* Align content to the start */
-  margin-bottom: 10px; /* Space between entries */
+  justify-content: flex-start;
+  margin-bottom: 10px;
 }
 
 .doctor-info label {
-  min-width: 180px; /* Ensure all labels have at least this width */
+  min-width: 180px;
   font-weight: bold;
-  margin-right: 10px; /* Space between label and value */
+  margin-right: 10px;
 }
 
 .doctor-info span {
   font-weight: normal;
-  text-align: left; /* Ensures value aligns to the left */
+  text-align: left;
 }

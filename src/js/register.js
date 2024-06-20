@@ -356,7 +356,7 @@ function toggleProxyOptionFields() {
 }
 
 function formatPatientData(patientData, publicKey) {
-  let dataString = ''; // Start of the medical record block
+  let dataString = ""; // Start of the medical record block
   dataString += `First Name: ${patientData.name[0].given.join(" ")}\n`;
   dataString += `Last Name: ${patientData.name[0].family}\n`;
   dataString += `Gender: ${patientData.gender}\n`;
@@ -610,6 +610,9 @@ async function validatePOADetails(buffer, formDetails) {
 
   return allDetailsMatch;
 }
+
+
+
 
 function validateDoctorCertificate(file, licenseNumber) {
   return new Promise((resolve, reject) => {

@@ -3,11 +3,10 @@ body {
   background-color: #f4f4f4;
 }
 
-/* Login and Sign Up buttons */
 .login-button,
 .signup-button {
   color: #fff;
-  background-color: #5e72e4; /* Change as needed */
+  background-color: #5e72e4;
   border: none;
   border-radius: 0.375rem;
   padding: 0.5rem 1rem;
@@ -15,40 +14,39 @@ body {
 }
 
 .signup-button {
-  background-color: #11cdef; /* Change as needed */
+  background-color: #11cdef;
 }
 
 #hero {
   background-size: cover;
   color: #fff;
   text-align: left;
-  padding: 150px 0; /* Adjust the padding to suit your content */
+  padding: 150px 0;
 }
+
 #hero h1 {
-  margin-bottom: 30px; /* Increase space below the heading */
+  margin-bottom: 30px;
 }
 
 #hero p {
-  margin-top: 20px; /* Adjust if necessary to match the spacing after h1 */
-  
- 
+  margin-top: 20px;
 }
 
 .k-button.k-primary {
   margin-top: 30px;
-  font-size: 1.2rem; /* Adjust font size */
-  padding: 12px 30px; /* Adjust padding to make the button larger */
-  background-color: #4a90e2; /* Keep the soft blue color */
-  color: #fff; /* White color text */
-  border: none; /* No border */
-  border-radius: 8px; /* Rounded corners */
-  box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4); /* Subtle shadow for depth */
-  transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out; /* Smooth transition for hover effects */
+  font-size: 1.2rem;
+  padding: 12px 30px;
+  background-color: #4a90e2;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
+  transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
 }
 
 .k-button.k-primary:hover {
-  background-color: #357abd; /* Darker shade on hover */
-  box-shadow: 0 8px 25px rgba(53, 122, 189, 0.5); /* Increased shadow on hover */
+  background-color: #357abd;
+  box-shadow: 0 8px 25px rgba(53, 122, 189, 0.5);
 }
 
 .get-started-section {
@@ -58,51 +56,46 @@ body {
 
 .step-cards-container {
   display: flex;
-  justify-content: center; /* Center flex items horizontally */
-  align-items: stretch; /* Stretch items to the same height */
+  justify-content: center;
+  align-items: stretch;
   flex-wrap: wrap;
 }
 
 .get-started-section .k-card {
   display: flex;
   flex-direction: column;
-  height: 100%; /* Make sure all cards have the same height */
+  height: 100%;
   margin-bottom: 30px;
-  border-radius: 20px; /* Increase the border-radius as desired */
+  border-radius: 20px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .get-started-section .k-card-body {
-  flex: 1; /* This will make sure the body takes up all available space */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center; /* This will center the content vertically */
+  justify-content: center;
   padding: 30px;
 }
+
 .k-card {
   display: flex;
   flex-direction: column;
-  background: #fff; /* Or any other solid color or gradient */
+  background: #fff;
 }
 
 .get-started-section h2 {
   margin-bottom: 40px;
-  color: #fff !important; /* Add !important to ensure this rule takes precedence */
+  color: #fff !important;
   text-align: center !important;
-  margin-top: 80px ; 
+  margin-top: 80px;
   margin-right: 20px;
-  
 }
 
 .gradient-background {
-  background: linear-gradient(
-    to bottom,
-    #2b2e70,
-    #090919
-  ); /* Your gradient colors */
+  background: linear-gradient(to bottom, #2b2e70, #090919);
 }
 
-/* Overrides for Kendo UI if needed */
 .k-card-deck .k-card {
   margin-top: 2rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -116,7 +109,6 @@ body {
   margin-top: 2rem !important;
 }
 
-/* Services Section Styles */
 .services-section {
   padding: 100px 0;
   color: #fff;
@@ -132,30 +124,30 @@ body {
 .services-text {
   flex: 1;
   float: left;
-  max-width: 540px; /* or any width you want */
-  margin-right: 40px; /* or any spacing you want */
+  max-width: 540px;
+  margin-right: 40px;
 }
 
 .services-image {
-  flex: 1; /* The image container can grow and shrink as needed */
-  max-width: 50%; /* Adjust this value to make the image larger or smaller */
-  align-self: start; /* Aligns the container at the start of the cross axis */
-  position: relative; /* Position relative to place it correctly in the flex container */
+  flex: 1;
+  max-width: 50%;
+  align-self: start;
+  position: relative;
   z-index: 2;
-  margin-left: auto; /* Move the image to the right */
+  margin-left: auto;
 }
 
 .services-image img {
-  width: 65%; /* This will make the image take up the full width of .services-image */
-  height: auto; /* This will keep the image's aspect ratio intact */
+  width: 65%;
+  height: auto;
   object-fit: contain;
   display: block;
-  margin-left: 250px; /* Move the image to the right */
+  margin-left: 250px;
   margin-top: -50px;
 }
 
 .services-text h2 {
-  font-size: 2.5rem; /* Adjust size as needed */
+  font-size: 2.5rem;
   font-weight: bold;
   margin-bottom: 20px;
 }
@@ -168,31 +160,31 @@ body {
   display: flex;
   justify-content: flex-start;
   flex-wrap: wrap;
-  margin-left: -15px; /* adjust according to the gutter you want */
+  margin-left: -15px;
   gap: 30px;
 }
 
 .service-item {
-  padding-left: 15px; /* adjust according to the gutter you want */
+  padding-left: 15px;
   flex: 1;
 }
 
 .service-icon {
-  max-width: 100px; /* maximum width of the service icons */
-  margin-bottom: 15px; /* spacing below each service icon */
+  max-width: 100px;
+  margin-bottom: 15px;
 }
 
 .service-item .fa-file-medical,
 .service-item .fa-user-doctor,
 .service-item .fa-users-viewfinder,
 .service-item .fa-stethoscope {
-  font-size: 4rem; /* Adjust the size as needed */
-  color: #8446d0; /* Your desired icon color */
+  font-size: 4rem;
+  color: #8446d0;
 }
 
 .service-icon {
-  font-size: 3rem; /* Adjust the size as needed */
-  color: #7598f6; /* Adjust the color as needed */
+  font-size: 3rem;
+  color: #7598f6;
   text-shadow: 0 0 10px #050608;
 }
 
@@ -201,48 +193,36 @@ body {
   display: block;
   width: 2px;
   height: 100%;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 65, 108, 0),
-    #ff416c,
-    rgba(255, 65, 108, 0)
-  );
+  background: linear-gradient(to bottom, rgba(255, 65, 108, 0), #ff416c, rgba(255, 65, 108, 0));
   position: absolute;
-  right: -15px; /* Adjust as needed */
+  right: -15px;
   top: 0;
 }
 
 .section-separator {
   border: none;
-  height: 2px; /* Adjust the thickness of the line */
-  background: linear-gradient(
-    to right,
-    transparent,
-    #7554bd,
-    transparent
-  ); /* This creates a gradient that fades in from the left, is solid in the middle, and fades out to the right */
-  margin-top: 50px; /* Space above the line */
-  margin-bottom: 50px; /* Space below the line */
+  height: 2px;
+  background: linear-gradient(to right, transparent, #7554bd, transparent);
+  margin-top: 50px;
+  margin-bottom: 50px;
 }
 
-/* Footer Section Styles */
 .footer-section {
-  /* Or any color you prefer */
-  color: #7b7e7e; /* Grey text for all content */
-  padding: 20px 0; /* Top and bottom padding */
+  color: #7b7e7e;
+  padding: 20px 0;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 15px; /* Padding for the container */
+  padding: 0 15px;
   display: flex;
   align-items: flex-start;
-  justify-content: space-between; /* This will ensure the logo and columns are spaced out evenly */
+  justify-content: space-between;
 }
 
 .footer-logo-column {
-  flex: 0 0 25%; /* Allocate space for the logo column */
+  flex: 0 0 25%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -250,42 +230,41 @@ body {
 }
 
 .footer-logo {
-  color: #ffffff; /* Logo text is white */
-  font-size: 1.75em; /* Slightly larger font size for logo text */
+  color: #ffffff;
+  font-size: 1.75em;
   text-decoration: none;
 }
 
 .footer-logo i {
-  font-size: 2em; /* Larger font size for logo icon */
-  margin-right: 0.5em; /* Space between icon and text */
+  font-size: 2em;
+  margin-right: 0.5em;
 }
 
 .footer-logo:hover {
-  color: #ffffff; /* Keep the logo white on hover */
+  color: #ffffff;
 }
 
 .footer-columns-container {
   display: flex;
-  flex: 0 0 70%; /* Allocate space for the remaining columns */
-  justify-content: space-between; /* Space columns evenly */
+  flex: 0 0 70%;
+  justify-content: space-between;
 }
 
 .footer-column {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  flex: 1; /* Allow each column to grow equally */
-  padding: 0 15px; /* This adds padding on both sides of each column */
+  flex: 1;
+  padding: 0 15px;
   white-space: nowrap;
   height: 100%;
 }
 
 .footer-columns-container .footer-column:nth-child(1),
 .footer-columns-container .footer-column:nth-child(2) {
-  margin-right: 20px; /* Adjust the value to get the desired spacing */
+  margin-right: 20px;
 }
 
-/* Remove the right margin from the last column */
 .footer-columns-container .footer-column:nth-child(3) {
   margin-right: 0;
 }
@@ -293,26 +272,23 @@ body {
 .footer-column:last-child {
   padding-right: 0;
 }
+
 .footer-column:nth-child(2) .footer-link:nth-child(2) {
-  margin-top: auto;  /* Existing property to push it to the bottom */
-   /* Add padding on top to move it down a bit more */
+  margin-top: auto;
 }
 
 .footer-column:nth-child(3) .contact-info:nth-last-child(2) {
-  margin-top: auto; /* Existing property */
-  /* Add padding on top to move it down a bit more */
+  margin-top: auto;
 }
 
 .footer-link {
-  display: block; /* Links on their own line */
-  color: inherit; /* Inherits grey text color */
-  margin-bottom: 0.5rem; /* Space between links */
+  display: block;
+  color: inherit;
+  margin-bottom: 0.5rem;
 }
 
 .contact-info {
-  color: inherit; /* Inherits grey text color */
-  margin-bottom: 0.5rem; /* Space between contact info */
+  color: inherit;
+  margin-bottom: 0.5rem;
   white-space: nowrap;
 }
-
-
