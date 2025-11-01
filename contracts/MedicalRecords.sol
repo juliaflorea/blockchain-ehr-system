@@ -193,7 +193,7 @@ contract MedicalRecords {
         );
     }
 
-    // function to retrieve doctoe data
+    // function to retrieve doctor data
     function get_doctor(
         address addr
     ) public view returns (string memory, string memory, uint, string memory) {
@@ -404,7 +404,7 @@ contract MedicalRecords {
             if (Array.length == 1) {
                 delete Array[del_index];
             } else {
-                // If it has more elements, replace the element at  delition index to the last element and deletes last element
+                // If it has more elements, replace the element at delition index to the last element and deletes last element
 
                 Array[del_index] = Array[Array.length - 1];
                 delete Array[Array.length - 1];
