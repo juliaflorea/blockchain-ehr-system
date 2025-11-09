@@ -925,7 +925,7 @@ function sendTokenToProxyEmail(proxyEmail, token) {
 
           // Send the email using EmailJS
           emailjs
-            .send("service_th4f1zo", "template_bwpjgsk", templateParams)
+            .send("service_qeqnhl5", "template_bwpjgsk", templateParams) 
             .then(
               function (response) {
                 console.log("Successfully sent email to proxy:", response.text);

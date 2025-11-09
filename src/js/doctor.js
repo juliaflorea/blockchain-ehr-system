@@ -1000,7 +1000,7 @@ function notifyPatient(appointmentId, status) {
               console.log(`Sending Email with Params:`, templateParams);
 
               emailjs
-                .send("service_dptsvef", "template_wxamyw8", templateParams)
+                .send("service_qeqnhl5", "template_wxamyw8", templateParams)
                 .then(
                   function (response) {
                     console.log(
