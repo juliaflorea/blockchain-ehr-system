@@ -2,6 +2,7 @@
 
 let web3;
 let userRegistry;
+let accessControl;
 
 // Function to initialise the environment
 async function connect() {
@@ -20,31 +21,34 @@ async function connect() {
 
     // Get the deployed contract info from Truffle
     const networkId = await web3.eth.net.getId();
-    const deployedNetwork = contracts.UserRegistry.networks[networkId];
 
-    if (!deployedNetwork) {
-      throw new Error("UserRegistry contract not found on this network. Try redeploying.");
-    }
+   // UserRegistry
+   const deployedUserRegistry = contracts.UserRegistry.networks[networkId];
+   if (!deployedUserRegistry) throw new Error("UserRegistry not deployed on this network.");
+   userRegistry = new web3.eth.Contract(contracts.UserRegistry.abi, deployedUserRegistry.address);
+   console.log("UserRegistry connected:", deployedUserRegistry.address);
 
-    userRegistry = new web3.eth.Contract(
-      contracts.UserRegistry.abi,
-      deployedNetwork.address
-    );
+   // AccessControl 
+   const deployedAccessControl = contracts.AccessControl.networks[networkId];
+   if (!deployedAccessControl) throw new Error("AccessControl not deployed on this network.");
+   accessControl = new web3.eth.Contract(contracts.AccessControl.abi, deployedAccessControl.address);
+   console.log("AccessControl connected:", deployedAccessControl.address);
 
-    console.log("UserRegistry contract connected:", deployedNetwork.address);
-  } catch (error) {
-    console.error("Error connecting to Web3 or contract:", error);
-  }
+   return true; // Successful connection
+ } catch (err) {
+   console.error("Error connecting to Web3 or contracts:", err);
+   return false;
+ }
 }
 
 window.addEventListener("load", async () => {
-  connect();
+  const connected = await connect();
   console.log("Externally Loaded!");
-  emailjs.init({
-    publicKey: "BVHC0t44IJq1EPSI2",
-  });
+  emailjs.init({ publicKey: "BVHC0t44IJq1EPSI2" });
+
   
 });
+
 
 // Function to allow patients, doctors, proxis to download the medical record of the patient
 function downloadMedicalRecord(data) {
