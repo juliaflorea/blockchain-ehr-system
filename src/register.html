@@ -169,7 +169,8 @@
                             </div>
                         </div>
                         <div class="form-group" id="certificateUploadField">
-                            <div id="loadingMessage" class="alert alert-info col-sm-8 offset-sm-2" style="display: none; text-align: center;"></div>
+                            <div id="loadingMessage" class="alert alert-info col-sm-8 offset-sm-2"
+                                style="display: none; text-align: center;"></div>
                             <label class="control-label col-sm-2" for="medicalCertificate">Medical Certificate:</label>
                             <div class="col-sm-8">
                                 <input type="file" class="form-control" id="medicalCertificate" accept=".jpeg" required>
@@ -227,7 +228,7 @@
 
                 </form>
                 <div class="text-center">
-                    <button class="btn btn-primary btn-lg" onclick="addAgent()">Register</button>
+                    <button class="btn btn-primary btn-lg" onclick="addUser()">Register</button>
                 </div>
             </div>
         </div>
@@ -241,6 +242,7 @@
 
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script src="https://kendo.cdn.telerik.com/2023.3.1114/js/kendo.all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
@@ -254,6 +256,7 @@
         // Specify the path to the PDF worker script
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
     </script>
+    <script src="./js/config.js"></script>
     <script src="/js/main.js"></script>
     <script src="/js/login.js"></script>
     <script src="/js/register.js"></script>

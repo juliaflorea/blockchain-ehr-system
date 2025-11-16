@@ -9,8 +9,14 @@ const Buffer = window.IpfsApi().Buffer;
 toggleRecordsButton = 0;
 var recordHash = "";
 
-$(window).on("load", function () {
-  connect();
+$(window).on("load", async function () {
+  await connect();
+
+  if (!userRegistry) {
+    console.error("UserRegistry not initialized!");
+    return;
+  }
+
   $("#records").hide();
   $(".alert-info").hide();
   $(".alert-danger").hide();
@@ -26,37 +32,38 @@ $(window).on("load", function () {
     var proxyDesignationDetails = {};
 
     // Display patient information
-    console.log("Getting Patient Data");
-    contractInstance.methods
-      .get_patient(key)
-      .call({ gas: 1000000 }, function (error, result) {
-        console.log("Patient Data Result:" + result);
-        if (!error) {
-          console.log(result);
-
-          firstName = result[0];
-          lastName = result[1];
-          age = result[2];
-          ailments = result[3];
-          recordHash = result[5];
-
-          $("#name").html(firstName + " " + lastName);
-          $("#age").html(age);
-          $("#recordsHash").html(
-            '<a href="http://localhost:8080/ipfs/' +
-              recordHash +
-              '" target="_blank">' +
-              recordHash +
-              "</a>"
-          );
-          return checkAndHandleProxy(key);
-        }
-      });
+    userRegistry.methods
+    .getPatient(key)
+    .call({ gas: 1000000 })
+    .then(result => {
+      console.log("Patient struct returned:", result);
+  
+      firstName = result.firstName;
+      lastName = result.lastName;
+      age = result.age;
+      ailments = result.diagnosis;
+      recordHash = result.record;
+  
+      $("#name").html(firstName + " " + lastName);
+      $("#age").html(age);
+      $("#recordsHash").html(
+        '<a href="http://localhost:8080/ipfs/' +
+          recordHash +
+          '" target="_blank">' +
+          recordHash +
+          "</a>"
+      );
+  
+      return checkAndHandleProxy(key);
+    })
+    .catch(err => {
+      console.error("getPatient ERROR:", err);
+    });
 
     // Print out the available  doctors to share emr
     console.log("Getting Doctor List");
-    contractInstance.methods
-      .get_doctor_list()
+    userRegistry.methods
+      .getDoctorList()
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           var DoctorList = result;
@@ -64,8 +71,8 @@ $(window).on("load", function () {
           list.innerHTML = ""; // Clear existing options
 
           DoctorList.forEach(function (doctorAddress) {
-            contractInstance.methods
-              .get_doctor(doctorAddress)
+            userRegistry.methods
+              .getDoctor(doctorAddress)
               .call({ gas: 1000000 }, function (error, result) {
                 if (!error) {
                   var fullName = result[0] + " " + result[1];
@@ -102,8 +109,8 @@ $(window).on("load", function () {
 
           // Add each doctor to the table
           doctorAddressList.forEach(function (doctorAddress) {
-            contractInstance.methods
-              .get_doctor(doctorAddress)
+            userRegistry.methods
+              .getDoctor(doctorAddress)
               .call({ gas: 1000000 }, function (error, result) {
                 if (!error) {
                   var fullName = result[0] + " " + result[1];
@@ -281,13 +288,13 @@ function populateDoctorDropdown(dropdownId) {
   console.log("populateDoctorDropdown called for:", dropdownId);
 
   // Ensure contractInstance is defined
-  if (!contractInstance) {
+  if (!userRegistry) {
     console.error("contractInstance is not defined.");
     return;
   }
 
-  contractInstance.methods
-    .get_doctor_list()
+  userRegistry.methods
+    .getDoctorList()
     .call({ gas: 1000000 }, function (error, DoctorList) {
       if (error) {
         console.error("Error fetching doctor list:", error);
@@ -305,8 +312,8 @@ function populateDoctorDropdown(dropdownId) {
 
       DoctorList.forEach(function (doctorAddress, index) {
         console.log("Fetching details for doctor at index:", index);
-        contractInstance.methods
-          .get_doctor(doctorAddress)
+        userRegistry.methods
+          .getDoctor(doctorAddress)
           .call({ gas: 1000000 }, function (error, doctorDetails) {
             if (error) {
               console.error("Error fetching doctor details:", error);
@@ -337,13 +344,14 @@ function viewDoctorInfo() {
   }
   document.getElementById("doctorInfoDisplay").style.display = "none";
   // Fetch doctor's info from the smart contract
-  contractInstance.methods
-    .get_doctor(selectedDoctorAddress)
+  userRegistry.methods
+    .getDoctor(selectedDoctorAddress)
     .call({ from: key })
     .then(function (doctorDetails) {
-      var ipfsHash = doctorDetails[3];
+      var ipfsHash = doctorDetails[4];
 
-      if (!ipfsHash) {
+      if (!ipfsHash || ipfsHash === "0x" || ipfsHash === "0x0") {
+
         document.getElementById("doctorInfoDisplay").innerHTML =
           "Doctor information not available.";
         return;
@@ -421,15 +429,15 @@ function scheduleAppointment() {
         }
 
         // Get patient and doctor details
-        contractInstance.methods
-          .get_patient(patientAddress)
+        userRegistry.methods
+          .getPatient(patientAddress)
           .call({ gas: 1000000 }, function (error, patientResult) {
             if (!error) {
               const patientFirstName = patientResult[0];
               const patientLastName = patientResult[1];
 
-              contractInstance.methods
-                .get_doctor(doctorId)
+              userRegistry.methods
+                .getDoctor(doctorId)
                 .call({ gas: 1000000 }, function (error, doctorResult) {
                   if (!error) {
                     const doctorFirstName = doctorResult[0];
@@ -545,8 +553,8 @@ function loadSentAppointmentRequests() {
                 }
 
                 // Fetch doctor details within this block
-                contractInstance.methods
-                  .get_doctor(appointment.doctorAddress)
+                userRegistry.methods
+                  .getDoctor(appointment.doctorAddress)
                   .call()
                   .then(function (doctorDetails) {
                     var doctorName = doctorDetails[0] + " " + doctorDetails[1];
@@ -925,7 +933,7 @@ function sendTokenToProxyEmail(proxyEmail, token) {
 
           // Send the email using EmailJS
           emailjs
-            .send("service_th4f1zo", "template_bwpjgsk", templateParams)
+            .send("service_qeqnhl5", "template_bwpjgsk", templateParams) 
             .then(
               function (response) {
                 console.log("Successfully sent email to proxy:", response.text);
@@ -948,8 +956,8 @@ function displayProxiesWithAccess() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0];
 
-    contractInstance.methods
-      .get_patient(patientAddress)
+    userRegistry.methods
+      .getPatient(patientAddress)
       .call()
       .then((patientInfo) => {
         const age = parseInt(patientInfo[2], 10);
@@ -968,8 +976,8 @@ function displayProxiesWithAccess() {
               if (
                 proxyAddress !== "0x0000000000000000000000000000000000000000"
               ) {
-                contractInstance.methods
-                  .get_proxy(proxyAddress)
+                userRegistry.methods
+                  .getProxy(proxyAddress)
                   .call()
                   .then((proxyDetails) => {
                     var row = table.insertRow(-1);
@@ -1052,13 +1060,13 @@ function displayFormerProxies() {
   web3.eth.getAccounts().then((accounts) => {
     const patientAddress = accounts[0]; // Assuming the patient is logged in
 
-    contractInstance.methods
-      .get_proxy_list()
+    userRegistry.methods
+      .getProxy_list()
       .call({ from: patientAddress })
       .then((proxyAddresses) => {
         proxyAddresses.forEach((proxyAddress) => {
-          contractInstance.methods
-            .get_proxy(proxyAddress)
+          userRegistry.methods
+            .getProxy(proxyAddress)
             .call()
             .then((proxy) => {
               if (
@@ -1508,8 +1516,8 @@ function addEventToCalendar(appointmentData, calendar) {
 
 // Function to check the age of patient and handle the display of data and proxy designation
 function checkAndHandleProxy(key) {
-  contractInstance.methods
-    .get_patient(key)
+  userRegistry.methods
+    .getPatient(key)
     .call()
     .then((patientInfo) => {
       const age = parseInt(patientInfo[2], 10);
@@ -1608,8 +1616,8 @@ function changeAge() {
 // Test function to display age
 function displayPatientAge() {
   const patientAddress = web3.eth.accounts[0];
-  contractInstance.methods
-    .get_patient(patientAddress)
+  userRegistry.methods
+    .getPatient(patientAddress)
     .call()
     .then(function (patientInfo) {
       document.getElementById("ageDisplay").innerText =
