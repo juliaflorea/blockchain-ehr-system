@@ -29,8 +29,8 @@ $(window).on("load", function () {
 
     // Display the info of the current doctor
 
-    contractInstance.methods
-      .get_doctor(key)
+    userRegistry.methods
+      .getDoctor(key)
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           var firstName = result[0];
@@ -54,8 +54,8 @@ $(window).on("load", function () {
 
           // Iterate through the patients that the doctor has access to and display them
           patientAddressList.forEach(function (patientAddress, index) {
-            contractInstance.methods
-              .get_patient(patientAddress)
+            userRegistry.methods
+              .getPatient(patientAddress)
               .call({ gas: 1000000 }, function (error, result) {
                 var table = document.getElementById("viewPatient");
                 if (!error) {

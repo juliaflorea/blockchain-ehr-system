@@ -59,54 +59,105 @@ contract UserRegistry {
 
     // ===== Functions =====
 
-    function addPatient(string memory firstName, string memory lastName, uint age, string memory recordHash) public {
-        require(bytes(patientInfo[msg.sender].firstName).length == 0, "Patient already registered");
-        Patient memory p = Patient(firstName, lastName, age, new address , new address , new uint , recordHash, address(0), false);
-        patientInfo[msg.sender] = p;
-        patientList.push(msg.sender);
-        emit PatientRegistered(msg.sender);
+    function addPatient(
+    string memory firstName,
+    string memory lastName,
+    uint age,
+    string memory recordHash
+) public {
+    require(bytes(patientInfo[msg.sender].firstName).length == 0, "Patient already registered");
+
+    address[] memory emptyAddressArray;
+    uint[] memory emptyUintArray;
+
+    Patient memory p = Patient({
+        firstName: firstName,
+        lastName: lastName,
+        age: age,
+        doctorAccessList: emptyAddressArray,
+        proxyAccessList: emptyAddressArray,
+        diagnosis: emptyUintArray,
+        record: recordHash,
+        proxyAddress: address(0),
+        hasDesignatedProxy: false
+    });
+
+    patientInfo[msg.sender] = p;
+    patientList.push(msg.sender);
+    emit PatientRegistered(msg.sender);
+}
+
+function addDoctor(
+    string memory firstName,
+    string memory lastName,
+    uint age,
+    string memory recordHash,
+    string memory licenseNumber
+) public {
+    require(!registeredLicenses[licenseNumber], "License already registered");
+    require(bytes(doctorInfo[msg.sender].firstName).length == 0, "Doctor already registered");
+
+    address[] memory emptyAddressArray;
+
+    Doctor memory d = Doctor({
+        firstName: firstName,
+        lastName: lastName,
+        age: age,
+        patientAccessList: emptyAddressArray,
+        record: recordHash,
+        licenseNumber: licenseNumber
+    });
+
+    doctorInfo[msg.sender] = d;
+    doctorList.push(msg.sender);
+    registeredLicenses[licenseNumber] = true;
+    emit DoctorRegistered(msg.sender);
+}
+
+function addProxy(
+    string memory firstName,
+    string memory lastName,
+    uint age,
+    string memory recordHash,
+    bool isToken,
+    string memory tokenOrPOAHash,
+    address patientEthereumAddress
+) public {
+    address patientAddr;
+    if (isToken) {
+        patientAddr = tokenToPatient[tokenOrPOAHash];
+        require(patientAddr != address(0), "Invalid token");
+    } else {
+        patientAddr = patientEthereumAddress;
+        require(patientAddr != address(0), "Invalid patient address");
     }
 
-    function addDoctor(string memory firstName, string memory lastName, uint age, string memory recordHash, string memory licenseNumber) public {
-        require(!registeredLicenses[licenseNumber], "License already registered");
-        require(bytes(doctorInfo[msg.sender].firstName).length == 0, "Doctor already registered");
-        Doctor memory d = Doctor(firstName, lastName, age, new address , recordHash, licenseNumber);
-        doctorInfo[msg.sender] = d;
-        doctorList.push(msg.sender);
-        registeredLicenses[licenseNumber] = true;
-        emit DoctorRegistered(msg.sender);
-    }
+    require(bytes(patientInfo[patientAddr].firstName).length != 0, "Patient not found");
 
-    function addProxy(
-        string memory firstName,
-        string memory lastName,
-        uint age,
-        string memory recordHash,
-        bool isToken,
-        string memory tokenOrPOAHash,
-        address patientEthereumAddress
-    ) public {
-        address patientAddr;
-        if (isToken) {
-            patientAddr = tokenToPatient[tokenOrPOAHash];
-            require(patientAddr != address(0), "Invalid token");
-        } else {
-            patientAddr = patientEthereumAddress;
-            require(patientAddr != address(0), "Invalid patient address");
-        }
-        require(bytes(patientInfo[patientAddr].firstName).length != 0, "Patient not found");
+    // Link proxy to patient
+    patientInfo[patientAddr].proxyAddress = msg.sender;
+    patientInfo[patientAddr].hasDesignatedProxy = true;
 
-        // link proxy to patient
-        patientInfo[patientAddr].proxyAddress = msg.sender;
-        patientInfo[patientAddr].hasDesignatedProxy = true;
+    address[] memory emptyAddressArray;
 
-        Proxy memory prx = Proxy(firstName, lastName, age, patientAddr, new address , recordHash, isToken ? tokenOrPOAHash : "", isToken, true, !isToken);
-        proxies[msg.sender] = prx;
-        proxyList.push(msg.sender);
+    Proxy memory prx = Proxy({
+        firstName: firstName,
+        lastName: lastName,
+        age: age,
+        patientAddress: patientAddr,
+        patientAccessList: emptyAddressArray,
+        record: recordHash,
+        token: isToken ? tokenOrPOAHash : "",
+        accessGrantedViaToken: isToken,
+        isAuthorized: true,
+        poa: !isToken
+    });
 
-        emit ProxyRegistered(msg.sender, patientAddr);
-    }
-    
+    proxies[msg.sender] = prx;
+    proxyList.push(msg.sender);
+    emit ProxyRegistered(msg.sender, patientAddr);
+}
+
     // ===== Getters =====
     function getPatient(address addr) public view returns (Patient memory) {
         return patientInfo[addr];
@@ -144,4 +195,6 @@ contract UserRegistry {
     function getProxyList() public view returns (address[] memory) {
         return proxyList;
     }
+
+   
 }

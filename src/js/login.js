@@ -21,9 +21,9 @@ async function login() {
     console.log(publicKey);
 
     // Check what role the user should be logged in as
-    const isPatient = await isUserInList(publicKey, "get_patient_list");
-    const isDoctor = await isUserInList(publicKey, "get_doctor_list");
-    const isProxy = await isUserInList(publicKey, "get_proxy_list");
+    const isPatient = await isUserInList(publicKey, "getPatientList");
+    const isDoctor = await isUserInList(publicKey, "getDoctorList");
+    const isProxy = await isUserInList(publicKey, "getProxyList");
 
     // Redirect user based on role
 
@@ -49,7 +49,7 @@ async function login() {
 async function isUserInList(publicKey, listMethod) {
   try {
     // Retrieve the users in the list
-    const result = await contractInstance.methods[listMethod]().call();
+    const result = await userRegistry.methods[listMethod]().call();
 
     const userList = result.map((user) => user.toLowerCase());
 

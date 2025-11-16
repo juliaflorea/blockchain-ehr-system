@@ -15,8 +15,8 @@ $(window).on("load", function () {
     key = accounts[0].toLowerCase();
 
     // Get proxy details
-    contractInstance.methods
-      .get_proxy(key)
+    userRegistry.methods
+      .getProxy(key)
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           var firstName = result[0];
@@ -44,8 +44,8 @@ $(window).on("load", function () {
                   console.log("Access List for Proxy:", patientAddressList);
 
                   patientAddressList.forEach(function (patientAddress, index) {
-                    contractInstance.methods
-                      .get_patient(patientAddress)
+                    userRegistry.methods
+                      .getPatient(patientAddress)
                       .call({ gas: 1000000 }, function (error, result) {
                         if (!error) {
                           var patientFirstName = result[0];
@@ -69,16 +69,16 @@ $(window).on("load", function () {
                           // Fetch and display doctors to share EMR
                           var DoctorList = 0;
                           console.log("Getting Doctor List");
-                          contractInstance.methods
-                            .get_doctor_list()
+                          userRegistry.methods
+                            .getDoctor_list()
                             .call({ gas: 1000000 }, function (error, result) {
                               if (!error) {
                                 DoctorList = result;
 
                                 for (var i = 0; i < DoctorList.length; i++) {
                                   (function (index) {
-                                    contractInstance.methods
-                                      .get_doctor(DoctorList[index])
+                                    userRegistry.methods
+                                      .getDoctor(DoctorList[index])
                                       .call(
                                         { gas: 1000000 },
                                         function (error, result) {
@@ -124,8 +124,8 @@ $(window).on("load", function () {
                                     doctorAddress,
                                     docIndex
                                   ) {
-                                    contractInstance.methods
-                                      .get_doctor(doctorAddress)
+                                    userRegistry.methods
+                                      .getDoctor(doctorAddress)
                                       .call(
                                         { gas: 1000000 },
                                         function (error, doctorResult) {
@@ -287,8 +287,8 @@ function populateDoctorDropdown(dropdownId) {
       return;
     }
 
-    contractInstance.methods
-      .get_doctor_list()
+    userRegistry.methods
+      .getDoctor_list()
       .call({ gas: 1000000 }, function (error, DoctorList) {
         if (error) {
           console.error("Error fetching doctor list:", error);
@@ -306,8 +306,8 @@ function populateDoctorDropdown(dropdownId) {
 
         DoctorList.forEach(function (doctorAddress, index) {
           console.log("Fetching details for doctor at index:", index);
-          contractInstance.methods
-            .get_doctor(doctorAddress)
+          userRegistry.methods
+            .getDoctor(doctorAddress)
             .call({ gas: 1000000 }, function (error, doctorDetails) {
               if (error) {
                 console.error("Error fetching doctor details:", error);
@@ -340,8 +340,8 @@ function viewDoctorInfo() {
     }
 
     // Fetch doctor's info from the smart contract
-    contractInstance.methods
-      .get_doctor(selectedDoctorAddress)
+    userRegistry.methods
+      .getDoctor(selectedDoctorAddress)
       .call({ from: key })
       .then(function (doctorDetails) {
         var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
@@ -404,8 +404,8 @@ function giveAccessByProxy() {
   var doctorToBeAdded = list.options[index].value;
 
   // Get proxy details to find associated patient address
-  contractInstance.methods
-    .get_proxy(key)
+  userRegistry.methods
+    .getProxy(key)
     .call({ gas: 1000000 }, function (error, proxyDetails) {
       if (!error) {
         var patientAddress = proxyDetails.patientAddress;
@@ -473,15 +473,15 @@ function revokeAccessByProxy(element) {
     .then((accounts) => {
       const fromAddress = accounts[0];
 
-      contractInstance.methods
-        .get_doctor_list()
+      userRegistry.methods
+        .getDoctor_list()
         .call({ gas: 1000000 }, function (error, result) {
           if (!error) {
             var doctorList = result;
 
             var doctorToBeAdded = doctorList[doctorList.length - 1];
-            contractInstance.methods
-              .get_proxy(key)
+            userRegistry.methods
+              .getProxy(key)
               .call({ gas: 1000000 }, function (error, proxyDetails) {
                 if (!error) {
                   var patientAddress = proxyDetails.patientAddress;
@@ -533,23 +533,23 @@ function scheduleAppointmentByProxy() {
     const fromAddress = accounts[0]; // Proxy's address
 
     // Fetch proxy details to get the patient address
-    contractInstance.methods
-      .get_proxy(fromAddress)
+    userRegistry.methods
+      .getProxy(fromAddress)
       .call()
       .then((proxyDetails) => {
         const patientAddress = proxyDetails.patientAddress;
 
         // Fetch patient details
-        contractInstance.methods
-          .get_patient(patientAddress)
+        userRegistry.methods
+          .getPatient(patientAddress)
           .call()
           .then((patientResult) => {
             const patientFirstName = patientResult[0];
             const patientLastName = patientResult[1];
 
             // Fetch doctor details
-            contractInstance.methods
-              .get_doctor(doctorId)
+            userRegistry.methods
+              .getDoctor(doctorId)
               .call()
               .then((doctorResult) => {
                 const doctorFirstName = doctorResult[0];
@@ -759,8 +759,8 @@ function loadSentAppointmentRequests() {
                           : appointment.isRejected
                           ? "Rejected"
                           : "Pending";
-                        contractInstance.methods
-                          .get_doctor(appointment.doctorAddress)
+                        userRegistry.methods
+                          .getDoctor(appointment.doctorAddress)
                           .call()
                           .then(function (doctorDetails) {
                             var doctorName =
