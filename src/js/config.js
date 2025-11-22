@@ -9,6 +9,9 @@
     const accessControlResponse = await fetch("../../build/contracts/AccessControl.json");
     const accessControlData = await accessControlResponse.json();
 
+    const medicalDataRegistryResponse = await fetch("../../build/contracts/MedicalDataRegistry.json");
+    const medicalDataRegistryResponseData = await medicalDataRegistryResponse.json();
+
     // Store contracts globally
     window.contracts = {
       UserRegistry: {
@@ -18,7 +21,12 @@
       AccessControl: {
         abi: accessControlData.abi,
         networks: accessControlData.networks
+      },
+      MedicalDataRegistry: {
+        abi: medicalDataRegistryResponseData.abi,
+        networks: medicalDataRegistryResponseData.networks
       }
+
     };
 
     console.log("Contracts loaded:", Object.keys(window.contracts));
