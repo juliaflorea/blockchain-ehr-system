@@ -34,6 +34,25 @@ async function connect() {
    accessControl = new web3.eth.Contract(contracts.AccessControl.abi, deployedAccessControl.address);
    console.log("AccessControl connected:", deployedAccessControl.address);
 
+    // MedicalDataRegistry
+    const deployedMedicalDataRegistry = contracts.MedicalDataRegistry.networks[networkId];
+    if (!deployedMedicalDataRegistry) throw new Error("MedicalDataRegistry not deployed on this network.");
+    medicalDataRegistry = new web3.eth.Contract(
+      contracts.MedicalDataRegistry.abi,
+      deployedMedicalDataRegistry.address
+    );
+    console.log("MedicalDataRegistry connected:", deployedMedicalDataRegistry.address);
+
+    // AppointmentManager
+    const deployedAppointmentManager = contracts.AppointmentManager.networks[networkId];
+    if (!deployedAppointmentManager) throw new Error("AppointmentManager not deployed on this network.");
+    appointmentManager = new web3.eth.Contract(
+      contracts.AppointmentManager.abi,
+      deployedAppointmentManager.address
+    );
+    console.log("AppointmentManager connected:", deployedAppointmentManager.address);
+
+
    return true; // Successful connection
  } catch (err) {
    console.error("Error connecting to Web3 or contracts:", err);
