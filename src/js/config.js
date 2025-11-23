@@ -12,6 +12,9 @@
     const medicalDataRegistryResponse = await fetch("../../build/contracts/MedicalDataRegistry.json");
     const medicalDataRegistryResponseData = await medicalDataRegistryResponse.json();
 
+    const appointmentManagerResponse = await fetch("../../build/contracts/AppointmentManager.json");
+    const appointmentManagerResponseData = await appointmentManagerResponse.json();
+
     // Store contracts globally
     window.contracts = {
       UserRegistry: {
@@ -25,6 +28,10 @@
       MedicalDataRegistry: {
         abi: medicalDataRegistryResponseData.abi,
         networks: medicalDataRegistryResponseData.networks
+      },
+      AppointmentManager: {
+        abi: appointmentManagerResponseData.abi,
+        networks: appointmentManagerResponseData.networks
       }
 
     };
