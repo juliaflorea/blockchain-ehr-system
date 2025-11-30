@@ -1,8 +1,10 @@
 
-
 let web3;
 let userRegistry;
 let accessControl;
+let medicalDataRegistry;
+let appointmentManager;
+let diagnosisAndTreatment;
 
 // Function to initialise the environment
 async function connect() {
@@ -52,6 +54,16 @@ async function connect() {
     );
     console.log("AppointmentManager connected:", deployedAppointmentManager.address);
 
+    // DiagnosisAndTreatment
+    const deployedDiagnosisAndTreatment = contracts.DiagnosisAndTreatment.networks[networkId];
+    if (!deployedDiagnosisAndTreatment) throw new Error("DiagnosisAndTreatment not deployed on this network.");
+    diagnosisAndTreatment = new web3.eth.Contract(
+      contracts.DiagnosisAndTreatment.abi,
+      deployedDiagnosisAndTreatment.address
+    );
+    console.log("DiagnosisAndTreatment connected:", deployedDiagnosisAndTreatment.address);
+
+    
 
    return true; // Successful connection
  } catch (err) {

@@ -8,6 +8,14 @@ contract AccessControl is UserRegistry {
 
     uint public creditPool;
 
+    // ===== Events =====
+    event DoctorAccessGranted(address indexed patient, address indexed doctor);
+    event DoctorAccessGrantedByProxy(address indexed proxy, address indexed patient, address indexed doctor);
+    event DoctorAccessRevoked(address indexed patient, address indexed doctor);
+    event DoctorAccessRevokedByProxy(address indexed proxy, address indexed patient, address indexed doctor);
+    event ProxyAccessRevoked(address indexed patient, address indexed proxy);
+    event ProxyAccessRegranted(address indexed patient, address indexed proxy);
+
     // ---------------------------
     // Access granting
     // ---------------------------
@@ -18,6 +26,8 @@ contract AccessControl is UserRegistry {
 
         doctorInfo[doctorAddr].patientAccessList.push(msg.sender);
         patientInfo[msg.sender].doctorAccessList.push(doctorAddr);
+
+        emit DoctorAccessGranted(msg.sender, doctorAddr);
     }
 
     function grantDoctorAccessByProxy(address doctorAddr, address patientAddr) public payable {
@@ -33,6 +43,8 @@ contract AccessControl is UserRegistry {
         creditPool += 2;
         patientInfo[patientAddr].doctorAccessList.push(doctorAddr);
         doctorInfo[doctorAddr].patientAccessList.push(patientAddr);
+
+        emit DoctorAccessGrantedByProxy(msg.sender, patientAddr, doctorAddr);
     }
 
     // ---------------------------
@@ -75,6 +87,8 @@ contract AccessControl is UserRegistry {
 
         patientInfo[patientAddr].hasDesignatedProxy = false;
         patientInfo[patientAddr].proxyAddress = address(0);
+
+        emit ProxyAccessRevoked(patientAddr, proxyAddr);
     }
 
     // ---------------------------
@@ -120,6 +134,8 @@ contract AccessControl is UserRegistry {
         removePatient(msg.sender, doctorAddr);
         creditPool -= 2;
         address(uint160(msg.sender)).transfer(2 ether);
+
+        emit DoctorAccessRevoked(msg.sender, doctorAddr);
     }
 
     function revokeDoctorAccessByProxy(address doctorAddr, address patientAddr) public payable {
@@ -130,6 +146,8 @@ contract AccessControl is UserRegistry {
         removePatient(patientAddr, doctorAddr);
         creditPool -= 2;
         address(uint160(msg.sender)).transfer(2 ether);
+
+        emit DoctorAccessRevokedByProxy(msg.sender, patientAddr, doctorAddr);
     }
 
     function revokeProxyAccess() public {
@@ -149,5 +167,7 @@ contract AccessControl is UserRegistry {
         proxies[proxyAddr].isAuthorized = true;
         patientInfo[msg.sender].proxyAddress = proxyAddr;
         patientInfo[msg.sender].hasDesignatedProxy = true;
+
+        emit ProxyAccessRegranted(msg.sender, proxyAddr);
     }
 }
