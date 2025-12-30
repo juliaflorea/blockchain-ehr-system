@@ -63,18 +63,25 @@ async function connect() {
     );
     console.log("DiagnosisAndTreatment connected:", deployedDiagnosisAndTreatment.address);
 
-    
+    window.userRegistry = userRegistry;
+    window.accessControl = accessControl;
+    window.medicalDataRegistry = medicalDataRegistry;
+    window.appointmentManager = appointmentManager;
+    window.diagnosisAndTreatment = diagnosisAndTreatment;
+
+    window.dispatchEvent(new Event("contractsReady"));  
 
    return true; // Successful connection
  } catch (err) {
    console.error("Error connecting to Web3 or contracts:", err);
    return false;
  }
+ 
 }
 
 window.addEventListener("load", async () => {
   const connected = await connect();
-  console.log("Externally Loaded!");
+  console.log("connect() finished");
   emailjs.init({ publicKey: "BVHC0t44IJq1EPSI2" });
 
   
@@ -140,13 +147,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Add active class to the clicked sidebar item
     $(this).addClass("active");
-    var targets = $(this).attr("data-target").split(" "); // Split the targets by space
-    $(".panel").hide(); // Hide all panels initially
 
-    targets.forEach(function (target) {
-      $("#" + target).show(); // Show each targeted panel
-    });
+    $(".panel").removeClass("active");
+
+    const targets = $(this).attr("data-target");
+if (targets) {
+  targets.split(/\s+/).forEach(id => {
+    if (id.trim()) $("#" + id.trim()).addClass("active");
   });
+}
+
+    });
+    
 
   $("#logout").click(function () {
     // Implement your logout logic here

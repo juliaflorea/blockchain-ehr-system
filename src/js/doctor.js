@@ -17,72 +17,70 @@ var docName = "";
 
 toggleRecordsButton = 0;
 
-$(window).on("load", function () {
-  connect();
+console.log("doctor.js loaded");
+
+async function loadDoctorData() {
+  if (!userRegistry || !accessControl) {
+    console.error("Contracts not initialized yet!");
+    return;
+  }
+
   $(".alert-danger").hide();
 
-  ethereum.request({ method: "eth_accounts" }).then(function (accounts) {
+  try {
+    const accounts = await ethereum.request({ method: "eth_accounts" });
     key = accounts[0].toLowerCase();
 
-    var a = 0;
-    var b = 0;
-
     // Display the info of the current doctor
-
-    userRegistry.methods
-      .getDoctor(key)
-      .call({ gas: 1000000 }, function (error, result) {
-        if (!error) {
-          var firstName = result[0];
-          var lastName = result[1];
-          var age = result[2];
-          docName = firstName + " " + lastName;
-          $("#name").html(docName);
-          $("#age").html(age);
-        } else console.error(error);
-      });
-    var patientAddressList = 0;
+    const doctor = await userRegistry.methods.getDoctor(key).call({ gas: 1000000 });
+    const firstName = doctor[0];
+    const lastName = doctor[1];
+    const age = doctor[2];
+    docName = firstName + " " + lastName;
+    $("#name").html(docName);
+    $("#age").html(age);
 
     // Get the patient access list for the doctor
+    const patientAddressList = await accessControl.methods
+      .getAccessedPatientListForDoctor(key)
+      .call({ gas: 1000000 });
+    console.log("Patient list:", patientAddressList);
 
-    contractInstance.methods
-      .get_accessed_patientlist_for_doctor(key)
-      .call({ gas: 1000000 }, function (error, result) {
-        if (!error) {
-          patientAddressList = result;
-          console.log(result);
+    const table = document.getElementById("viewPatient");
+    while (table.rows.length > 1) table.deleteRow(1); // Clear previous entries
 
-          // Iterate through the patients that the doctor has access to and display them
-          patientAddressList.forEach(function (patientAddress, index) {
-            userRegistry.methods
-              .getPatient(patientAddress)
-              .call({ gas: 1000000 }, function (error, result) {
-                var table = document.getElementById("viewPatient");
-                if (!error) {
-                  var patientFirstName = result[0];
-                  var patientLastName = result[1];
-                  var publicKey = patientAddress;
+    for (const patientAddress of patientAddressList) {
+      const patient = await userRegistry.methods.getPatient(patientAddress).call({ gas: 1000000 });
+      const patientFirstName = patient[0];
+      const patientLastName = patient[1];
+      const publicKey = patientAddress;
 
-                  var row = table.insertRow(-1);
-                  var cell1 = row.insertCell(0);
-                  var cell2 = row.insertCell(1);
-                  var cell3 = row.insertCell(2);
-                  cell1.className = "patientName";
-                  cell2.className = "publicKeyPatient";
-                  cell1.innerHTML = patientFirstName + " " + patientLastName;
-                  cell2.innerHTML = publicKey;
-                  cell3.innerHTML =
-                    '<input class="btn btn-success" onclick="showRecords(this)" id="viewRecordsButton" type="button" value="View records"></input>';
-                } else console.error(error);
-              });
-          });
-        } else console.error(error);
-      });
-  });
+      const row = table.insertRow(-1);
+      const cell1 = row.insertCell(0);
+      const cell2 = row.insertCell(1);
+      const cell3 = row.insertCell(2);
+
+      cell1.className = "patientName";
+      cell2.className = "publicKeyPatient";
+      cell1.innerHTML = patientFirstName + " " + patientLastName;
+      cell2.innerHTML = publicKey;
+      cell3.innerHTML =
+        '<input class="btn btn-success" onclick="showRecords(this)" id="viewRecordsButton" type="button" value="View records"></input>';
+    }
+  } catch (err) {
+    console.error("Error loading doctor data:", err);
+  }
+}
+
+// Listen for contractsReady event
+window.addEventListener("contractsReady", async () => {
+  console.log("contractsReady event received in doctor.js");
+  console.log("userRegistry:", window.userRegistry);
+
+  await loadDoctorData();
   loadAppointmentRequests();
   loadAppointmentHistory();
 });
-
 // Function to display the patients' medical records
 function showRecords(element) {
   var table = document.getElementById("viewPatient");
@@ -94,8 +92,8 @@ function showRecords(element) {
 
     // get the hash of the record from blockchain
 
-    contractInstance.methods
-      .get_hash(patientAddress)
+    medicalDataRegistry.methods
+      .getHash(patientAddress)
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           // get the record from the IPFS location
@@ -218,11 +216,17 @@ function showRecords(element) {
               </div>
             `;
 
+            // Only show patient records if Share Records tab is active
             var newRow = table.insertRow(index + 1);
+            newRow.classList.add("recordRow");
+            
             var newCell = newRow.insertCell(0);
             newCell.colSpan = 3;
+            
             newCell.append(downloadButtonContainer[0]);
             newCell.innerHTML += content;
+            
+
           });
         } else {
           console.log(error);
@@ -265,76 +269,58 @@ function submitDiagnosis(element, index) {
   var table = document.getElementById("viewPatient");
   var patientAddress = table.rows[index].cells[1].innerHTML;
 
-  // Get the form details
-
+  // Get form details
   var diagnosisIndex = $("#ailmentsList" + patientAddress).val();
   var clinicalStatus = $("#clinicalStatus" + patientAddress).val();
   var severity = $("#severity" + patientAddress).val();
   var affectedArea = $("#affectedArea" + patientAddress).val();
   var otherDetails = $("#details").val();
 
-  // Get the doctor's address
+  if (!diagnosisIndex || !clinicalStatus || !severity || !affectedArea) {
+    alert("Please fill in all fields.");
+    return;
+  }
+
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
 
     // Get the doctor's appointments
-
-    contractInstance.methods
+    appointmentManager.methods
       .getDoctorAppointments(doctorAddress)
       .call({ from: doctorAddress })
       .then(function (appointmentIds) {
         let foundAppointment = null;
 
-        // Check for an accpted appointment for the specific patient that dosn't have a submitted diagnosis
         const checks = appointmentIds.map((id) =>
-          contractInstance.methods
-            .appointments(id)
-            .call()
-            .then((appointment) => {
-              if (
-                appointment.patientAddress.toLowerCase() ===
-                  patientAddress.toLowerCase() &&
-                appointment.isAccepted &&
-                !appointment.diagnosisSubmitted
-              ) {
-                foundAppointment = appointment;
-                return true;
-              }
-              return false;
-            })
+          appointmentManager.methods.appointments(id).call().then((appointment) => {
+            if (
+              appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() &&
+              appointment.isAccepted &&
+              !appointment.diagnosisSubmitted
+            ) {
+              foundAppointment = { ...appointment, id: id };
+            }
+          })
         );
 
-        Promise.all(checks).then((results) => {
+        Promise.all(checks).then(() => {
           if (!foundAppointment) {
             alert("No accepted appointment found for this patient.");
             return;
           }
 
-          if (
-            !diagnosisIndex ||
-            !clinicalStatus ||
-            !severity ||
-            !affectedArea
-          ) {
-            alert("Please fill in all fields.");
-            return;
-          }
-
-          console.log("Submitting diagnosis for patient:", patientAddress);
+          // Create FHIR resource
+          var datetime = getDateTime();
           var diagnosis = parseInt(diagnosisIndex);
           var diagnosed = ailmentsDict[diagnosis];
           var comments = otherDetails;
-          var datetime = getDateTime();
-
-          // Create FHIR resource for diagnosis based on form details
 
           var fhirConditionResource = {
             resourceType: "Condition",
             clinicalStatus: {
               coding: [
                 {
-                  system:
-                    "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                  system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
                   code: clinicalStatus,
                 },
               ],
@@ -342,32 +328,19 @@ function submitDiagnosis(element, index) {
             severity: {
               coding: [
                 {
-                  system:
-                    "http://terminology.hl7.org/CodeSystem/condition-severity",
+                  system: "http://terminology.hl7.org/CodeSystem/condition-severity",
                   code: severity,
                 },
               ],
             },
-            code: {
-              text: diagnosis,
-            },
-            bodySite: [
-              {
-                text: affectedArea,
-              },
-            ],
+            code: { text: diagnosis },
+            bodySite: [{ text: affectedArea }],
             onsetDateTime: datetime,
-            note: [
-              {
-                text: comments,
-              },
-            ],
+            note: [{ text: comments }],
           };
 
-          // Update existent record of patint with new formatted data from FHIR resource
-
+          // Append new record to old records
           var oldRecords = $("#records" + patientAddress).html();
-
           var newRecords = `Diagnosed By : ${docName}
 Diagnosis Time : ${datetime}
 Diagnosis : ${diagnosed}
@@ -377,70 +350,49 @@ Affected Area: ${affectedArea}
 Comments : ${comments}
 `;
 
-          console.log("New records to be added:", newRecords);
           var updatedRecords = oldRecords + newRecords;
-
           updatedRecords.fhirConditionResource = fhirConditionResource;
 
-          if (!isNaN(diagnosis)) {
-            var buffer = Buffer.from(updatedRecords);
+          // Convert to buffer and upload to IPFS
+          var buffer = Buffer.from(updatedRecords);
+          ipfs.files.add(buffer, (error, result) => {
+            if (error) {
+              console.error("Error adding file to IPFS:", error);
+              return;
+            }
 
-            // Add data to IPFS
-            ipfs.files.add(buffer, (error, result) => {
-              if (error) {
-                console.error("Error adding file to IPFS:", error);
-              } else {
-                ipfshash = result[0].hash;
-                console.log("IPFS hash received:", result[0].hash);
+            var ipfsHash = result[0].hash;
 
-                ethereum
-                  .request({ method: "eth_accounts" })
-                  .then(function (accounts) {
-                    var fromAddress = accounts[0].toLowerCase();
-
-                    contractInstance.methods
-                      .insurance_claim(patientAddress, diagnosis, ipfshash)
-                      .send({ gas: 1000000, from: fromAddress })
-                      .on("transactionHash", function (hash) {
-                        // Handle the transaction hash if needed
-                        console.log("Transaction Hash:", hash);
-                      })
-                      .on(
-                        "confirmation",
-                        function (confirmationNumber, receipt) {
-                          // Handle confirmations if needed
-                          console.log(
-                            "Confirmation:",
-                            confirmationNumber,
-                            receipt
-                          );
-                        }
-                      )
-                      .on("receipt", function (receipt) {
-                        // Handle the receipt if needed
-                        console.log("Receipt:", receipt);
-                        alert("Your diagnosis has been submitted.");
-
-                        table.deleteRow(index + 1);
-                        table.deleteRow(index);
-                      })
-                      .on("error", function (error) {
-                        $(".alert-danger").show();
-                        console.error(error);
-                      });
-                  });
-              }
-            });
-          } else {
-            alert("Select a diagnosis");
-          }
+            // Call new contract function
+            diagnosisAndTreatment.methods
+              .submitDiagnosis(foundAppointment.id, ipfsHash)
+              .send({ from: doctorAddress, gas: 1000000 })
+              .on("transactionHash", function (hash) {
+                console.log("Transaction Hash:", hash);
+              })
+              .on("confirmation", function (confirmationNumber, receipt) {
+                console.log("Confirmation:", confirmationNumber, receipt);
+              })
+              .on("receipt", async function () {
+                alert("Diagnosis successfully submitted.");
+              
+                // Reload everything safely
+                loadDoctorData();
+              
+                $("#appointmentRequests tr:gt(0)").remove();
+                $("#appointmentHistory tr:gt(0)").remove();
+              
+                loadAppointmentRequests();
+                loadAppointmentHistory();
+              });
+              
+          });
         });
       })
-      .catch(function (error) {
-        console.error("Error loading appointment requests:", error);
-      });
+      .catch((err) => console.error("Error fetching appointments:", err));
   });
 }
+
 
 // Function to send treatmnt plan to a patint
 function submitTreatmentPlan(element, index) {
@@ -448,7 +400,6 @@ function submitTreatmentPlan(element, index) {
   var patientAddress = table.rows[index].cells[1].innerHTML;
 
   // Get form details
-
   var medicationName = $("#medicationName" + patientAddress).val();
   var dose = $("#dose" + patientAddress).val();
   var route = $("#route" + patientAddress).val();
@@ -456,66 +407,40 @@ function submitTreatmentPlan(element, index) {
   var instructions = $("#instructions" + patientAddress).val();
   var datetime = getDateTime();
 
-  console.log("Starting treatment plan submission...");
+  if (!medicationName || !dose || !route || !frequency || !instructions) {
+    alert("Please fill in all fields.");
+    return;
+  }
 
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
 
-    console.log(`Doctor Address: ${doctorAddress}`);
-
-    // Get appointments
-
-    contractInstance.methods
+    appointmentManager.methods
       .getDoctorAppointments(doctorAddress)
       .call({ from: doctorAddress })
       .then(function (appointmentIds) {
         let foundAppointmentId = null;
 
-        // Check for accpted appointments that have a diagnosis submitted and treatment plan not submitted
         const checks = appointmentIds.map((id) =>
-          contractInstance.methods
-            .appointments(id)
-            .call()
-            .then((appointment) => {
-              if (
-                appointment.patientAddress.toLowerCase() ===
-                  patientAddress.toLowerCase() &&
-                appointment.isAccepted &&
-                appointment.diagnosisSubmitted &&
-                !appointment.treatmentPlanSubmitted
-              ) {
-                foundAppointmentId = id; // Save the id of the found appointment to keep track of it latet
-                return true;
-              }
-              return false;
-            })
+          appointmentManager.methods.appointments(id).call().then((appointment) => {
+            if (
+              appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() &&
+              appointment.isAccepted &&
+              appointment.diagnosisSubmitted &&
+              !appointment.treatmentPlanSubmitted
+            ) {
+              foundAppointmentId = id;
+            }
+          })
         );
 
-        Promise.all(checks).then((results) => {
+        Promise.all(checks).then(() => {
           if (!foundAppointmentId) {
-            console.error("No suitable appointment found.");
-            alert(
-              "No suitable appointment found or diagnosis not yet submitted."
-            );
+            alert("No suitable appointment found or diagnosis not yet submitted.");
             return;
           }
 
-          if (
-            !medicationName ||
-            !dose ||
-            !route ||
-            !frequency ||
-            !instructions
-          ) {
-            alert("Please fill in all fields.");
-            return; // Properly close the condition
-          }
-
-          console.log(
-            "Attempting to submit treatment plan for patient:",
-            patientAddress
-          );
-
+          // Create FHIR resource
           var oldRecords = $("#records" + patientAddress).html();
           var newRecords = `Treated By : ${docName}
 Treatment Time : ${datetime}
@@ -526,85 +451,61 @@ Frequency: ${frequency}
 Instructions: ${instructions}
 `;
 
-          // Create FHIR resource
-
           var fhirMedicationRequest = {
             resourceType: "MedicationRequest",
             extension: [
-              {
-                url: "http://example.org/fhir/StructureDefinition/newRecords",
-                valueString: newRecords,
-              },
+              { url: "http://example.org/fhir/StructureDefinition/newRecords", valueString: newRecords },
             ],
             status: "active",
             intent: "order",
-            medicationCodeableConcept: {
-              text: medicationName,
-            },
+            medicationCodeableConcept: { text: medicationName },
             authoredOn: datetime,
             dosageInstruction: [
               {
                 text: instructions,
-                timing: {
-                  repeat: {
-                    frequency: parseInt(frequency),
-                  },
-                },
-                doseAndRate: [
-                  {
-                    doseQuantity: {
-                      value: dose,
-                    },
-                  },
-                ],
-                route: {
-                  text: route,
-                },
+                timing: { repeat: { frequency: parseInt(frequency) } },
+                doseAndRate: [{ doseQuantity: { value: dose } }],
+                route: { text: route },
               },
             ],
           };
 
-          console.log("New records to be added:", newRecords);
           var updatedRecords = oldRecords + newRecords;
-
           updatedRecords.fhirMedicationRequest = fhirMedicationRequest;
 
-          // Convert the details into a buffer for IPFS
-
+          // Convert to buffer and upload to IPFS
           var buffer = Buffer.from(updatedRecords);
-
-          // Add data to IPFS
-          ipfs.files.add(buffer, function (error, result) {
+          ipfs.files.add(buffer, (error, result) => {
             if (error) {
               console.error("Error uploading treatment plan to IPFS:", error);
-              return; // Properly close the condition
+              return;
             }
 
             var ipfsHash = result[0].hash;
-            console.log("Treatment plan uploaded to IPFS. Hash:", ipfsHash);
 
-            contractInstance.methods
-              .submit_TreatmentPlan(foundAppointmentId, ipfsHash) // Use the stored appointment ID
+            // Call new contract function
+            diagnosisAndTreatment.methods
+              .submitTreatmentPlan(foundAppointmentId, ipfsHash)
               .send({ from: doctorAddress, gas: 1000000 })
-              .then((receipt) => {
-                console.log("Receipt:", receipt);
+              .on("transactionHash", function (hash) {
+                console.log("Transaction Hash:", hash);
+              })
+              .on("confirmation", function (confirmationNumber, receipt) {
+                console.log("Confirmation:", confirmationNumber, receipt);
+              })
+              .on("receipt", function (receipt) {
                 alert("Treatment plan successfully submitted.");
               })
-              .catch((error) => {
-                console.error(
-                  "Error submitting treatment plan:",
-                  error.message
-                );
-                alert("Failed to submit treatment plan.");
+              .on("error", function (err) {
+                console.error(err);
               });
           });
         });
       })
-      .catch(function (error) {
-        console.error("Error fetching doctor appointments:", error);
-      });
+      .catch((err) => console.error("Error fetching appointments:", err));
   });
 }
+
 // Function to load appointment requsts rceived from patients
 function loadAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
@@ -612,14 +513,14 @@ function loadAppointmentRequests() {
 
     // Fetching appointment IDs associated with the doctor
 
-    contractInstance.methods
+    appointmentManager.methods
       .getDoctorAppointments(doctorAddress)
       .call({ from: doctorAddress })
       .then(function (appointmentIds) {
         appointmentIds.forEach(function (id) {
           // Fetching each appointment from the blockchain
 
-          contractInstance.methods
+          appointmentManager.methods
             .appointments(id)
             .call()
             .then(function (appointment) {
@@ -716,14 +617,14 @@ function loadAppointmentHistory() {
 
     // Fetching appointment IDs associated with the doctor
 
-    contractInstance.methods
+    appointmentManager.methods
       .getDoctorAppointments(doctorAddress)
       .call({ from: doctorAddress })
       .then(function (appointmentIds) {
         appointmentIds.forEach(function (id) {
           // Fetching each appointment from the blockchain
 
-          contractInstance.methods
+          appointmentManager.methods
             .appointments(id)
             .call()
             .then(function (appointment) {
@@ -799,19 +700,19 @@ function acceptAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
     // Get the appointment's id
-    contractInstance.methods
+    appointmentManager.methods
       .appointments(appointmentId)
       .call()
       .then(function (appointmentToAccept) {
         // Fetch all appointments for the doctor and check for conflicts
 
-        contractInstance.methods
+        appointmentManager.methods
           .getDoctorAppointments(doctorAddress)
           .call()
           .then(function (appointmentIds) {
             let conflict = false;
             let promises = appointmentIds.map((id) => {
-              return contractInstance.methods
+              return appointmentManager.methods
                 .appointments(id)
                 .call()
                 .then((otherAppointment) => {
@@ -834,7 +735,7 @@ function acceptAppointment(appointmentId) {
               } else {
                 // If no conflict, proceed to accept the appointment
 
-                contractInstance.methods
+                appointmentManager.methods
                   .acceptAppointment(appointmentId)
                   .send({ from: doctorAddress })
                   .then(function (result) {
@@ -861,14 +762,14 @@ function acceptAppointment(appointmentId) {
 function rejectAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
-    contractInstance.methods
+    appointmentManager.methods
       .appointments(appointmentId)
       .call()
       .then(function (appointment) {
         // Notify the patient before the appointment is deleted
 
         notifyPatient(appointmentId, "Rejected", appointment.patientAddress);
-        return contractInstance.methods
+        return appointmentManager.methods
           .rejectAppointment(appointmentId)
           .send({ from: doctorAddress });
       })
@@ -892,7 +793,7 @@ function notifyPatient(appointmentId, status) {
 
   // Get appointments
 
-  contractInstance.methods
+  appointmentManager.methods
     .appointments(appointmentId)
     .call()
     .then(function (appointment) {
@@ -906,8 +807,8 @@ function notifyPatient(appointmentId, status) {
 
       // Get the hash of the record
 
-      contractInstance.methods
-        .get_hash(patientAddress)
+      medicalDataRegistry.methods
+        .getHash(patientAddress)
         .call()
         .then(function (ipfsHash) {
           console.log(`IPFS Hash: ${ipfsHash}`);
@@ -1087,13 +988,13 @@ function loadAcceptedAppointments(calendar) {
       const doctorAddress = accounts[0];
       // Gt doctor appointments and check thir status
 
-      contractInstance.methods
+      appointmentManager.methods
         .getDoctorAppointments(doctorAddress)
         .call()
         .then(function (appointmentIds) {
           console.log("Appointment IDs:", appointmentIds);
           appointmentIds.forEach(function (appointmentId) {
-            contractInstance.methods
+            appointmentManager.methods
               .appointments(appointmentId)
               .call()
               .then(function (appointment) {
@@ -1161,4 +1062,49 @@ function addEventToCalendar(appointmentData, calendar) {
   } catch (e) {
     console.error("Error in adding event to calendar:", e);
   }
+  
 }
+
+$(window).on("load", function () {
+  // Hide all panels
+  $(".panel").hide();
+
+  // Show Personal Info panel by default
+  $("#personalInfoPanel").show();
+
+  // Load default panel data
+  loadDoctorData();
+});
+$(".list-group-item").on("click", function (e) {
+  e.preventDefault();
+
+  const targets = $(this).data("target").split(" ");
+
+  // Hide all panels
+  $(".panel").hide();
+
+  // Show target panels
+  targets.forEach(id => {
+    $("#" + id).show();
+  });
+
+  // Load data depending on panel
+  if (targets.includes("personalInfoPanel")) {
+    loadDoctorData();
+  }
+
+  if (targets.includes("appointmentRequestsPanel")) {
+    $("#appointmentRequests tr:gt(0)").remove();
+    loadAppointmentRequests();
+  }
+
+  if (targets.includes("appointmentHistoryPanel")) {
+    $("#appointmentHistory tr:gt(0)").remove();
+    loadAppointmentHistory();
+  }
+
+  if (targets.includes("accessibleEMRPanel")) {
+    loadAccessiblePatients(); // whatever your function is called
+  }
+});
+

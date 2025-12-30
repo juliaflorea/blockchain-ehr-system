@@ -2,7 +2,29 @@
 pragma solidity ^0.5.1;
 pragma experimental ABIEncoderV2;
 
+import "./MedicalDataRegistry.sol";
+
 contract UserRegistry {
+
+     MedicalDataRegistry public medicalDataRegistry;
+
+ address public owner;
+
+constructor() public {
+    owner = msg.sender;
+}
+
+modifier onlyOwner() {
+    require(msg.sender == owner, "Not owner");
+    _;
+}
+
+function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner {
+    require(address(medicalDataRegistry) == address(0), "Already set");
+    medicalDataRegistry = MedicalDataRegistry(_medicalDataRegistry);
+}
+
+
     // ===== Structs =====
     struct Patient {
         string firstName;
@@ -56,6 +78,7 @@ contract UserRegistry {
     event PatientRegistered(address patient);
     event DoctorRegistered(address doctor);
     event ProxyRegistered(address proxy, address patient);
+    event ProxyDesignated(address indexed patient, string token);
 
     // ===== Functions =====
 
@@ -84,6 +107,7 @@ contract UserRegistry {
 
     patientInfo[msg.sender] = p;
     patientList.push(msg.sender);
+    medicalDataRegistry.setHash(msg.sender, recordHash);
     emit PatientRegistered(msg.sender);
 }
 
@@ -111,6 +135,7 @@ function addDoctor(
     doctorInfo[msg.sender] = d;
     doctorList.push(msg.sender);
     registeredLicenses[licenseNumber] = true;
+    medicalDataRegistry.setHash(msg.sender, recordHash);
     emit DoctorRegistered(msg.sender);
 }
 
@@ -155,6 +180,7 @@ function addProxy(
 
     proxies[msg.sender] = prx;
     proxyList.push(msg.sender);
+    medicalDataRegistry.setHash(msg.sender, recordHash);
     emit ProxyRegistered(msg.sender, patientAddr);
 }
 
@@ -196,5 +222,117 @@ function addProxy(
         return proxyList;
     }
 
-   
+    function addPatientToDoctor(address doctorAddr, address patientAddr) external {
+    doctorInfo[doctorAddr].patientAccessList.push(patientAddr);
+}
+
+    function addDoctorToPatient(address patientAddr, address doctorAddr) external {
+    patientInfo[patientAddr].doctorAccessList.push(doctorAddr);
+}
+
+    function removePatientFromDoctor(address doctorAddr, address patientAddr) external {
+    address[] storage list = doctorInfo[doctorAddr].patientAccessList;
+    for (uint i = 0; i < list.length; i++) {
+        if (list[i] == patientAddr) {
+            list[i] = list[list.length - 1];
+            list.pop();
+            return;
+        }
+    }
+}
+
+    function removeDoctorFromPatient(address patientAddr, address doctorAddr) external {
+    address[] storage list = patientInfo[patientAddr].doctorAccessList;
+    for (uint i = 0; i < list.length; i++) {
+        if (list[i] == doctorAddr) {
+            list[i] = list[list.length - 1];
+            list.pop();
+            return;
+        }
+    }
+}
+
+    function revokeProxyAccess(address proxyAddr, address patientAddr) external {
+    proxies[proxyAddr].isAuthorized = false;
+    patientInfo[patientAddr].hasDesignatedProxy = false;
+    patientInfo[patientAddr].proxyAddress = address(0);
+
+    // Optionally clear proxy's patientAccessList if needed
+    delete proxies[proxyAddr].patientAccessList;
+}
+ 
+    function regrantProxy(address proxyAddr, address patientAddr) external {
+    proxies[proxyAddr].isAuthorized = true;
+    patientInfo[patientAddr].proxyAddress = proxyAddr;
+    patientInfo[patientAddr].hasDesignatedProxy = true;
+}
+
+    function getDoctorAccessList(address patientAddr) public view returns (address[] memory) {
+    return patientInfo[patientAddr].doctorAccessList;
+}
+
+    function getPatientAccessList(address doctorAddr) public view returns (address[] memory) {
+    return doctorInfo[doctorAddr].patientAccessList;
+}
+
+    function getProxyPatient(address proxyAddr) public view returns (address) {
+    return proxies[proxyAddr].patientAddress;
+}
+
+    function userExists(address userAddr) public view returns (bool) {
+        if (bytes(patientInfo[userAddr].firstName).length != 0) {
+            return true;
+        }
+        if (bytes(doctorInfo[userAddr].firstName).length != 0) {
+            return true;
+        }
+        if (bytes(proxies[userAddr].firstName).length != 0) {
+            return true;
+        }
+        return false;
+}
+
+
+    function designateProxy(string memory token, bytes32 detailsHash) public {
+        
+        require(bytes(patientInfo[msg.sender].firstName).length != 0, "Only patients can designate proxy");
+
+        Patient storage p = patientInfo[msg.sender];
+
+    // patient can only have one proxy
+        require(!p.hasDesignatedProxy, "Proxy already designated");
+
+    // token must be unused
+        require(tokenToPatient[token] == address(0), "Token already used");
+
+    // store proxy invitation metadata
+        proxyDetailsHash[msg.sender] = detailsHash;
+
+    // link token ↔ patient
+        patientToToken[msg.sender] = token;
+        tokenToPatient[token] = msg.sender;
+
+    // mark patient as having designated a proxy
+        p.hasDesignatedProxy = true;
+
+        emit ProxyDesignated(msg.sender, token);
+}
+
+    function updateLocalRecord(address userAddr, string calldata newHash) external {
+        require(
+        msg.sender == address(medicalDataRegistry),
+        "Only MedicalDataRegistry can sync records"
+    );
+
+        if (bytes(patientInfo[userAddr].firstName).length != 0) {
+            patientInfo[userAddr].record = newHash;
+        } 
+        else if (bytes(doctorInfo[userAddr].firstName).length != 0) {
+         doctorInfo[userAddr].record = newHash;
+        } 
+        else if (bytes(proxies[userAddr].firstName).length != 0) {
+            proxies[userAddr].record = newHash;
+        }
+    }
+
 }

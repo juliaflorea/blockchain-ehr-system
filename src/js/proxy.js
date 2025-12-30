@@ -7,8 +7,9 @@ var proxyName = "";
 
 toggleRecordsButton = 0;
 
-$(window).on("load", function () {
-  connect();
+async function loadProxyData() {
+  console.log("loadProxyData() started");
+
   $(".alert-danger").hide();
 
   web3.eth.getAccounts().then((accounts) => {
@@ -36,8 +37,8 @@ $(window).on("load", function () {
 
           if (isProxyAuthorized) {
             // Proceed to load patient data if the proxy is authorized
-            contractInstance.methods
-              .get_accessed_patientlist_for_proxy(key)
+            accessControl.methods
+              .getAccessedPatientListForProxy(key)
               .call({ gas: 1000000 }, function (error, result) {
                 if (!error) {
                   var patientAddressList = result;
@@ -70,7 +71,7 @@ $(window).on("load", function () {
                           var DoctorList = 0;
                           console.log("Getting Doctor List");
                           userRegistry.methods
-                            .getDoctor_list()
+                            .getDoctorList()
                             .call({ gas: 1000000 }, function (error, result) {
                               if (!error) {
                                 DoctorList = result;
@@ -107,8 +108,8 @@ $(window).on("load", function () {
                           populateDoctorDropdown("doctorSelect");
                           populateDoctorDropdown("doctorInfoSelect");
                           // Fetch and display doctors who have access
-                          contractInstance.methods
-                            .get_accessed_doctorlist_for_patient(patientAddress)
+                          accessControl.methods
+                            .getAccessedDoctorListForPatient(patientAddress)
                             .call(
                               { gas: 1000000 },
                               function (error, accessedDoctorList) {
@@ -195,9 +196,20 @@ $(window).on("load", function () {
   });
 
   loadSentAppointmentRequests();
-});
+}
+
 
 // Function to display record of patient
+
+window.addEventListener("contractsReady", async () => {
+  console.log("contractsReady → proxy");
+  await loadProxyData();
+
+  // default panel (prevents white screen)
+  $(".panel").hide();
+  $("#personalInfoPanel").show();
+});
+
 function showRecords(element) {
   var table = document.getElementById("viewPatient");
   var index = element.parentNode.parentNode.rowIndex;
@@ -222,8 +234,8 @@ function showRecords(element) {
     }
 
     // Get the hash of the record for the patient based on their address
-    contractInstance.methods
-      .get_hash(patientAddress)
+    medicalDataRegistry.methods
+      .getHash(patientAddress)
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           // Get data from ipfs based on hash
@@ -282,13 +294,13 @@ function populateDoctorDropdown(dropdownId) {
   web3.eth.getAccounts().then((accounts) => {
     key = accounts[0].toLowerCase();
     // Ensure contractInstance is defined
-    if (!contractInstance) {
-      console.error("contractInstance is not defined.");
+    if (!userRegistry) {
+      console.error("userRegistry is not defined.");
       return;
     }
 
     userRegistry.methods
-      .getDoctor_list()
+      .getDoctorList()
       .call({ gas: 1000000 }, function (error, DoctorList) {
         if (error) {
           console.error("Error fetching doctor list:", error);
@@ -344,7 +356,7 @@ function viewDoctorInfo() {
       .getDoctor(selectedDoctorAddress)
       .call({ from: key })
       .then(function (doctorDetails) {
-        var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
+        var ipfsHash = doctorDetails[4]; // Adjust based on your data structure
 
         if (!ipfsHash) {
           document.getElementById("doctorInfoDisplay").innerHTML =
@@ -411,16 +423,16 @@ function giveAccessByProxy() {
         var patientAddress = proxyDetails.patientAddress;
 
         // Before attempting to add, check if the doctor already has access
-        contractInstance.methods
-          .get_accessed_doctorlist_for_patient(patientAddress)
+        accessControl.methods
+          .getAccessedDoctorListForPatient(patientAddress)
           .call({ gas: 1000000 }, function (err, accessedDoctors) {
             if (!err) {
               if (accessedDoctors.includes(doctorToBeAdded)) {
                 alert("The doctor already has access to the patient's records.");
               } else {
                 // Doctor not in the list, proceed to give access
-                contractInstance.methods
-                  .permit_access_by_proxy(doctorToBeAdded, patientAddress)
+                accessControl.methods
+                  .grantDoctorAccessByProxy(doctorToBeAdded, patientAddress)
                   .send(
                     {
                       from: key,
@@ -474,7 +486,7 @@ function revokeAccessByProxy(element) {
       const fromAddress = accounts[0];
 
       userRegistry.methods
-        .getDoctor_list()
+        .getDoctorList()
         .call({ gas: 1000000 }, function (error, result) {
           if (!error) {
             var doctorList = result;
@@ -487,8 +499,8 @@ function revokeAccessByProxy(element) {
                   var patientAddress = proxyDetails.patientAddress;
 
                   // Call the contract's revoke_access method
-                  contractInstance.methods
-                    .revoke_access_by_proxy(docKey, patientAddress)
+                  accessControl.methods
+                    .revokeDoctorAccessByProxy(docKey, patientAddress)
                     .send({ from: fromAddress, gas: 1000000 })
                     .on("transactionHash", function (hash) {
                       console.log("Transaction Hash:", hash);
@@ -556,8 +568,8 @@ function scheduleAppointmentByProxy() {
                 const doctorLastName = doctorResult[1];
 
                 // Check if the selected doctor has access
-                contractInstance.methods
-                  .get_accessed_doctorlist_for_patient(patientAddress)
+                accessControl.methods
+                  .getAccessedDoctorListForPatient(patientAddress)
                   .call()
                   .then((doctorList) => {
                     const doctorHasAccess = doctorList.includes(doctorId);
@@ -607,7 +619,7 @@ function scheduleAppointmentByProxy() {
                       const ipfsHash = result[0].hash;
 
                       // Send the IPFS hash and other appointment details to the smart contract
-                      contractInstance.methods
+                      appointmentManager.methods
                         .requestAppointmentByProxy(
                           doctorId,
                           patientAddress,
@@ -727,17 +739,17 @@ function scheduleAppointmentByProxy() {
 function loadSentAppointmentRequests() {
   web3.eth.getAccounts().then(function (accounts) {
     const proxyAddress = accounts[0]; // Using proxy's address
-    contractInstance.methods
-      .get_accessed_patientlist_for_proxy(proxyAddress)
+    accessControl.methods
+      .getAccessedPatientListForProxy(proxyAddress)
       .call()
       .then(function (patientAddresses) {
         patientAddresses.forEach(function (patientAddress) {
-          contractInstance.methods
+          appointmentManager.methods
             .getPatientAppointments(patientAddress)
             .call({ from: proxyAddress })
             .then(function (appointmentIds) {
               appointmentIds.forEach(function (id) {
-                contractInstance.methods
+                appointmentManager.methods
                   .appointments(id)
                   .call()
                   .then(function (appointment) {
@@ -906,7 +918,7 @@ function populateHoursDropdown() {
 
   for (let hour = startHour; hour <= endHour; hour++) {
     // Push each availability check promise to the array
-    let promise = contractInstance.methods
+    let promise = appointmentManager.methods
       .isTimeSlotAvailable(doctorId, formattedDate, hour)
       .call()
       .then((isAvailable) => ({ hour, isAvailable }));

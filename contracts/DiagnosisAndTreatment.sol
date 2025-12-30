@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./AppointmentManager.sol";
 import "./MedicalDataRegistry.sol";
+import  "./AccessControl.sol";
 
 contract DiagnosisAndTreatment {
 
@@ -12,62 +13,85 @@ contract DiagnosisAndTreatment {
 
     AppointmentManager appointmentManager;
     MedicalDataRegistry medicalDataRegistry;
+    AccessControl accessControl;
 
-    constructor(address _appointmentManager, address _medicalDataRegistry) public {
+    constructor(address _appointmentManager, address _medicalDataRegistry, address _accessControl ) public {
         appointmentManager = AppointmentManager(_appointmentManager);
         medicalDataRegistry = MedicalDataRegistry(_medicalDataRegistry);
+        accessControl = AccessControl(_accessControl);
     }
 
-    function submitDiagnosis(address paddr, uint _diagnosis, string memory _hash) public {
+   function submitDiagnosis(
+    uint appointmentId,
+    string memory _hash
+) public {
 
-        uint[] memory doctorAppointments = appointmentManager.getDoctorAppointments(msg.sender);
-        uint acceptedAppointmentId = uint(-1);
+    string memory ipfsHash;
+    bool isAccepted;
+    address patientAddr;
+    address doctorAddr;
+    uint256 date;
+    uint8 hour;
+    bool diagnosisSubmitted;
+    bool treatmentPlanSubmitted;
 
-        for (uint i = 0; i < doctorAppointments.length; i++) {
-            uint appointmentId = doctorAppointments[i];
+    (
+        ipfsHash,
+        isAccepted,
+        patientAddr,
+        doctorAddr,
+        date,
+        hour,
+        diagnosisSubmitted,
+        treatmentPlanSubmitted
+    ) = appointmentManager.getAppointment(appointmentId);
 
-            (
-                string memory ipfsHash,
-                bool isAccepted,
-                address patientAddr,
-                address doctorAddr,
-                uint256 date,
-                uint8 hour,
-                bool diagnosisSubmitted,
-                bool treatmentPlanSubmitted
-            ) = appointmentManager.appointments(appointmentId);
+    require(isAccepted, "Appointment not accepted");
+    require(!diagnosisSubmitted, "Diagnosis already submitted");
+    require(doctorAddr == msg.sender, "Only assigned doctor can submit diagnosis");
 
-            if (
-                patientAddr == paddr &&
-                doctorAddr == msg.sender &&
-                isAccepted &&
-                !diagnosisSubmitted
-            ) {
-                acceptedAppointmentId = appointmentId;
-                break;
-            }
-        }
+    // Mark diagnosis as submitted
+    appointmentManager.setDiagnosisSubmitted(appointmentId);
 
-        require(acceptedAppointmentId != uint(-1), "No accepted appointment found.");
+    // Store updated medical record hash
+    medicalDataRegistry.setHash(patientAddr, _hash);
 
-        // ✅ Mark in AppointmentManager
-        appointmentManager.setDiagnosisSubmitted(acceptedAppointmentId);
+    emit DiagnosisSubmitted(msg.sender, patientAddr, appointmentId);
+}
 
-        // ✅ Store hash
-        medicalDataRegistry.setHash(paddr, _hash);
 
-        emit DiagnosisSubmitted(msg.sender, paddr, acceptedAppointmentId);
-    }
+ function submitTreatmentPlan(
+    uint appointmentId,
+    string memory treatmentPlanIPFSHash
+) public {
 
-    function submitTreatmentPlan(uint appointmentId, string memory treatmentPlanIPFSHash) public {
+    // Use getAppointment for consistency
+    (
+        string memory ipfsHash,
+        bool isAccepted,
+        address patientAddr,
+        address doctorAddr,
+        uint256 date,
+        uint8 hour,
+        bool diagnosisSubmitted,
+        bool treatmentPlanSubmitted
+    ) = appointmentManager.getAppointment(appointmentId);
 
-        // ✅ Mark inside AppointmentManager
-        appointmentManager.setTreatmentPlanSubmitted(appointmentId);
+    require(isAccepted, "Appointment not accepted");
+    require(diagnosisSubmitted, "Diagnosis not submitted yet");
+    require(!treatmentPlanSubmitted, "Treatment plan already submitted");
+    require(doctorAddr == msg.sender, "Only assigned doctor can submit treatment");
 
-        // ✅ Store treatment plan hash
-        (, , address patientAddress, , , , , ) = appointmentManager.appointments(appointmentId);
-        medicalDataRegistry.setHash(patientAddress, treatmentPlanIPFSHash);
+    // Mark treatment plan as submitted
+    appointmentManager.setTreatmentPlanSubmitted(appointmentId);
 
-        emit TreatmentPlanSubmitted(msg.sender, patientAddress, appointmentId);
-    }
+    // Store treatment plan hash
+    medicalDataRegistry.setHash(patientAddr, treatmentPlanIPFSHash);
+
+    // Revoke doctor access automatically
+    accessControl.removePatient(patientAddr, doctorAddr);
+
+    emit TreatmentPlanSubmitted(msg.sender, patientAddr, appointmentId);
+}
+
 }

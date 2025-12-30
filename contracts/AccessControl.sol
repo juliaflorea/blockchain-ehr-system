@@ -4,8 +4,9 @@ pragma experimental ABIEncoderV2;
 
 import "./UserRegistry.sol";
 
-contract AccessControl is UserRegistry {
+contract AccessControl {
 
+    UserRegistry userRegistry;
     uint public creditPool;
 
     // ===== Events =====
@@ -16,6 +17,10 @@ contract AccessControl is UserRegistry {
     event ProxyAccessRevoked(address indexed patient, address indexed proxy);
     event ProxyAccessRegranted(address indexed patient, address indexed proxy);
 
+    constructor(address _userRegistry) public {
+        userRegistry = UserRegistry(_userRegistry);
+    }
+
     // ---------------------------
     // Access granting
     // ---------------------------
@@ -24,25 +29,32 @@ contract AccessControl is UserRegistry {
         require(msg.value == 2 ether, "Payment must be 2 ether");
         creditPool += 2;
 
-        doctorInfo[doctorAddr].patientAccessList.push(msg.sender);
-        patientInfo[msg.sender].doctorAccessList.push(doctorAddr);
+       userRegistry.addPatientToDoctor(doctorAddr, msg.sender);
+       userRegistry.addDoctorToPatient(msg.sender, doctorAddr);
+
 
         emit DoctorAccessGranted(msg.sender, doctorAddr);
     }
 
     function grantDoctorAccessByProxy(address doctorAddr, address patientAddr) public payable {
         require(msg.value == 2 ether, "Payment must be 2 ether");
-        require(proxies[msg.sender].isAuthorized, "Proxy not authorized");
-        require(patientInfo[patientAddr].proxyAddress == msg.sender, "Caller is not the proxy");
+        require(userRegistry.getProxy(msg.sender).isAuthorized, "Proxy not authorized");
+        require(
+    userRegistry.getProxy(msg.sender).patientAddress == patientAddr,
+    "Caller is not the proxy"
+);
 
         // Prevent double granting
-        for (uint i = 0; i < patientInfo[patientAddr].doctorAccessList.length; i++) {
-            require(patientInfo[patientAddr].doctorAccessList[i] != doctorAddr, "Access already granted");
+        address[] memory existing = getAccessedDoctorListForPatient(patientAddr);
+        for (uint i = 0; i < existing.length; i++) {
+            require(existing[i] != doctorAddr, "Access already granted");
         }
 
         creditPool += 2;
-        patientInfo[patientAddr].doctorAccessList.push(doctorAddr);
-        doctorInfo[doctorAddr].patientAccessList.push(patientAddr);
+        
+        userRegistry.addDoctorToPatient(patientAddr, doctorAddr);
+        userRegistry.addPatientToDoctor(doctorAddr, patientAddr);
+
 
         emit DoctorAccessGrantedByProxy(msg.sender, patientAddr, doctorAddr);
     }
@@ -63,32 +75,9 @@ contract AccessControl is UserRegistry {
     }
 
     function removePatient(address patientAddr, address doctorAddr) public {
-        removeElement(doctorInfo[doctorAddr].patientAccessList, patientAddr);
-        removeElement(patientInfo[patientAddr].doctorAccessList, doctorAddr);
-    }
+        userRegistry.removePatientFromDoctor(doctorAddr, patientAddr);
+        userRegistry.removeDoctorFromPatient(patientAddr, doctorAddr);
 
-    function removeProxy(address patientAddr) internal {
-        require(patientInfo[patientAddr].hasDesignatedProxy, "No designated proxy");
-
-        address proxyAddr = patientInfo[patientAddr].proxyAddress;
-        require(proxyAddr != address(0), "Invalid proxy address");
-
-        proxies[proxyAddr].isAuthorized = false;
-
-        // Remove patient from proxy's list
-        address[] storage accessList = proxies[proxyAddr].patientAccessList;
-        for (uint i = 0; i < accessList.length; i++) {
-            if (accessList[i] == patientAddr) {
-                accessList[i] = accessList[accessList.length - 1];
-                accessList.pop();
-                break;
-            }
-        }
-
-        patientInfo[patientAddr].hasDesignatedProxy = false;
-        patientInfo[patientAddr].proxyAddress = address(0);
-
-        emit ProxyAccessRevoked(patientAddr, proxyAddr);
     }
 
     // ---------------------------
@@ -96,17 +85,17 @@ contract AccessControl is UserRegistry {
     // ---------------------------
 
     function getAccessedDoctorListForPatient(address addr) public view returns (address[] memory) {
-        return patientInfo[addr].doctorAccessList;
+        return userRegistry.getDoctorAccessList(addr);
     }
 
     function getAccessedPatientListForDoctor(address addr) public view returns (address[] memory) {
-        return doctorInfo[addr].patientAccessList;
+         return userRegistry.getPatientAccessList(addr);
     }
 
     function getAccessedPatientListForProxy(
         address proxyAddress
     ) public view returns (address[] memory) {
-        Proxy memory proxy = proxies[proxyAddress];
+        UserRegistry.Proxy memory proxy = userRegistry.getProxy(proxyAddress);
         address[] memory accessedPatients = new address[](1);
         accessedPatients[0] = proxy.patientAddress;
         return accessedPatients;
@@ -116,7 +105,7 @@ contract AccessControl is UserRegistry {
         address patientAddress
     ) public view returns (address[] memory) {
         address[] memory accessedProxies = new address[](1);
-        accessedProxies[0] = patientInfo[patientAddress].proxyAddress;
+        accessedProxies[0] = userRegistry.getPatient(patientAddress).proxyAddress;
         return accessedProxies;
     }
 
@@ -139,8 +128,8 @@ contract AccessControl is UserRegistry {
     }
 
     function revokeDoctorAccessByProxy(address doctorAddr, address patientAddr) public payable {
-        require(proxies[msg.sender].isAuthorized, "Proxy not authorized");
-        require(patientInfo[patientAddr].proxyAddress == msg.sender, "Caller is not the proxy");
+        require(userRegistry.getProxy(msg.sender).isAuthorized, "Proxy not authorized");
+        require(userRegistry.getPatient(patientAddr).proxyAddress == msg.sender, "Caller is not the proxy");
         require(address(this).balance >= 2 ether, "Insufficient contract balance for refund");
 
         removePatient(patientAddr, doctorAddr);
@@ -152,21 +141,23 @@ contract AccessControl is UserRegistry {
 
     function revokeProxyAccess() public {
         address patientAddr = msg.sender;
-        require(patientInfo[patientAddr].hasDesignatedProxy, "No proxy to revoke");
-        require(patientInfo[patientAddr].age >= 16, "Patient under 16 cannot revoke proxy");
+        require(userRegistry.getPatient(patientAddr).hasDesignatedProxy, "No proxy to revoke");
+        require(userRegistry.getPatient(patientAddr).age >= 16, "Patient under 16 cannot revoke proxy");
+        address proxyAddr = userRegistry.getPatient(patientAddr).proxyAddress;
 
-        removeProxy(patientAddr);
+        userRegistry.revokeProxyAccess(proxyAddr, patientAddr);
+
+        emit ProxyAccessRevoked(patientAddr, proxyAddr);
+
     }
 
     function regrantProxyAccess(address proxyAddr) public payable {
-        require(!proxies[proxyAddr].isAuthorized, "Proxy already authorized");
-        require(proxies[proxyAddr].patientAddress == msg.sender, "Proxy not designated for patient");
+        require(!userRegistry.getProxy(proxyAddr).isAuthorized, "Proxy already authorized");
+        require(userRegistry.getProxy(proxyAddr).patientAddress == msg.sender, "Proxy not designated for patient");
         require(msg.value == 2 ether, "Payment must be 2 ether");
 
         creditPool += 2;
-        proxies[proxyAddr].isAuthorized = true;
-        patientInfo[msg.sender].proxyAddress = proxyAddr;
-        patientInfo[msg.sender].hasDesignatedProxy = true;
+        userRegistry.regrantProxy(proxyAddr, msg.sender);
 
         emit ProxyAccessRegranted(msg.sender, proxyAddr);
     }

@@ -2,56 +2,64 @@
 pragma solidity ^0.5.1;
 pragma experimental ABIEncoderV2;
 
-import "./AccessControl.sol";
+import "./UserRegistry.sol";
 
-contract MedicalDataRegistry is AccessControl {
+contract MedicalDataRegistry {
+
+    UserRegistry userRegistry;
 
     // ===== Events =====
     event RecordUpdated(address indexed user, string ipfsHash, uint256 timestamp);
 
+    constructor(address _userRegistry) public {
+        userRegistry = UserRegistry(_userRegistry);
+    }
+
+    mapping(address => string) private medicalRecords;
+    mapping(address => bool) public trustedWriters;
+
+
+
     // ===== Functions =====
 
     // Sets or updates the IPFS hash for a user's medical record
-    function setHash(address userAddr, string memory ipfsHash) public {
-        // Only the user itself or an authorized proxy or doctor can update
-        require(
-            msg.sender == userAddr || 
-            isAuthorizedDoctorForPatient(userAddr, msg.sender) || 
-            isAuthorizedProxyForPatient(userAddr, msg.sender),
-            "Caller not authorized to update this record"
-        );
+   
+   function setHash(address userAddr, string memory ipfsHash) public {
+    require(
+    msg.sender == userAddr ||
+    msg.sender == address(userRegistry) ||
+    trustedWriters[msg.sender] ||
+    isAuthorizedDoctorForPatient(userAddr, msg.sender) ||
+    isAuthorizedProxyForPatient(userAddr, msg.sender),
+    "Not authorized to update record"
+);
 
-        // Update the record hash in the corresponding struct
-        if (bytes(patientInfo[userAddr].firstName).length != 0) {
-            patientInfo[userAddr].record = ipfsHash;
-        } else if (bytes(doctorInfo[userAddr].firstName).length != 0) {
-            doctorInfo[userAddr].record = ipfsHash;
-        } else if (bytes(proxies[userAddr].firstName).length != 0) {
-            proxies[userAddr].record = ipfsHash;
-        } else {
-            revert("User not found");
-        }
 
-        emit RecordUpdated(userAddr, ipfsHash, now);
-    }
+    require(userRegistry.userExists(userAddr), "User not found");
+
+    medicalRecords[userAddr] = ipfsHash;
+
+    // 🔁 sync BACK to UserRegistry
+    userRegistry.updateLocalRecord(userAddr, ipfsHash);
+
+    emit RecordUpdated(userAddr, ipfsHash, block.timestamp);
+}
 
     // Gets the IPFS hash of a user's medical record
     function getHash(address userAddr) public view returns (string memory) {
-        if (bytes(patientInfo[userAddr].firstName).length != 0) {
-            return patientInfo[userAddr].record;
-        } else if (bytes(doctorInfo[userAddr].firstName).length != 0) {
-            return doctorInfo[userAddr].record;
-        } else if (bytes(proxies[userAddr].firstName).length != 0) {
-            return proxies[userAddr].record;
-        } else {
-            revert("User not found");
-        }
+      require(
+    msg.sender == userAddr ||
+    isAuthorizedDoctorForPatient(userAddr, msg.sender) ||
+    isAuthorizedProxyForPatient(userAddr, msg.sender),
+    "Not authorized to read record"
+);
+       return medicalRecords[userAddr];
     }
 
     // ===== Internal helper functions =====
 
     function isAuthorizedDoctorForPatient(address patientAddr, address doctorAddr) internal view returns (bool) {
-        address[] memory doctors = getAccessedDoctorListForPatient(patientAddr);
+        address[] memory doctors = userRegistry.getDoctorAccessList(patientAddr);
         for (uint i = 0; i < doctors.length; i++) {
             if (doctors[i] == doctorAddr) {
                 return true;
@@ -61,12 +69,22 @@ contract MedicalDataRegistry is AccessControl {
     }
 
     function isAuthorizedProxyForPatient(address patientAddr, address proxyAddr) internal view returns (bool) {
-        address[] memory proxiesList = getAccessedProxyListForPatient(patientAddr);
-        for (uint i = 0; i < proxiesList.length; i++) {
-            if (proxiesList[i] == proxyAddr) {
-                return true;
-            }
+        UserRegistry.Patient memory p = userRegistry.getPatient(patientAddr);
+
+        if (!p.hasDesignatedProxy) {
+            return false;
         }
-        return false;
-    }
+
+        if (p.proxyAddress != proxyAddr) {
+            return false;
+        }
+
+        UserRegistry.Proxy memory prx = userRegistry.getProxy(proxyAddr);
+        return prx.isAuthorized;
+        }
+
+    function setTrustedWriter(address writer, bool allowed) external {
+    trustedWriters[writer] = allowed;
+}
+
 }

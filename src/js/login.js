@@ -132,3 +132,7 @@ $(document).ready(function () {
     } // End if
   });
 });
+
+// Make login accessible globally
+window.login = login;
+

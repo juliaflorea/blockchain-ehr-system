@@ -1,47 +1,22 @@
 // config.js
-(async function() {
+window.loadContracts = (async function () {
   try {
-    // Load UserRegistry contract
-    const userRegistryResponse = await fetch("../../build/contracts/UserRegistry.json");
-    const userRegistryData = await userRegistryResponse.json();
+    const responses = await Promise.all([
+      fetch("../../build/contracts/UserRegistry.json"),
+      fetch("../../build/contracts/AccessControl.json"),
+      fetch("../../build/contracts/MedicalDataRegistry.json"),
+      fetch("../../build/contracts/AppointmentManager.json"),
+      fetch("../../build/contracts/DiagnosisAndTreatment.json")
+    ]);
 
-    // Load AccessControl contract
-    const accessControlResponse = await fetch("../../build/contracts/AccessControl.json");
-    const accessControlData = await accessControlResponse.json();
+    const data = await Promise.all(responses.map(r => r.json()));
 
-    const medicalDataRegistryResponse = await fetch("../../build/contracts/MedicalDataRegistry.json");
-    const medicalDataRegistryResponseData = await medicalDataRegistryResponse.json();
-
-    const appointmentManagerResponse = await fetch("../../build/contracts/AppointmentManager.json");
-    const appointmentManagerResponseData = await appointmentManagerResponse.json();
-
-    const diagnosisAndTreatmentResponse = await fetch("../../build/contracts/DiagnosisAndTreatment.json");
-    const diagnosisAndTreatmentResponseData = await diagnosisAndTreatmentResponse.json();
-
-
-    // Store contracts globally
     window.contracts = {
-      UserRegistry: {
-        abi: userRegistryData.abi,
-        networks: userRegistryData.networks
-      },
-      AccessControl: {
-        abi: accessControlData.abi,
-        networks: accessControlData.networks
-      },
-      MedicalDataRegistry: {
-        abi: medicalDataRegistryResponseData.abi,
-        networks: medicalDataRegistryResponseData.networks
-      },
-      AppointmentManager: {
-        abi: appointmentManagerResponseData.abi,
-        networks: appointmentManagerResponseData.networks
-      },
-      DiagnosisAndTreatment: {
-        abi: diagnosisAndTreatmentResponseData.abi,
-        networks: diagnosisAndTreatmentResponseData.networks
-      }
-
+      UserRegistry: { abi: data[0].abi, networks: data[0].networks },
+      AccessControl: { abi: data[1].abi, networks: data[1].networks },
+      MedicalDataRegistry: { abi: data[2].abi, networks: data[2].networks },
+      AppointmentManager: { abi: data[3].abi, networks: data[3].networks },
+      DiagnosisAndTreatment: { abi: data[4].abi, networks: data[4].networks }
     };
 
     console.log("Contracts loaded:", Object.keys(window.contracts));

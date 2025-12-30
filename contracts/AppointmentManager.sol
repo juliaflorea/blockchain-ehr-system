@@ -2,10 +2,13 @@
 pragma solidity ^0.5.1;
 pragma experimental ABIEncoderV2;
 
-import "./AccessControl.sol";
+import "./UserRegistry.sol";
 
+contract AppointmentManager {
 
-contract AppointmentManager is AccessControl {
+    UserRegistry userRegistry;
+    address public diagnosisContract;
+
 
     struct Appointment {
         string ipfsHash;
@@ -37,6 +40,10 @@ contract AppointmentManager is AccessControl {
     event AppointmentRejected(uint indexed appointmentId, address indexed doctor, address indexed patient);
     event AvailabilityUpdated(address indexed doctor, uint256 date, uint8 hour, bool isAvailable);
 
+    constructor(address _userRegistry) public {
+        userRegistry = UserRegistry(_userRegistry);
+    }
+
     // ---------------------------------------------
     // Request appointment (patient directly)
     // ---------------------------------------------
@@ -47,7 +54,7 @@ contract AppointmentManager is AccessControl {
         uint8 _appointmentHour
     ) public {
         bool accessGiven = false;
-        address[] memory doctors = getAccessedDoctorListForPatient(msg.sender);
+        address[] memory doctors = userRegistry.getDoctorAccessList(msg.sender);
         for (uint i = 0; i < doctors.length; i++) {
             if (doctors[i] == _doctor) {
                 accessGiven = true;
@@ -95,12 +102,11 @@ contract AppointmentManager is AccessControl {
         uint256 _appointmentDate,
         uint8 _appointmentHour
     ) public {
-        require(
-            patientInfo[_patient].proxyAddress == msg.sender,
-            "Caller is not the proxy for this patient"
-        );
+       require(userRegistry.getPatient(_patient).proxyAddress == msg.sender, "Caller is not the proxy for this patient");
+
+
         bool accessGranted = false;
-        address[] memory doctors = getAccessedDoctorListForPatient(_patient);
+        address[] memory doctors = userRegistry.getDoctorAccessList(_patient);
         for (uint i = 0; i < doctors.length; i++) {
             if (doctors[i] == _doctor) {
                 accessGranted = true;
@@ -108,7 +114,7 @@ contract AppointmentManager is AccessControl {
             }
         }
 
-      require(
+        require(
             accessGranted,
             "Doctor does not have access to the patient's records."
         );
@@ -160,7 +166,8 @@ contract AppointmentManager is AccessControl {
                 otherAppointment.date == appointment.date &&
                 otherAppointment.hour == appointment.hour &&
                 otherAppointment.isAccepted
-            ) {                revert("Another appointment is already booked for this time slot.");
+            ) {
+                revert("Another appointment is already booked for this time slot.");
             }
         }
 
@@ -200,8 +207,13 @@ contract AppointmentManager is AccessControl {
     Appointment storage appointment = appointments[_appointmentId];
 
     require(appointment.isAccepted, "Appointment not accepted");
-    require(msg.sender == appointment.doctorAddress, "Only doctor can submit diagnosis");
     require(!appointment.diagnosisSubmitted, "Diagnosis already submitted");
+
+    // Only doctor or diagnosisContract can call
+    require(
+        msg.sender == appointment.doctorAddress || msg.sender == diagnosisContract,
+        "Not authorized"
+    );
 
     appointment.diagnosisSubmitted = true;
 }
@@ -210,10 +222,49 @@ function setTreatmentPlanSubmitted(uint _appointmentId) public {
     Appointment storage appointment = appointments[_appointmentId];
 
     require(appointment.isAccepted, "Appointment not accepted");
-    require(msg.sender == appointment.doctorAddress, "Only doctor can submit treatment plan");
     require(appointment.diagnosisSubmitted, "Diagnosis must be submitted first");
     require(!appointment.treatmentPlanSubmitted, "Treatment plan already submitted");
 
+    // Only doctor or diagnosisContract can call
+    require(
+        msg.sender == appointment.doctorAddress || msg.sender == diagnosisContract,
+        "Not authorized"
+    );
+
     appointment.treatmentPlanSubmitted = true;
 }
+
+
+    function getAppointment(uint _appointmentId) 
+    public view 
+    returns (
+        string memory ipfsHash,
+        bool isAccepted,
+        address patientAddr,
+        address doctorAddr,
+        uint256 date,
+        uint8 hour,
+        bool diagnosisSubmitted,
+        bool treatmentPlanSubmitted
+    ) 
+{
+    Appointment storage appointment = appointments[_appointmentId];
+    return (
+        appointment.ipfsHash,
+        appointment.isAccepted,
+        appointment.patientAddress,
+        appointment.doctorAddress,
+        appointment.date,
+        appointment.hour,
+        appointment.diagnosisSubmitted,
+        appointment.treatmentPlanSubmitted
+    );
+}
+
+    function setDiagnosisContract(address _addr) external {
+    require(diagnosisContract == address(0), "Already set");
+    diagnosisContract = _addr;
+}
+
+
 }

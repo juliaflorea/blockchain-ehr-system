@@ -30,14 +30,22 @@ body {
   display: none;
 }
 
+.panel.active {
+  display: block !important; 
+}
+
+
 .panel-body {
   padding: 2rem;
   color: #5a5c69;
 }
 
-#personalInfoPanel {
+
+
+#personalInfoPanel.active {
   display: block;
 }
+
 
 #personalInfoPanel .panel-body {
   background-color: #f7f7f7;
@@ -194,7 +202,11 @@ body {
 #appointmentPanel,
 #sentAppointmentRequests {
   width: 80%;
-  margin: 0 auto;
+  margin: 0 auto; 
+}
+
+#appointmentPanel.active,
+#sentAppointmentRequests.active {
   display: block;
 }
 

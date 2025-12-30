@@ -93,7 +93,7 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
 
     const ipfsHash = result[0].hash;
     try {
-      await userRegistry.methods
+      
       await userRegistry.methods
       .addPatient(
         data.firstName,
@@ -273,6 +273,16 @@ function formatPatientData(patientData, publicKey) {
 }
 
 function formatDoctorData(doctorData, publicKey) {
+  let yearsOfExperience = "";
+  let specialty = "";
+  if (doctorData.qualification && doctorData.qualification.length > 0) {
+    specialty = doctorData.qualification[0].code?.text || "";
+    const extension = doctorData.qualification[0].extension?.find(
+      e => e.url === "http://example.org/fhir/StructureDefinition/yearsOfExperience"
+    );
+    if (extension) yearsOfExperience = extension.valueInteger;
+  }
+
   let dataString = `Doctor Information\n`;
   dataString += `First Name: ${doctorData.name[0].given.join(" ")}\n`;
   dataString += `Last Name: ${doctorData.name[0].family}\n`;
@@ -280,12 +290,13 @@ function formatDoctorData(doctorData, publicKey) {
   dataString += `Birth Date: ${doctorData.birthDate}\n`;
   dataString += `Contact: ${doctorData.telecom.map(t => `${t.system}: ${t.value}`).join(", ")}\n`;
   dataString += `Address: ${doctorData.address.map(a => a.line.join(", ")).join(", ")}\n`;
-  dataString += `Years of Experience: ${doctorData.yearsOfExperience || ""}\n`;
-  dataString += `Specialty: ${doctorData.specialty || ""}\n`;
-  dataString += `License Number: ${doctorData.licenseNumber || ""}\n`;
+  dataString += `Years of Experience: ${yearsOfExperience}\n`;
+  dataString += `Specialty: ${specialty}\n`;
+  dataString += `License Number: ${doctorData.qualification[0].identifier[0].value || ""}\n`;
   dataString += `Public Key: ${publicKey}\n`;
   return dataString;
 }
+
 
 function formatProxyData(proxyData, publicKey, proxyOption, hashOrToken, patientEthereumAddress) {
   let dataString = `Proxy Information\n`;
@@ -397,6 +408,8 @@ async function validatePOADetails(buffer, formDetails) {
 
   return allDetailsMatch;
 }
+
+
 
 // ================= Doctor Certificate Validation =================
 function validateDoctorCertificate(file, licenseNumber) {
