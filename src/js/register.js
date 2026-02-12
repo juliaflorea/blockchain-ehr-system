@@ -27,11 +27,15 @@ async function addUser() {
     ? document.getElementById("poaDoc").files[0]
     : null;
 
-  const accounts = await web3.eth.getAccounts();
-  if (accounts.length === 0) {
-    alert("No MetaMask account found. Please connect your wallet.");
-    return;
-  }
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+
+    if (!accounts || accounts.length === 0) {
+      alert("Please connect MetaMask first.");
+      return;
+    }
+    
+   
+    
 
   const publicKey = accounts[0].toLowerCase();
   console.log("Public Key:", publicKey);
@@ -71,43 +75,118 @@ async function addUser() {
   }
 }
 
-// ================= Patient Registration =================
+// ================= Patient Registration (SECURE + VALIDATED) =================
 async function registerPatient(ipfs, Buffer, publicKey, data) {
-  const fhirPatient = {
-    resourceType: "Patient",
-    name: [{ family: data.lastName, given: [data.firstName] }],
-    gender: data.gender,
-    birthDate: data.birthDate,
-    telecom: [
-      { system: "phone", value: data.phoneNumber, use: "mobile" },
-      { system: "email", value: data.email },
-    ],
-    address: [{ use: "home", line: [data.address] }],
-  };
+  try {
+    console.log("🚀 Starting secure patient registration...");
 
-  const formatted = formatPatientData(fhirPatient, publicKey);
-  const buffer = Buffer.from(formatted);
+    const ethAddress = publicKey; // already lowercase
 
-  ipfs.files.add(buffer, async (error, result) => {
-    if (error) return console.error("IPFS error:", error);
+    // ---------- PASSWORD VALIDATION ----------
+    const passwordInput = document.getElementById("patientPassword");
+    const passwordError = document.getElementById("passwordError");
+    const password = passwordInput.value;
 
-    const ipfsHash = result[0].hash;
-    try {
-      
-      await userRegistry.methods
+    if (!password || !isStrongPassword(password)) {
+      passwordError.style.display = "block";
+      throw new Error("Weak or missing password");
+    }
+
+    passwordError.style.display = "none";
+
+    // ---------- Build FHIR Patient ----------
+    const fhirPatient = {
+      resourceType: "Patient",
+      name: [
+        {
+          family: data.lastName,
+          given: [data.firstName]
+        }
+      ],
+      gender: data.gender,
+      birthDate: data.birthDate,
+      telecom: [
+        {
+          system: "phone",
+          value: data.phoneNumber
+        },
+        {
+          system: "email",
+          value: data.email
+        }
+      ],
+      address: [
+        {
+          use: "home",
+          line: [data.address]
+        }
+      ]
+    };
+
+    const plaintext = JSON.stringify(fhirPatient);
+
+    // ---------- Generate RMK ----------
+    const rmk = await window.generateAESKey(); // extractable
+
+    // ---------- Encrypt patient record ----------
+    const encryptedPayload = await window.encryptAES(plaintext, rmk);
+
+    const ipfsBuffer = Buffer.from(
+      JSON.stringify(encryptedPayload)
+    );
+
+    const ipfsHash = (
+      await ipfs.files.add(ipfsBuffer)
+    )[0].hash;
+
+    // ---------- Derive User Access Key ----------
+    const uak = await window.deriveUAK(
+      password,
+      ethAddress.toLowerCase()
+    );
+
+    // ---------- Wrap RMK for patient ----------
+    const wrappedRMK = await window.wrapRMK(rmk, uak);
+
+    // ---------- Store patient info ----------
+    await userRegistry.methods
       .addPatient(
         data.firstName,
         data.lastName,
         parseInt(data.age),
         ipfsHash
       )
-      .send({ from: publicKey, gas: 1000000 });
-    
-      location.replace("./patient.html");
-    } catch (err) {
-      console.error("Transaction error:", err);
-    }
-  });
+      .send({
+        from: ethAddress,
+        gas: 1_500_000
+      });
+
+    // ---------- Store wrapped RMK for patient ----------
+    await medicalDataRegistry.methods
+      .setEncryptedAESKey(
+        ethAddress.toLowerCase(),
+        ethAddress.toLowerCase(),
+        wrappedRMK
+      )
+      .send({
+        from: ethAddress,
+        gas: 500_000
+      });
+
+    // ✅ Store RMK in session for immediate access
+    sessionStorage.setItem(
+      "rmk",
+      JSON.stringify(wrappedRMK)
+    );
+
+    console.log("Patient registered successfully");
+
+    location.replace("./patient.html");
+
+  } catch (err) {
+    console.error("❌ Patient registration failed:", err);
+    alert("Registration failed. Please check your password and inputs.");
+  }
 }
 
 // ================= Doctor Registration =================
@@ -240,6 +319,7 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
   }
 }
 
+
 // ================= Utility / Helper Functions =================
 async function checkLicenseUniqueness(licenseNumber) {
   return await userRegistry.methods.isLicenseRegistered(licenseNumber).call();
@@ -250,6 +330,7 @@ function toggleFields() {
   $("#commonFields").css("display", designation !== "" ? "block" : "none");
   $("#doctorFields").css("display", designation === "1" ? "block" : "none");
   $("#proxyFields").css("display", designation === "2" ? "block" : "none");
+  $("#patientPasswordGroup").css("display", designation === "0" ? "block" : "none");
 
   if (designation === "2") toggleProxyOptionFields();
 }
@@ -440,3 +521,6 @@ function validateDoctorCertificate(file, licenseNumber) {
       .catch(err => reject("OCR Error: " + err));
   });
 }
+
+
+

@@ -33,6 +33,7 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
         address[] doctorAccessList;
         address[] proxyAccessList;
         uint[] diagnosis;
+        // Cached IPFS hash (authoritative value in MedicalDataRegistry)
         string record;
         address proxyAddress;
         bool hasDesignatedProxy;
@@ -73,6 +74,8 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
     mapping(string => address) private tokenToPatient;
     mapping(address => string) private patientToToken;
     mapping(address => bytes32) private proxyDetailsHash;
+   
+
 
     // ===== Events =====
     event PatientRegistered(address patient);
@@ -334,5 +337,6 @@ function addProxy(
             proxies[userAddr].record = newHash;
         }
     }
+
 
 }

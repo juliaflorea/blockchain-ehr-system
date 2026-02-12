@@ -194,3 +194,124 @@ function fetchFromIPFS(ipfsHash, callback) {
       console.error("Failed to fetch data from IPFS.");
     });
 }
+
+
+
+// Renders a patient resource as formatted HTML for doctor page
+function renderResource(resource) {
+  if (!resource) return "";
+
+  let html = "";
+
+  if (resource.resourceType === "Patient") {
+    const name = resource.name.map(n => n.given.join(" ") + " " + n.family).join(", ");
+    const gender = resource.gender;
+    const birthDate = resource.birthDate;
+    const phone = resource.telecom?.find(t => t.system === "phone")?.value || "";
+    const email = resource.telecom?.find(t => t.system === "email")?.value || "";
+    const address = resource.address?.map(a => a.line.join(", ")).join("; ") || "";
+    const allergies = resource.allergies?.map(a => 
+      `${a.substance} (${a.reaction}, ${a.criticality})`).join(", ") || "None";
+
+    html += `
+      <div style="border:1px solid #ccc; padding:10px; margin:5px;">
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Gender:</strong> ${gender}</p>
+        <p><strong>Birth Date:</strong> ${birthDate}</p>
+        <p><strong>Phone:</strong> ${phone}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Address:</strong> ${address}</p>
+        <p><strong>Allergies:</strong> ${allergies}</p>
+      </div>
+    `;
+  }
+
+  // ✅ Diagnosis section
+  if (resource.diagnosis && resource.diagnosis.length > 0) {
+    html += `<div style="border:1px solid #007bff; padding:10px; margin:5px;">
+      <h5>Diagnosis History</h5>`;
+    resource.diagnosis.forEach(d => {
+      html += `
+        <p><strong>Date:</strong> ${d.datetime}</p>
+        <p><strong>Doctor:</strong> ${d.doctor}</p>
+        <p><strong>Condition:</strong> ${d.diagnosed}</p>
+        <p><strong>Clinical Status:</strong> ${d.clinicalStatus}</p>
+        <p><strong>Severity:</strong> ${d.severity}</p>
+        <p><strong>Affected Area:</strong> ${d.affectedArea}</p>
+        <p><strong>Details:</strong> ${d.details}</p>
+        <hr>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  // ✅ Treatment Plan section
+  if (resource.treatmentPlan && resource.treatmentPlan.length > 0) {
+    html += `<div style="border:1px solid #28a745; padding:10px; margin:5px;">
+      <h5>Treatment History</h5>`;
+    resource.treatmentPlan.forEach(t => {
+      html += `
+        <p><strong>Date:</strong> ${t.datetime}</p>
+        <p><strong>Doctor:</strong> ${t.doctor}</p>
+        <p><strong>Medication:</strong> ${t.medicationName}</p>
+        <p><strong>Dose:</strong> ${t.dose}</p>
+        <p><strong>Route:</strong> ${t.route}</p>
+        <p><strong>Frequency:</strong> ${t.frequency}</p>
+        <p><strong>Instructions:</strong> ${t.instructions}</p>
+        <hr>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+// Convert record to plain text for download
+function recordToPlainText(record) {
+  let text = "Medical Record\n\n";
+
+  const resources = record.resourceType === "Bundle" && Array.isArray(record.entry)
+    ? record.entry.map(e => e.resource)
+    : [record];
+
+  resources.forEach(r => {
+    if (r.name && r.name.length > 0) {
+      const n = r.name[0];
+      text += `Patient Name: ${n.given.join(" ")} ${n.family}\n`;
+    }
+    if (r.gender) text += `Gender: ${r.gender}\n`;
+    if (r.birthDate) text += `Birth Date: ${r.birthDate}\n`;
+
+    if (r.telecom && r.telecom.length > 0) {
+      text += "Contacts:\n";
+      r.telecom.forEach(t => text += `  ${t.system}: ${t.value}\n`);
+    }
+
+    if (r.address && r.address.length > 0) {
+      text += "Addresses:\n";
+      r.address.forEach(a => text += `  ${a.line ? a.line.join(", ") : ""}\n`);
+    }
+
+    if (r.allergies && r.allergies.length > 0) {
+      text += "Allergies:\n";
+      r.allergies.forEach(a => {
+        text += `  ${a.substance}: ${a.reaction} (Criticality: ${a.criticality}, Recorded: ${a.recordedDate})\n`;
+      });
+    }
+
+    if (r.diagnosis && r.diagnosis.length > 0) {
+      text += "Diagnosis Submission:\n";
+      r.diagnosis.forEach(d => text += `  ${d}\n`);
+    }
+
+    if (r.treatmentPlan && r.treatmentPlan.length > 0) {
+      text += "Treatment Plan:\n";
+      r.treatmentPlan.forEach(t => text += `  ${t}\n`);
+    }
+
+    text += "\n---------------------\n\n";
+  });
+
+  return text;
+}

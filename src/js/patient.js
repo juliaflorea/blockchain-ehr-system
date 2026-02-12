@@ -1,9 +1,9 @@
 var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
-
 var ipfs = null;
 var Buffer = null;
+let sessionAESKey = null; // <-- cache AES key for session
 
 if (window.IpfsApi) {
   ipfs = window.IpfsApi("localhost", "5001");
@@ -14,7 +14,42 @@ if (window.IpfsApi) {
 
 
 toggleRecordsButton = 0;
+let decryptedRecordCache = null;
 var recordHash = "";
+
+
+async function getSessionAESKey() {
+  if (sessionAESKey) return sessionAESKey;
+
+  const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  const patientAddress = accounts[0].toLowerCase(); // ✅ lowercase
+
+  const password = await requestPassword();
+  if (!password) throw new Error("Password required");
+
+  // Only 1 param: patientAddress
+  const wrappedRMK = await medicalDataRegistry.methods
+    .getEncryptedAESKey(patientAddress)
+    .call({ from: patientAddress });
+
+  if (!wrappedRMK || wrappedRMK === "0x") {
+    throw new Error("No encryption key found for patient");
+  }
+
+  // Derive UAK with lowercase address
+  const uak = await window.deriveUAK(password, patientAddress);
+
+  sessionAESKey = await window.unwrapRMK(wrappedRMK, uak);
+
+  // Cache for session
+  window.sessionAESKey = sessionAESKey;
+
+  return sessionAESKey;
+}
+
+
+
+
 
 async function loadPatientData() {
   // Ensure contracts are ready
@@ -140,119 +175,345 @@ async function loadPatientData() {
 
 // Listen for contractsReady before loading patient data
 window.addEventListener("contractsReady", async () => {
-  await loadPatientData();
-  loadSentAppointmentRequests();
-  displayProxiesWithAccess();
-  displayFormerProxies();
-  fetchSymptoms();
+  try {
+    // Prompt for password once and cache AES key
+    await getSessionAESKey();
 
+    // Load patient info
+    await loadPatientData();
+
+    // Load sent appointment requests (uses cached AES key, no prompt)
+    await loadSentAppointmentRequests();
+
+    // Other automatic data loads
+    displayProxiesWithAccess();
+    displayFormerProxies();
+    fetchSymptoms();
+  } catch (err) {
+    console.warn("Unable to auto-load data:", err.message);
+  }
 });
 
+document.getElementById("viewRecordsButton")?.addEventListener("click", async function() {
+  
+  await showRecords(this);   // 'this' is the button
+});
+
+// ==================== Load Sent Appointments Button ====================
+document.getElementById("loadAppointmentsButton")?.addEventListener("click", async function() {
+  await loadSentAppointmentRequests();
+});
 
 // Function to display medical records
-function showRecords(element) {
-  if (toggleRecordsButton % 2 === 0) {
-    // Get the record with the specified hash from IPFS
+async function showRecords(element) {
+  console.log("=== showRecords called ===");
 
-    $.get("http://localhost:8080/ipfs/" + recordHash)
-      .done(function (data) {
-        // Display the fetched data
-        $("#records").html(data);
-        $("#records").show();
-
-        var content = $("#records").html();
-        if (
-          !data.startsWith(
-            '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>'
-          )
-        ) {
-          data =
-            '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>\n' +
-            data;
-        }
-        $("#records").html(data);
-
-        var downloadButton = $("<button/>", {
-          text: "Download Medical Record",
-          class: "btn btn-primary",
-          click: function () {
-            downloadMedicalRecord(data);
-          },
-        });
-        $("#downloadLinkContainer").html(downloadButton);
-      })
-      .fail(function (jqXHR, textStatus, errorThrown) {
-        console.error("Error fetching IPFS data:", errorThrown);
-        $(".alert-danger").show(); // Display an error message to the user
-      });
-
-    toggleRecordsButton += 1;
-
-    element.innerHTML = "Hide Medical Records";
-    element.className = "btn btn-info btn-lg";
-  } else {
+  if (toggleRecordsButton % 2 !== 0) {
     $("#records").hide();
     $("#downloadLinkContainer").empty();
     toggleRecordsButton -= 1;
     element.innerHTML = "View Medical Records";
     element.className = "btn btn-info btn-lg";
+    return;
+  }
+
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
+    console.log("Patient address:", patientAddress);
+
+    const patientAESKey = await getSessionAESKey();
+    console.log("Patient AES key:", patientAESKey);
+
+    const recordHash = await medicalDataRegistry.methods
+      .getHash(patientAddress)
+      .call({ from: patientAddress });
+    console.log("Record hash:", recordHash);
+
+    if (!recordHash) throw new Error("No medical record uploaded");
+
+    // Fetch encrypted JSON from IPFS via HTTP gateway
+    const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
+    const encryptedJson = await resp.text();
+    const encryptedPayload = JSON.parse(encryptedJson);
+
+    // Decrypt
+    const decryptedString = await window.decryptAES(encryptedPayload, patientAESKey);
+    const record = JSON.parse(decryptedString);
+    console.log("Decrypted record:", record);
+
+    // Render HTML
+    let html = '<h5 style="text-align:center;font-weight:bold;">Medical Record</h5><br/>';
+    if (record.resourceType === "Bundle" && Array.isArray(record.entry)) {
+      record.entry.forEach((e) => {
+        if (e.resource) html += renderResource(e.resource);
+      });
+    } else {
+      html += renderResource(record);
+    }
+
+    const plainText = recordToPlainText(record);
+    const fileName = getPatientName(record);
+
+    $("#records").html(html).show();
+    decryptedRecordCache = { html, plainText, fileName };
+
+    $("#downloadLinkContainer").html(
+      $("<button/>", {
+        text: "Download Medical Record",
+        class: "btn btn-primary",
+        click: () => downloadMedicalRecord(plainText, fileName),
+      })
+    );
+
+    toggleRecordsButton += 1;
+    element.innerHTML = "Hide Medical Records";
+    element.className = "btn btn-info btn-lg";
+
+    console.log("Records displayed successfully!");
+  } catch (err) {
+    console.error("Error in showRecords:", err);
+    alert(err.message);
   }
 }
 
+
+
+
+
+// Get the patient name for the filename
+// Recursively find the first name in the record or its nested resources
+function getPatientName(record) {
+  // Case 1: Direct Patient resource
+  if (record?.resourceType === "Patient" && record.name?.length) {
+    const n = record.name[0];
+    return `${n.given.join("_")}_${n.family}`;
+  }
+
+  // Case 2: FHIR Bundle (CORRECT STRUCTURE)
+  if (record?.resourceType === "Bundle" && Array.isArray(record.entry)) {
+    for (const e of record.entry) {
+      const res = e.resource;
+      if (res?.resourceType === "Patient" && res.name?.length) {
+        const n = res.name[0];
+        return `${n.given.join("_")}_${n.family}`;
+      }
+    }
+  }
+
+  return "Unknown_Unknown";
+}
+
+// Convert a record to plain text for PDF download
+// Convert a record to plain text for download
+function recordToPlainText(record) {
+  let text = "Medical Record\n\n";
+
+  const resources = record.resourceType === "Bundle" && Array.isArray(record.entry)
+    ? record.entry.map(e => e.resource)
+    : [record];
+
+  resources.forEach(r => {
+    // Patient Info
+    if (r.name && r.name.length > 0) {
+      const n = r.name[0];
+      text += `Patient Name: ${n.given.join(" ")} ${n.family}\n`;
+    }
+    if (r.gender) text += `Gender: ${r.gender}\n`;
+    if (r.birthDate) text += `Birth Date: ${r.birthDate}\n`;
+
+    // Contacts
+    if (r.telecom && r.telecom.length > 0) {
+      text += "Contacts:\n";
+      r.telecom.forEach(t => text += `  ${t.system}: ${t.value}\n`);
+    }
+
+    // Addresses
+    if (r.address && r.address.length > 0) {
+      text += "Addresses:\n";
+      r.address.forEach(a => text += `  ${a.line ? a.line.join(", ") : ""}\n`);
+    }
+
+    // Allergies
+    if (r.allergies && r.allergies.length > 0) {
+      text += "Allergies:\n";
+      r.allergies.forEach(a => {
+        text += `  ${a.substance}: ${a.reaction} (Criticality: ${a.criticality}, Recorded: ${a.recordedDate})\n`;
+      });
+    }
+
+    // Diagnosis History
+    if (r.diagnosis && r.diagnosis.length > 0) {
+      text += "Diagnosis History:\n";
+      r.diagnosis.forEach(d => {
+        text += `  Date: ${d.datetime}\n`;
+        text += `  Doctor: ${d.doctor}\n`;
+        text += `  Condition: ${d.diagnosed}\n`;
+        text += `  Clinical Status: ${d.clinicalStatus}\n`;
+        text += `  Severity: ${d.severity}\n`;
+        text += `  Affected Area: ${d.affectedArea}\n`;
+        text += `  Details: ${d.details}\n`;
+        text += "  ------------------\n";
+      });
+    }
+
+    // Treatment Plan History
+    if (r.treatmentPlan && r.treatmentPlan.length > 0) {
+      text += "Treatment History:\n";
+      r.treatmentPlan.forEach(t => {
+        text += `  Date: ${t.datetime}\n`;
+        text += `  Doctor: ${t.doctor}\n`;
+        text += `  Medication: ${t.medicationName}\n`;
+        text += `  Dose: ${t.dose}\n`;
+        text += `  Route: ${t.route}\n`;
+        text += `  Frequency: ${t.frequency}\n`;
+        text += `  Instructions: ${t.instructions}\n`;
+        text += "  ------------------\n";
+      });
+    }
+
+    text += "\n====================\n\n";
+  });
+
+  return text;
+}
+
+
+// Render a resource to HTML for browser display
+// Render a resource to HTML for browser display (patient page)
+function renderResource(r) {
+  if (!r) return "";
+
+  let html = '<div class="medical-record" style="border:1px solid #ccc;padding:10px;margin-bottom:10px;">';
+
+  // Basic Patient Info
+  if (r.name && r.name.length > 0) {
+    const name = r.name[0];
+    html += `<strong>Name:</strong> ${name.given.join(" ")} ${name.family}<br/>`;
+  }
+  if (r.gender) html += `<strong>Gender:</strong> ${r.gender}<br/>`;
+  if (r.birthDate) html += `<strong>Birth Date:</strong> ${r.birthDate}<br/>`;
+
+  // Contacts
+  if (r.telecom && r.telecom.length > 0) {
+    html += "<strong>Contacts:</strong><ul>";
+    r.telecom.forEach(t => { html += `<li>${t.system}: ${t.value}</li>`; });
+    html += "</ul>";
+  }
+
+  // Addresses
+  if (r.address && r.address.length > 0) {
+    html += "<strong>Addresses:</strong><ul>";
+    r.address.forEach(a => { html += `<li>${a.line ? a.line.join(", ") : ""}</li>`; });
+    html += "</ul>";
+  }
+
+  // Allergies
+  if (r.allergies && r.allergies.length > 0) {
+    html += "<strong>Allergies:</strong><ul>";
+    r.allergies.forEach(a => {
+      html += `<li>${a.substance}: ${a.reaction} (Criticality: ${a.criticality}, Recorded: ${a.recordedDate})</li>`;
+    });
+    html += "</ul>";
+  }
+
+  // Diagnosis History
+  if (r.diagnosis && r.diagnosis.length > 0) {
+    html += `<div style="border:1px solid #007bff; padding:10px; margin:5px;">
+               <h5>Diagnosis History</h5>`;
+    r.diagnosis.forEach(d => {
+      html += `
+        <p><strong>Date:</strong> ${d.datetime}</p>
+        <p><strong>Doctor:</strong> ${d.doctor}</p>
+        <p><strong>Condition:</strong> ${d.diagnosed}</p>
+        <p><strong>Clinical Status:</strong> ${d.clinicalStatus}</p>
+        <p><strong>Severity:</strong> ${d.severity}</p>
+        <p><strong>Affected Area:</strong> ${d.affectedArea}</p>
+        <p><strong>Details:</strong> ${d.details}</p>
+        <hr>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  // Treatment Plan History
+  if (r.treatmentPlan && r.treatmentPlan.length > 0) {
+    html += `<div style="border:1px solid #28a745; padding:10px; margin:5px;">
+               <h5>Treatment History</h5>`;
+    r.treatmentPlan.forEach(t => {
+      html += `
+        <p><strong>Date:</strong> ${t.datetime}</p>
+        <p><strong>Doctor:</strong> ${t.doctor}</p>
+        <p><strong>Medication:</strong> ${t.medicationName}</p>
+        <p><strong>Dose:</strong> ${t.dose}</p>
+        <p><strong>Route:</strong> ${t.route}</p>
+        <p><strong>Frequency:</strong> ${t.frequency}</p>
+        <p><strong>Instructions:</strong> ${t.instructions}</p>
+        <hr>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  html += "</div>";
+  return html;
+}
+
+
 // Function to grant access to doctor
-function giveAccess() {
-  var list = document.getElementById("permitDoctorList");
-  var index = list.selectedIndex;
+async function giveAccess() {
+  const list = document.getElementById("permitDoctorList");
+  const index = list.selectedIndex;
 
   if (index === -1) {
     alert("Please select a doctor.");
     return;
   }
 
-  var doctorToBeAdded = list.options[index].value;
+  const doctorAddress = list.options[index].value;
 
-  // Before attempting to add, check if the doctor already has access
-  accessControl.methods
-    .getAccessedDoctorListForPatient(key)
-    .call({ gas: 1000000 }, function (err, accessedDoctors) {
-      if (!err) {
-        if (accessedDoctors.includes(doctorToBeAdded)) {
-          alert("The doctor already has access to your records.");
-        } else {
-          // Doctor not in the list, proceed to give access
-          accessControl.methods.grantDoctorAccess(doctorToBeAdded).send(
-            {
-              from: key,
-              gas: 1000000,
-              value: web3.utils.toWei("2", "ether"),
-            },
-            function (error) {
-              if (!error) {
-                var table = document.getElementById("accessDoc");
-                var noRows = table.rows.length;
-                var row = table.insertRow(noRows);
-                var cell1 = row.insertCell(0);
-                var cell2 = row.insertCell(1);
-                var cell3 = row.insertCell(2);
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0];
 
-                cell2.className = "publicKeyDoctor";
-                cell1.innerHTML = list.options[index].text;
-                cell2.innerHTML = doctorToBeAdded;
-                cell3.innerHTML =
-                  '<button onclick="revokeAccess(this)" class="btn btn-danger">Revoke access</button>';
-                alert("Access granted successfully.");
-              } else {
-                console.error("Failed to grant access:", error);
-                alert("Failed to grant access. Please try again.");
-              }
-            }
-          );
-        }
-      } else {
-        console.error("Failed to retrieve accessed doctors list:", err);
-        alert("Failed to check existing access. Please try again.");
-      }
-    });
+    // 1️⃣ Grant logical access
+    await accessControl.methods
+      .grantDoctorAccess(doctorAddress)
+      .send({
+        from: patientAddress,
+        gas: 1000000,
+        value: web3.utils.toWei("2", "ether"),
+      });
+
+    // 2️⃣ Get Record Master Key
+    const rmk = await getSessionAESKey();
+    if (!rmk) throw new Error("Session AES key missing");
+
+    // 3️⃣ Derive doctor-specific key
+    const doctorUAK = await window.deriveUAKForDoctor(doctorAddress);
+
+    // 4️⃣ Wrap RMK for doctor
+    const wrappedRMK = await window.wrapRMK(rmk, doctorUAK);
+
+    // 5️⃣ Store encrypted key on-chain
+    await medicalDataRegistry.methods
+      .setEncryptedAESKey(
+        patientAddress,
+        doctorAddress,
+        wrappedRMK
+      )
+      .send({
+        from: patientAddress,
+        gas: 1000000,
+      });
+
+    alert("Access granted successfully.");
+    location.reload();
+
+  } catch (err) {
+    console.error("Grant access failed:", err);
+    alert(err.message || "Failed to grant access.");
+  }
 }
 
 // Function to revoke access to doctor
@@ -411,193 +672,214 @@ function viewDoctorInfo() {
 }
 
 // Function to request appointment with doctor
-function scheduleAppointment() {
+async function scheduleAppointment() {
   const doctorId = $("#doctorSelect").val();
-  let appointmentDate = $("#appointmentDate").val().replace(/-/g, "");
-  const appointmentHour = parseInt($("#appointmentHour").val(), 10);
+  const appointmentDate = $("#appointmentDate").val().replace(/-/g, "");
   const [hour, minute] = $("#appointmentHour").val().split(":").map(Number);
-  const paddedHour = hour.toString().padStart(2, "0");
-  const paddedMinute = minute.toString().padStart(2, "0");
-  appointmentDate = appointmentDate.replace(/-/g, "");
-  const dateAsNumber = parseInt(appointmentDate, 10);
-  const hourAsNumber = hour;
-  const minuteAsNumber = minute;
 
-  if (!doctorId || !appointmentDate || !appointmentHour) {
+  if (!doctorId || !appointmentDate || isNaN(hour)) {
     alert("Please fill in all the fields.");
     return;
   }
 
-  web3.eth.getAccounts().then((accounts) => {
-    const patientAddress = accounts[0]; // Using the first account as the patient address
-    // Check if the selected doctor has access to the patient
-    accessControl.methods
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
+
+    // Ensure doctor has access
+    const patientList = await accessControl.methods
       .getAccessedPatientListForDoctor(doctorId)
-      .call({ from: patientAddress })
-      .then((patientList) => {
-        const doctorHasAccess = patientList.includes(patientAddress);
-        if (!doctorHasAccess) {
-          alert(
-            "This doctor does not have access to the patient's records. Please grant access before scheduling an appointment."
-          );
-          return;
+      .call();
+
+    if (!patientList.map(a => a.toLowerCase()).includes(patientAddress)) {
+      alert("Doctor does not have access. Grant access first.");
+      return;
+    }
+
+    const patientResult = await userRegistry.methods.getPatient(patientAddress).call();
+    const doctorResult = await userRegistry.methods.getDoctor(doctorId).call();
+
+    const appointment = {
+      resourceType: "Appointment",
+      status: "Pending",
+      start: `${appointmentDate}T${hour.toString().padStart(2, "0")}:${minute
+        .toString()
+        .padStart(2, "0")}:00Z`,
+      participant: [
+        {
+          actor: {
+            reference: `Patient/${patientAddress}`,
+            display: `${patientResult[0]} ${patientResult[1]}`
+          },
+          status: "needs-action"
+        },
+        {
+          actor: {
+            reference: `Practitioner/${doctorId}`,
+            display: `${doctorResult[0]} ${doctorResult[1]}`
+          },
+          status: "needs-action"
         }
+      ]
+    };
 
-        // Get patient and doctor details
-        userRegistry.methods
-          .getPatient(patientAddress)
-          .call({ gas: 1000000 }, function (error, patientResult) {
-            if (!error) {
-              const patientFirstName = patientResult[0];
-              const patientLastName = patientResult[1];
+    /* ============================
+       🔐 CORRECT ENCRYPTION FLOW
+    ============================ */
 
-              userRegistry.methods
-                .getDoctor(doctorId)
-                .call({ gas: 1000000 }, function (error, doctorResult) {
-                  if (!error) {
-                    const doctorFirstName = doctorResult[0];
-                    const doctorLastName = doctorResult[1];
-                    const initialStatus = "Pending";
+    // 1️⃣ Generate per-appointment AES key
+    const appointmentAESKey = await window.generateAESKey();
 
-                    // Create FHIR Appointment Resource
+    // 2️⃣ Encrypt appointment
+    const encrypted = await window.encryptAES(
+      JSON.stringify(appointment),
+      appointmentAESKey
+    );
 
-                    const fhirAppointmentResource = {
-                      resourceType: "Appointment",
-                      status: initialStatus,
-                      start: `${appointmentDate}T${paddedHour}:${paddedMinute}:00Z`,
-                      participant: [
-                        {
-                          actor: {
-                            reference: `Patient/${patientAddress}`,
-                            display: `${patientFirstName} ${patientLastName}`,
-                          },
-                          status: "needs-action",
-                        },
-                        {
-                          actor: {
-                            reference: `Practitioner/${doctorId}`,
-                            display: `${doctorFirstName} ${doctorLastName}`,
-                          },
-                          status: "needs-action",
-                        },
-                      ],
-                    };
+    // 3️⃣ Wrap AES key for doctor
+    const doctorUAK = await window.deriveUAKForDoctor(doctorId);
 
-                    const ipfs = window.IpfsApi("localhost", "5001"); // Connect to IPFS
+    console.log("Appointment AES Key:", appointmentAESKey);
+console.log("  extractable:", appointmentAESKey.extractable);
+console.log("  usages:", appointmentAESKey.usages);
 
-                    // Convrt the resource to JSON and then take the JSON string and convert it to a binary buffer that IPFS can store
-                    const buffer = ipfs.Buffer.from(
-                      JSON.stringify(fhirAppointmentResource)
-                    );
-                    // Add buffer to IPFS
-                    ipfs.files.add(buffer, (error, result) => {
-                      if (error) {
-                        console.error("Error uploading to IPFS:", error);
-                        alert("Failed to store appointment details on IPFS.");
-                        return;
-                      }
+console.log("Doctor UAK usages:", doctorUAK.usages);
 
-                      const ipfsHash = result[0].hash;
-                      // Send the IPFS hash along with the doctor's Ethereum address to the smart contract
-                      appointmentManager.methods
-                        .requestAppointment(
-                          doctorId,
-                          ipfsHash,
-                          dateAsNumber,
-                          hourAsNumber
-                        )
-                        .send({ from: patientAddress, gas: 1000000 })
-                        .then((res) => {
-                          console.log(
-                            "Appointment request sent. Transaction:",
-                            res
-                          );
-                          alert("Appointment request sent successfully!");
-                        })
-                        .catch((err) => {
-                          console.error(
-                            "Error sending to blockchain:",
-                            err.message || err
-                          );
-                          alert("Failed to schedule appointment.");
-                        });
-                    });
-                  } else {
-                    console.error("Error fetching doctor details:", error);
-                    alert("Failed to retrieve doctor details.");
-                  }
-                });
-            } else {
-              console.error("Error fetching patient details:", error);
-              alert("Failed to retrieve patient details.");
-            }
-          });
-      })
-      .catch((err) => {
-        console.error("Error checking doctor access:", err.message || err);
-      });
-  });
+    const wrappedKeyForDoctor = await window.wrapRMK(
+      appointmentAESKey,
+      doctorUAK
+    );
+
+    // 4️⃣ (Optional but recommended) wrap for patient too
+    const patientSessionKey = await getSessionAESKey();
+    const wrappedKeyForPatient = await window.wrapRMK(
+      appointmentAESKey,
+      patientSessionKey
+    );
+
+    // 5️⃣ Store payload in IPFS
+    const ipfsPayload = {
+      iv: encrypted.iv,
+      data: encrypted.data,
+      aesKeyWrappedForDoctor: wrappedKeyForDoctor,
+      aesKeyWrappedForPatient: wrappedKeyForPatient
+    };
+
+    const buffer = ipfs.Buffer.from(JSON.stringify(ipfsPayload), "utf8");
+    const result = await ipfs.files.add(buffer);
+    const ipfsHash = result[0].hash;
+
+    // 6️⃣ Store appointment reference on-chain
+    await appointmentManager.methods
+      .requestAppointment(
+        doctorId,
+        ipfsHash,
+        parseInt(appointmentDate, 10),
+        hour
+      )
+      .send({ from: patientAddress, gas: 1000000 });
+
+    alert("Appointment request sent successfully!");
+
+  } catch (err) {
+    console.error("scheduleAppointment failed:", err);
+    alert(err.message || "Failed to schedule appointment.");
+  }
 }
+
 
 // Function to load  appointment requests sent to doctors
-function loadSentAppointmentRequests() {
-  web3.eth.getAccounts().then(function (accounts) {
-    const patientAddress = accounts[0];
-    appointmentManager.methods
-      .getPatientAppointments(patientAddress)
-      .call({ from: patientAddress })
-      .then(function (appointmentIds) {
-        appointmentIds.forEach(function (id) {
-          appointmentManager.methods
-            .appointments(id)
-            .call()
-            .then(function (appointment) {
-              if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
-                console.error(
-                  "Invalid or empty IPFS hash for appointment ID:",
-                  id
-                );
-                return;
-              }
-              fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-                var status = "Pending"; // Default status
-                if (appointment.isAccepted) {
-                  status = "Accepted";
-                } else if (appointment.isRejected) {
-                  status = "Rejected";
-                }
+async function loadSentAppointmentRequests() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
 
-                // Fetch doctor details within this block
-                userRegistry.methods
-                  .getDoctor(appointment.doctorAddress)
-                  .call()
-                  .then(function (doctorDetails) {
-                    var doctorName = doctorDetails[0] + " " + doctorDetails[1];
-                    displaySentAppointmentRequest(
-                      id,
-                      appointmentData,
-                      status,
-                      doctorName
-                    );
-                  })
-                  .catch(function (error) {
-                    console.error("Error fetching doctor details:", error);
-                    displaySentAppointmentRequest(
-                      id,
-                      appointmentData,
-                      status,
-                      "Unknown Doctor"
-                    );
-                  });
-              });
-            });
-        });
-      })
-      .catch(function (error) {
-        console.error("Error loading sent appointment requests:", error);
-      });
-  });
+    // Session key for unwrapping AES
+    const patientSessionKey = await getSessionAESKey();
+
+    const appointmentIds = await appointmentManager.methods
+      .getPatientAppointments(patientAddress)
+      .call();
+
+    for (const id of appointmentIds) {
+      const appointmentOnChain = await appointmentManager.methods
+        .appointments(id)
+        .call();
+
+      // Only process appointments with an IPFS hash
+      if (!appointmentOnChain.ipfsHash || appointmentOnChain.ipfsHash === "0x") continue;
+
+      // Fetch from IPFS
+      let encryptedPayload;
+      try {
+        const files = await ipfs.files.get(appointmentOnChain.ipfsHash);
+        const file = files.find(f => f.content);
+        if (!file) continue;
+
+        encryptedPayload = JSON.parse(
+          new TextDecoder().decode(file.content)
+        );
+      } catch (e) {
+        console.warn("⚠️ Failed to fetch IPFS data, skipping", e);
+        continue;
+      }
+
+      // Ensure patient wrapped key exists
+      if (!encryptedPayload.aesKeyWrappedForPatient) continue;
+
+      // Unwrap AES key
+      let appointmentAESKey;
+      try {
+        appointmentAESKey = await window.unwrapRMK(
+          encryptedPayload.aesKeyWrappedForPatient,
+          patientSessionKey
+        );
+      } catch (e) {
+        console.warn("⚠️ Failed to unwrap appointment AES key, skipping", e);
+        continue;
+      }
+
+      // Decrypt appointment
+      let appointmentData;
+      try {
+        const decrypted = await window.decryptAES(
+          { iv: encryptedPayload.iv, data: encryptedPayload.data },
+          appointmentAESKey
+        );
+        appointmentData = JSON.parse(decrypted);
+      } catch (e) {
+        console.warn("⚠️ Failed to decrypt appointment, skipping", e);
+        continue;
+      }
+
+      // Resolve status (only Accepted or Pending)
+      let status = "Pending";
+      if (appointmentOnChain.isAccepted) status = "Accepted";
+
+      // Resolve doctor name
+      let doctorName = "Unknown Doctor";
+      try {
+        const doctor = await userRegistry.methods
+          .getDoctor(appointmentOnChain.doctorAddress)
+          .call();
+        doctorName = `${doctor[0]} ${doctor[1]}`;
+      } catch {}
+
+      // Display
+      displaySentAppointmentRequest(id, appointmentData, status, doctorName);
+    }
+  } catch (err) {
+    console.error("loadSentAppointmentRequests failed:", err);
+    alert(err.message || "Failed to load sent appointment requests.");
+  }
 }
+
+
+
+
+
+
+
 
 // Function to display the requests
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {
@@ -887,6 +1169,7 @@ function designateProxy() {
   });
 }
 
+
 // Function to generate token to send to proxy's email
 function generateTokenForProxy() {
   // Create a random string of 16 characters (letters and numbers)
@@ -905,66 +1188,74 @@ function generateTokenForProxy() {
 }
 
 // Function to send tpken to proxy's email
-function sendTokenToProxyEmail(proxyEmail, token) {
-  // Fetch current patient's details from the smart contract
-  web3.eth.getAccounts().then(function (accounts) {
-    const patientAddress = accounts[0]; // Using the first account as the patient address
+// ✅ FIXED: Send token to proxy's email (handles encrypted FHIR record)
+async function sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLastName) {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
 
-    //  Retrieve the IPFS hash for the patient's data
-    medicalDataRegistry.methods
+    // 1️⃣ Get patient's AES key (already cached after login)
+    const patientAESKey = await getSessionAESKey();
+    if (!patientAESKey) throw new Error("Patient AES key not available");
+
+    // 2️⃣ Get patient record hash
+    const recordHash = await medicalDataRegistry.methods
       .getHash(patientAddress)
-      .call()
-      .then(function (patientIpfsHash) {
-        console.log(`IPFS Hash for Patient: ${patientIpfsHash}`);
+      .call();
 
-        fetchFromIPFS(patientIpfsHash, function (patientDataText) {
-          // Split the data by lines to extract patient details
-          const lines = patientDataText.split("\n");
-          const firstNameLine = lines.find((line) =>
-            line.startsWith("First Name:")
-          );
-          const lastNameLine = lines.find((line) =>
-            line.startsWith("Last Name:")
-          );
-          const firstName = firstNameLine
-            ? firstNameLine.split(":")[1].trim()
-            : "";
-          const lastName = lastNameLine
-            ? lastNameLine.split(":")[1].trim()
-            : "";
-          const patientName = `${firstName} ${lastName}`;
+    if (!recordHash) throw new Error("Patient record hash not found");
 
-          // Create the template parameters
-          var templateParams = {
-            proxy_email: proxyEmail,
-            proxy_name:
-              $("#proxyFirstName").val() + " " + $("#proxyLastName").val(),
-            patient_name: patientName,
-            token: token,
-            from_name: "Electronical Medical Records Service",
-          };
+    // 3️⃣ Fetch encrypted record from IPFS
+    const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
+    const encryptedPayload = await resp.json(); // { iv, data }
 
-          console.log(`Sending Email with Params:`, templateParams);
+    // 4️⃣ Decrypt record
+    const decryptedStr = await window.decryptAES(encryptedPayload, patientAESKey);
+    const record = JSON.parse(decryptedStr);
 
-          // Send the email using EmailJS
-          emailjs
-            .send("service_qeqnhl5", "template_bwpjgsk", templateParams) 
-            .then(
-              function (response) {
-                console.log("Successfully sent email to proxy:", response.text);
-              },
-              function (error) {
-                console.error("Failed to send email to proxy:", error);
-                console.error("Error details:", error.response);
-              }
-            );
-        });
-      })
-      .catch(function (error) {
-        console.error("Error fetching patient details:", error);
-      });
-  });
+    // 5️⃣ Extract patient name from FHIR record
+    let patientName = "Patient";
+
+    if (record.resourceType === "Bundle" && Array.isArray(record.entry)) {
+      const patientEntry = record.entry.find(
+        e => e.resource?.resourceType === "Patient"
+      );
+
+      if (patientEntry?.resource?.name?.length) {
+        const n = patientEntry.resource.name[0];
+        patientName = `${n.given.join(" ")} ${n.family}`;
+      }
+    } else if (record.resourceType === "Patient" && record.name?.length) {
+      const n = record.name[0];
+      patientName = `${n.given.join(" ")} ${n.family}`;
+    }
+
+    // 6️⃣ Prepare EmailJS template params
+    const templateParams = {
+      proxy_email: proxyEmail,
+      proxy_name: `${proxyFirstName} ${proxyLastName}`,
+      patient_name: patientName,
+      token: token,
+      from_name: "Electronic Medical Records Service",
+    };
+
+    console.log("📤 Sending proxy token email:", templateParams);
+
+    // 7️⃣ Send email
+    await emailjs.send(
+      "service_f9n994l",
+      "template_bwpjgsk",
+      templateParams
+    );
+
+    console.log("✅ Proxy token email sent successfully");
+
+  } catch (err) {
+    console.error("❌ sendTokenToProxyEmail failed:", err);
+    alert("Failed to send token email to proxy.");
+  }
 }
+
 
 // Function to display the proxies that have access
 function displayProxiesWithAccess() {
@@ -1135,98 +1426,71 @@ function regrantProxyAccess(proxyAddress) {
 }
 
 // Function to add allergy data to existing record
-function addPatientAllergy() {
-  web3.eth.getAccounts().then((accounts) => {
-    const patientAddress = accounts[0];
-    const allergySubstance = document.getElementById("allergySubstance").value;
-    const allergyReaction = document.getElementById("reaction").value;
-    const allergyCriticality = document.getElementById("criticality").value;
+async function addPatientAllergy() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
 
-    // Validation
-    if (!allergySubstance || !allergyReaction || !allergyCriticality) {
+    const substance = $("#allergySubstance").val();
+    const reaction = $("#reaction").val();
+    const criticality = $("#criticality").val();
+
+    if (!substance || !reaction || !criticality) {
       alert("Please fill in all fields.");
       return;
     }
 
-    const fhirAllergyResource = {
-      resourceType: "AllergyIntolerance",
-      substance: {
-        text: allergySubstance,
-      },
-      reaction: [
-        {
-          description: allergyReaction,
-        },
-      ],
-      criticality: allergyCriticality,
-      recordedDate: new Date().toISOString(),
-    };
+    const patientAESKey = await getSessionAESKey(); // Use cached session AES key
 
-    const formattedAllergy =
-      `Allergy Substance:</strong> ${allergySubstance}\n` +
-      `Reaction: ${allergyReaction}\n` +
-      `Criticality: ${allergyCriticality}\n` +
-      `Recorded on: ${new Date().toLocaleString()}\n`;
-    // Fetch the current IPFS hash for the patient's record
-    medicalDataRegistry.methods
-      .getHash(patientAddress)
-      .call()
-      .then(function (ipfsHash) {
-        console.log("Fetched IPFS hash:", ipfsHash); // add this
+    // Fetch current IPFS record
+    const ipfsHash = await medicalDataRegistry.methods.getHash(patientAddress).call();
     if (!ipfsHash) {
-      alert("No medical record found for this patient!");
+      alert("No medical record found.");
       return;
     }
-        // Fetch the existing medical record from IPFS
-        fetch(`http://localhost:8080/ipfs/${ipfsHash}`)
-          .then((response) => response.text())
-          .then(function (patientRecord) {
-            const updatedPatientRecord = patientRecord + formattedAllergy;
 
-            // Log the updated patient record
-            console.log("Updated patient record:", updatedPatientRecord);
-            // Convert the updated record into a format suitable for IPFS
-            const buffer = Buffer.from(updatedPatientRecord);
+    const files = await ipfs.files.get(ipfsHash);
+    const file = files.find((f) => f.content);
+    if (!file) {
+      alert("Invalid IPFS data.");
+      return;
+    }
 
-            // Upload the updated record to IPFS
-            ipfs.files.add(buffer, (error, result) => {
-              if (error) {
-                console.error("Error adding file to IPFS:", error);
-                return;
-              }
+    const encryptedJson = new TextDecoder().decode(file.content);
+    const encryptedPayload = JSON.parse(encryptedJson);
+    const decrypted = await window.decryptAES(encryptedPayload, patientAESKey);
+    let record = JSON.parse(decrypted);
 
-              const updatedIpfsHash = result[0].hash;
+    // Add allergy
+    if (!record.allergies) record.allergies = [];
+    record.allergies.push({
+      substance,
+      reaction,
+      criticality,
+      recordedDate: new Date().toISOString(),
+    });
 
-              // Update the patient's record hash in the smart contract
-              medicalDataRegistry.methods
-                .setHash(patientAddress, updatedIpfsHash)
-                .send({ from: patientAddress })
-                .then(function (receipt) {
-                  console.log("Record updated successfully:", receipt);
-                  alert("Allergy information successfully added.");
-                })
-                .catch(function (error) {
-                  console.error(
-                    "Failed to update the patient's record hash:",
-                    error
-                  );
-                });
-            });
-          })
-          .catch(function (error) {
-            console.error(
-              "Failed to fetch the patient's current record from IPFS:",
-              error
-            );
-          });
-      })
-      .catch(function (error) {
-        console.error(
-          "Failed to fetch the patient's current record hash:",
-          error
-        );
-      });
-  });
+    // Re-encrypt and upload
+    const updatedEncrypted = await window.encryptAES(JSON.stringify(record), patientAESKey);
+    const buffer = ipfs.Buffer.from(JSON.stringify(updatedEncrypted));
+    const result = await ipfs.files.add(buffer);
+    const newHash = result[0].hash;
+
+    // Update blockchain pointer
+    await medicalDataRegistry.methods.setHash(patientAddress, newHash).send({ from: patientAddress });
+
+    // Clear cache so records are refreshed
+    decryptedRecordCache = null;
+
+    alert("Allergy added successfully.");
+    $("#allergySubstance").val("");
+    $("#reaction").val("");
+    $("#criticality").val("low");
+
+  } catch (err) {
+    console.error("Add allergy failed:", err);
+    alert(err.message || "Failed to add allergy.");
+  }
 }
 
 // Function to fetch symptoms from the Flask API
@@ -1452,48 +1716,58 @@ function displayAllDiagnoses() {
 }
 
 // Function to load accepted appointments
-function loadAcceptedAppointments(calendar) {
-  web3.eth
-    .getAccounts()
-    .then(function (accounts) {
-      const patientAddress = accounts[0];
-      appointmentManager.methods
-        .getPatientAppointments(patientAddress)
-        .call()
-        .then(function (appointmentIds) {
-          console.log("Appointment IDs:", appointmentIds);
-          appointmentIds.forEach(function (appointmentId) {
-            appointmentManager.methods
-              .appointments(appointmentId)
-              .call()
-              .then(function (appointment) {
-                if (appointment.isAccepted) {
-                  console.log("Accepted Appointment:", appointment);
-                  fetchFromIPFS(
-                    appointment.ipfsHash,
-                    function (appointmentData) {
-                      console.log(
-                        "Appointment Data from IPFS:",
-                        appointmentData
-                      );
-                      addEventToCalendar(appointmentData, calendar);
-                    }
-                  );
-                }
-              })
-              .catch(function (error) {
-                console.error("Error fetching appointment details:", error);
-              });
-          });
-        })
-        .catch(function (error) {
-          console.error("Error loading appointments:", error);
-        });
-    })
-    .catch(function (error) {
-      console.error("Error retrieving accounts:", error);
-    });
+async function loadAcceptedAppointments(calendar) {
+  try {
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+    const patientAddress = accounts[0].toLowerCase();
+
+    const patientSessionKey = await getSessionAESKey();
+
+    const appointmentIds = await appointmentManager.methods
+      .getPatientAppointments(patientAddress)
+      .call();
+
+    for (const appointmentId of appointmentIds) {
+      const appointment = await appointmentManager.methods
+        .appointments(appointmentId)
+        .call();
+
+      if (!appointment.isAccepted || !appointment.ipfsHash) continue;
+
+      // 🔐 Fetch encrypted appointment
+      const files = await ipfs.files.get(appointment.ipfsHash);
+      const file = files.find(f => f.content);
+      if (!file) continue;
+
+      const encryptedPayload = JSON.parse(
+        new TextDecoder().decode(file.content)
+      );
+
+      // 🔓 Unwrap AES key
+      const appointmentAESKey = await window.unwrapRMK(
+        encryptedPayload.aesKeyWrappedForPatient,
+        patientSessionKey
+      );
+
+      // 🔓 Decrypt
+      const decrypted = await window.decryptAES(
+        {
+          iv: encryptedPayload.iv,
+          data: encryptedPayload.data
+        },
+        appointmentAESKey
+      );
+
+      const appointmentData = JSON.parse(decrypted);
+
+      // 📅 Add to calendar
+      addEventToCalendar(appointmentData, calendar);
+    }
+  } catch (err) {
+    console.error("loadAcceptedAppointments failed:", err);
+  }
 }
+
 
 // function to add details of appointment to calendar
 function addEventToCalendar(appointmentData, calendar) {
@@ -1657,3 +1931,58 @@ function updateUIBasedOnAge(age) {
     revokeButton.disabled = true;
   }
 }
+
+function textToHtml(text) {
+  return (
+    '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>' +
+    '<pre style="white-space:pre-wrap; font-family:inherit;">' +
+    text +
+    '</pre>'
+  );
+}
+
+
+// Toggle the eye icon for password visibility
+function toggleModalPasswordVisibility() {
+  const input = document.getElementById("modalPassword");
+  const icon = input.nextElementSibling.querySelector("i");
+  if (input.type === "password") {
+    input.type = "text";
+    icon.classList.remove("fa-eye");
+    icon.classList.add("fa-eye-slash");
+  } else {
+    input.type = "password";
+    icon.classList.remove("fa-eye-slash");
+    icon.classList.add("fa-eye");
+  }
+}
+
+// Show modal and wait for password input
+function requestPassword() {
+  return new Promise((resolve, reject) => {
+    $("#modalPassword").val(""); // clear previous input
+    $("#modalPasswordError").hide();
+    const modalEl = document.getElementById("passwordModal");
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+    modal.show();
+
+    const submitBtn = document.getElementById("submitPasswordButton");
+
+    function handleSubmit() {
+      const pw = document.getElementById("modalPassword").value;
+      if (!pw) return; // ignore empty
+      modal.hide();
+      submitBtn.removeEventListener("click", handleSubmit);
+      resolve(pw);
+    }
+
+    submitBtn.addEventListener("click", handleSubmit);
+  });
+}
+
+
+
+
+
+
+

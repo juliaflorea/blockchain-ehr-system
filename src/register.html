@@ -145,6 +145,42 @@
                                     required>
                             </div>
                         </div>
+
+                        <div class="form-group row" id="patientPasswordGroup" style="display:none;">
+                            <label class="col-sm-2 col-form-label" for="patientPassword">
+                                Access Password:
+                            </label>
+                        
+                            <div class="col-sm-8">
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="patientPassword"
+                                        placeholder="Set access password">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text" style="cursor:pointer;"
+                                            onclick="togglePasswordVisibility('patientPassword')">
+                                            <i class="fa fa-eye"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                        
+                                <!-- Constraints -->
+                                <small class="form-text text-muted mt-1">
+                                    <span>Password must contain:</span>
+                                    <ul class="mb-1">
+                                        <li>At least <strong>8 characters</strong></li>
+                                        <li>One <strong>uppercase</strong> letter</li>
+                                        <li>One <strong>lowercase</strong> letter</li>
+                                        <li>One <strong>number</strong></li>
+                                        <li>One <strong>special character</strong></li>
+                                    </ul>
+                                    <span>This password encrypts your medical records. If forgotten, records must be re-encrypted.</span>
+                                </small>
+                                <small id="passwordError" class="text-danger" style="display:none;">
+                                    Password does not meet the required complexity.
+                                </small>
+                            </div>
+                        </div>
+                        
                     </div>
 
                     <div id="doctorFields" style="display:none;">
@@ -251,12 +287,11 @@
     <script src="https://cdn.jsdelivr.net/npm/ipfs-http-client/dist/index.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2"></script>
-
-    <script>
-        // Specify the path to the PDF worker script
+    <script>        // Specify the path to the PDF worker script
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
     </script>
     <script src="./js/config.js"></script>
+    <script src="/js/crypto.js"></script>
     <script src="/js/main.js"></script>
     <script src="/js/login.js"></script>
     <script src="/js/register.js"></script>
