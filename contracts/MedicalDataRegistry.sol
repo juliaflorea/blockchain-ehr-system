@@ -26,7 +26,7 @@ contract MedicalDataRegistry {
     // wrapped Record Master Key (AES-GCM, password-derived key)
     mapping(address => mapping(address => string)) private encryptedAESKeys;
 
-     mapping(address => string) public proxyWrappedKeys; // proxy -> wrapped RMK
+     
 
     // ===== Functions =====
 
@@ -66,20 +66,27 @@ contract MedicalDataRegistry {
 }
     // ===== AES Key functions =====
     function setEncryptedAESKey(
-        address patientAddr,
-        address accessorAddr,
-        string calldata encryptedKey
-    ) external {
-        require(
-    msg.sender == patientAddr ||
-    isAuthorizedProxyForPatient(patientAddr, msg.sender),
-    "Not authorized to set keys"
-);
-        require(userRegistry.userExists(accessorAddr), "Accessor not registered");
+    address patientAddr,
+    address accessorAddr,
+    string calldata encryptedKey
+) external {
 
-        encryptedAESKeys[patientAddr][accessorAddr] = encryptedKey;
-        emit EncryptedAESKeySet(patientAddr, accessorAddr);
-    }
+    require(
+        msg.sender == patientAddr ||
+        isAuthorizedProxyForPatient(patientAddr, msg.sender),
+        "Not authorized to set encrypted key"
+    );
+
+    require(
+        userRegistry.userExists(accessorAddr),
+        "Accessor not registered"
+    );
+
+    encryptedAESKeys[patientAddr][accessorAddr] = encryptedKey;
+
+    emit EncryptedAESKeySet(patientAddr, accessorAddr);
+}
+
 
     function getEncryptedAESKey(address patientAddr) external view returns (string memory) {
         string memory key = encryptedAESKeys[patientAddr][msg.sender];
@@ -104,17 +111,20 @@ contract MedicalDataRegistry {
         return prx.isAuthorized;
     }
 
-   function storeProxyKey(address proxy, string calldata wrappedRMK) external {
-    // only patient (msg.sender) can store for their proxies
-    UserRegistry.Patient memory p = userRegistry.getPatient(msg.sender);
-    require(bytes(p.firstName).length != 0, "Only patients can store key");
+    function isPendingTokenProxy(address patientAddr, address proxyAddr)
+    internal
+    view
+    returns (bool)
+{
+    address expectedProxy = userRegistry.getPatient(patientAddr).proxyAddress;
 
-    proxyWrappedKeys[proxy] = wrappedRMK;
+    if (expectedProxy != proxyAddr) return false;
+
+    UserRegistry.Proxy memory prx =
+        userRegistry.getProxy(proxyAddr);
+
+    return prx.accessGrantedViaToken;
 }
 
 
-
-    function getEncryptedAESKeyForProxy(address proxy) external view returns (string memory) {
-        return proxyWrappedKeys[proxy];
-    }
 }

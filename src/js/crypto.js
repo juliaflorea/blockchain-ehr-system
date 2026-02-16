@@ -147,3 +147,29 @@ function togglePasswordVisibility(inputId) {
   const input = document.getElementById(inputId);
   input.type = input.type === "password" ? "text" : "password";
 }
+
+// ---------- Temporary Key From Proxy Token ----------
+window.deriveTempKeyFromToken = async function (token) {
+  const enc = new TextEncoder();
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(token),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: enc.encode("proxy-temp-key"),
+      iterations: 100000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+};

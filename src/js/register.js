@@ -174,10 +174,7 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
       });
 
     // ✅ Store RMK in session for immediate access
-    sessionStorage.setItem(
-      "rmk",
-      JSON.stringify(wrappedRMK)
-    );
+    sessionStorage.setItem("rmk", wrappedRMK);
 
     console.log("Patient registered successfully");
 
@@ -264,6 +261,7 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
   }
 
   try {
+    // ---------- Determine registration type ----------
     const { isToken, hashOrToken } = await handleProxyRegistration(
       data.proxyOption, data.token, data.poaDocument, ipfs, Buffer
     );
@@ -277,6 +275,7 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
       return;
     }
 
+    // ---------- Prepare FHIR proxy record ----------
     const fhirProxy = {
       resourceType: "RelatedPerson",
       name: [{ family: data.lastName, given: [data.firstName] }],
@@ -292,32 +291,90 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
     const formatted = JSON.stringify(fhirProxy);
     const buffer = Buffer.from(formatted);
 
-    ipfs.files.add(buffer, async (error, result) => {
-      if (error) return console.error("IPFS error:", error);
+    // ---------- Store proxy FHIR record on IPFS ----------
+    const result = await ipfs.files.add(buffer);
+    const ipfsHash = result[0].hash;
 
-      const ipfsHash = result[0].hash;
+    // ---------- Register proxy in UserRegistry ----------
+    await userRegistry.methods
+      .addProxy(
+        data.firstName,
+        data.lastName,
+        parseInt(data.age),
+        ipfsHash,
+        isToken,
+        hashOrToken,
+        ethAddressParam
+      )
+      .send({ from: publicKey, gas: 1000000 });
 
-      await userRegistry.methods
-  .addProxy(
-    data.firstName,
-    data.lastName,
-    parseInt(data.age),
-    ipfsHash,
-    isToken,
-    hashOrToken,
-    ethAddressParam
+    // ---------- Get patient address ----------
+    let patientAddr;
+    if (isToken) {
+      patientAddr = await userRegistry.methods.getTokenToPatient(hashOrToken).call();
+    } else {
+      patientAddr = data.patientEthereumAddress.toLowerCase();
+    }
+
+    // ---------- Fetch temp wrapped RMK from IPFS safely ----------
+    let tempWrappedRMK;
+    try {
+      const tempHash = await userRegistry.methods.getTempWrappedRMK(hashOrToken).call();
+      if (!tempHash) throw new Error("No temp RMK hash returned from contract");
+      const tempData = await fetch("http://localhost:8080/ipfs/" + tempHash);
+      if (!tempData.ok) throw new Error(`IPFS fetch failed: ${tempData.status}`);
+      tempWrappedRMK = await tempData.json();
+    } catch (ipfsError) {
+      console.error("Failed to fetch temp wrapped RMK from IPFS:", ipfsError);
+      throw new Error("Cannot continue without temp wrapped RMK");
+    }
+
+    // ---------- Derive temp key from token ----------
+    const tempKey = await window.deriveTempKeyFromToken(hashOrToken);
+
+    // ---------- Unwrap RMK with temp key ----------
+    const rmk = await window.unwrapRMK(tempWrappedRMK, tempKey);
+
+    // ---------- Derive proxy UAK ----------
+    const proxyUAK = await window.deriveUAKForDoctor(publicKey);
+
+    // ---------- Wrap RMK for proxy ----------
+    const wrappedForProxy = await window.wrapRMK(rmk, proxyUAK);
+
+    // ---------- Patient stores key for proxy (use unlocked account) ----------
+    await medicalDataRegistry.methods
+  .setEncryptedAESKey(
+    patientAddr,
+    publicKey.toLowerCase(),
+    wrappedForProxy
   )
-  .send({ from: publicKey, gas: 1000000 });
+  .send({
+    from: publicKey,   // proxy sends transaction
+    gas: 500000
+  });
+
+    
+
+    // ---------- Save RMK locally ----------
+    sessionStorage.setItem("rmk", wrappedForProxy);
+
+    await userRegistry.methods
+  .consumeTempRMK(hashOrToken)
+  .send({ from: publicKey });
 
 
-      location.replace("./proxy.html");
-    });
+    // ---------- Redirect ----------
+    location.replace("./proxy.html");
+
   } catch (error) {
     console.error("Proxy registration failed:", error);
     $("#poaValidationError").show();
-    $("#poaValidationErrorMessage").text(error);
+    $("#poaValidationErrorMessage").text(error.message || error);
   }
 }
+
+
+
 
 
 // ================= Utility / Helper Functions =================

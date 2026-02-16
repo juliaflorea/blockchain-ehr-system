@@ -875,12 +875,6 @@ async function loadSentAppointmentRequests() {
 }
 
 
-
-
-
-
-
-
 // Function to display the requests
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   console.log(`Full Appointment ${id} Data:`, appointment);
@@ -1124,50 +1118,70 @@ function populateHoursDropdown() {
 }
 
 // Function to designate proxy
-function designateProxy() {
-  const proxyFirstName = $("#proxyFirstName").val();
-  const proxyLastName = $("#proxyLastName").val();
-  const proxyDOB = $("#proxyDOB").val();
-  const proxyAge = $("proxyAge").val();
-  const proxyAddress = $("#proxyAddress").val();
-  const proxyPhone = $("#proxyPhone").val();
-  const proxyEmail = $("#proxyEmail").val();
-  const consentGiven = $("#consentDropdown").val() === "yes";
-
-  // Concatenate details entered in form to create a single object
-  const detailsConcat = `${proxyFirstName}${proxyLastName}${proxyDOB}${proxyAddress}${proxyPhone}${proxyEmail}`;
-  // Generate a unique hash from the details by using Secure Hash Algorithm 3 method
-  // This is done for comparing this hash to the hash of the details enetered by proxy at registration, to see if they match
-  const detailsHash = web3.utils.sha3(detailsConcat);
-
-  if (!consentGiven) {
-    alert("Consent not given. Proxy cannot be designated without consent.");
-    return;
-  }
-
-  // Generate a unique token for the proxy
-  const token = generateTokenForProxy(proxyEmail);
-
-  // Call your smart contract to designate the proxy
-  web3.eth.getAccounts().then(function (accounts) {
+async function designateProxy() {
+  try {
+    // ---------- Get patient address FIRST ----------
+    const accounts = await web3.eth.getAccounts();
     const patientAddress = accounts[0];
 
-    userRegistry.methods
-      .designateProxy(token, detailsHash)
-      .send({ from: patientAddress })
-      .then(function (receipt) {
-        // Proxy designated successfully
-        alert("Proxy designated successfully. Token generated.");
-        // Send the token to the proxy's email
-        sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLastName);
-      })
-      .catch(function (error) {
-        // Failed to designate proxy
-        console.error("Failed to designate proxy:", error);
-        alert("Failed to designate proxy. Please try again.");
-      });
-  });
+    // ---------- Form values ----------
+    const proxyFirstName = $("#proxyFirstName").val();
+    const proxyLastName = $("#proxyLastName").val();
+    const proxyDOB = $("#proxyDOB").val();
+    const proxyAge = $("#proxyAge").val();
+    const proxyAddress = $("#proxyAddress").val();
+    const proxyPhone = $("#proxyPhone").val();
+    const proxyEmail = $("#proxyEmail").val();
+    const consentGiven = $("#consentDropdown").val() === "yes";
+
+    if (!consentGiven) {
+      alert("Consent not given. Proxy cannot be designated.");
+      return;
+    }
+
+    // ---------- Hash proxy details ----------
+    const detailsConcat =
+      `${proxyFirstName}${proxyLastName}${proxyDOB}${proxyAddress}${proxyPhone}${proxyEmail}`;
+    const detailsHash = web3.utils.sha3(detailsConcat);
+
+    // ---------- Generate token ----------
+    const token = generateTokenForProxy(proxyEmail);
+
+    // ---------- Get wrapped RMK from session ----------
+    const rmk = await getSessionAESKey();
+
+    // ---------- Derive temporary key from token ----------
+    const tempKey = await window.deriveTempKeyFromToken(token);
+
+    // ---------- Wrap RMK with temp key ----------
+    const tempWrappedRMK = await window.wrapRMK(rmk, tempKey);
+
+    // ---------- Store temp wrapped RMK on IPFS ----------
+    const ipfs = window.IpfsApi("localhost", "5001");
+    const Buffer = window.IpfsApi().Buffer;
+
+    // Convert to JSON string BEFORE storing
+    const buffer = Buffer.from(JSON.stringify(tempWrappedRMK));
+    const result = await ipfs.files.add(buffer);
+    const tempWrappedRMKHash = result[0].hash;
+
+    // ---------- Store designation on-chain ----------
+    await userRegistry.methods
+      .designateProxy(token, detailsHash, tempWrappedRMKHash)
+      .send({ from: patientAddress });
+
+    // ---------- Send token email ----------
+    sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLastName);
+
+    alert("Proxy designated successfully. Token sent to email.");
+  } catch (error) {
+    console.error("Failed to designate proxy:", error);
+    alert("Failed to designate proxy. Please try again.");
+  }
 }
+
+
+
 
 
 // Function to generate token to send to proxy's email
@@ -1728,45 +1742,109 @@ async function loadAcceptedAppointments(calendar) {
       .call();
 
     for (const appointmentId of appointmentIds) {
-      const appointment = await appointmentManager.methods
+      const appointmentOnChain = await appointmentManager.methods
         .appointments(appointmentId)
         .call();
 
-      if (!appointment.isAccepted || !appointment.ipfsHash) continue;
+      // Skip if no IPFS hash
+      if (!appointmentOnChain.ipfsHash || appointmentOnChain.ipfsHash === "0x") continue;
 
-      // 🔐 Fetch encrypted appointment
-      const files = await ipfs.files.get(appointment.ipfsHash);
-      const file = files.find(f => f.content);
-      if (!file) continue;
+      // Fetch from IPFS
+      let encryptedPayload;
+      try {
+        const files = await ipfs.files.get(appointmentOnChain.ipfsHash);
+        const file = files.find(f => f.content);
+        if (!file) continue;
 
-      const encryptedPayload = JSON.parse(
-        new TextDecoder().decode(file.content)
-      );
+        encryptedPayload = JSON.parse(
+          new TextDecoder().decode(file.content)
+        );
+      } catch (e) {
+        console.warn(`⚠️ Failed to fetch IPFS data for appointment ${appointmentId}, skipping`, e);
+        continue;
+      }
 
-      // 🔓 Unwrap AES key
-      const appointmentAESKey = await window.unwrapRMK(
-        encryptedPayload.aesKeyWrappedForPatient,
-        patientSessionKey
-      );
+      let appointmentData = null;
 
-      // 🔓 Decrypt
-      const decrypted = await window.decryptAES(
-        {
-          iv: encryptedPayload.iv,
-          data: encryptedPayload.data
-        },
-        appointmentAESKey
-      );
+      // Try to decrypt if patient key exists
+      if (encryptedPayload.aesKeyWrappedForPatient) {
+        try {
+          const appointmentAESKey = await window.unwrapRMK(
+            encryptedPayload.aesKeyWrappedForPatient,
+            patientSessionKey
+          );
 
-      const appointmentData = JSON.parse(decrypted);
+          const decrypted = await window.decryptAES(
+            { iv: encryptedPayload.iv, data: encryptedPayload.data },
+            appointmentAESKey
+          );
 
-      // 📅 Add to calendar
-      addEventToCalendar(appointmentData, calendar);
+          appointmentData = JSON.parse(decrypted);
+        } catch (e) {
+          console.warn(`⚠️ Failed to decrypt appointment ${appointmentId}, showing minimal info`, e);
+        }
+      } else {
+        console.warn(`⚠️ No AES key for patient for appointment ${appointmentId}, showing minimal info`);
+      }
+
+      // Determine display values
+      let status = "Pending";
+      if (appointmentOnChain.isAccepted) status = "Accepted";
+      else if (appointmentOnChain.isRejected) status = "Rejected";
+
+      let appointmentDate = "Unknown Date";
+      let appointmentTime = "Unknown Time";
+
+      if (appointmentData?.start) {
+        const match = appointmentData.start.match(
+          /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+        );
+        if (match) {
+          const date = new Date(
+            Date.UTC(
+              parseInt(match[1], 10),
+              parseInt(match[2], 10) - 1,
+              parseInt(match[3], 10),
+              parseInt(match[4], 10),
+              parseInt(match[5], 10),
+              parseInt(match[6], 10)
+            )
+          );
+          appointmentDate = date.toISOString().substring(0, 10);
+          appointmentTime = date.toISOString().substring(11, 16);
+        }
+      }
+
+      let doctorName = "Unknown Doctor";
+      try {
+        const doctor = await userRegistry.methods
+          .getDoctor(appointmentOnChain.doctorAddress)
+          .call();
+        doctorName = `${doctor[0]} ${doctor[1]}`;
+      } catch {}
+
+      // Display in table
+      var row = $("<tr>");
+      $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+      $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
+      $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
+      var statusCell = $("<td>").text(status).appendTo(row);
+
+      if (status === "Accepted") statusCell.addClass("accepted-status");
+      else if (status === "Rejected") statusCell.addClass("rejected-status");
+      else if (status === "Pending") statusCell.addClass("pending-status");
+      else statusCell.addClass("unknown-status");
+
+      $("#acceptedAppointments tbody").append(row);
+
+      // Add to calendar if fully decrypted
+      if (appointmentData) addEventToCalendar(appointmentData, calendar);
     }
   } catch (err) {
     console.error("loadAcceptedAppointments failed:", err);
   }
 }
+
 
 
 // function to add details of appointment to calendar

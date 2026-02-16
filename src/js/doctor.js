@@ -595,11 +595,6 @@ async function decryptEntries(entries, aesKey) {
 }
 
 
-
-
-
-
-
 // Function to load appointment requsts rceived from patients
 function loadAppointmentRequests() {
   web3.eth.getAccounts().then(async function (accounts) {
@@ -949,16 +944,6 @@ async function notifyPatient(appointmentId, status) {
     console.error("❌ notifyPatient failed:", err);
   }
 }
- 
-
-
-
-
-
-
-
-
-
 
 // Clendar initialisation
 $(document).ready(function () {
