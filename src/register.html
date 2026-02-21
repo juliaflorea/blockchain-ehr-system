@@ -150,7 +150,7 @@
                             <label class="col-sm-2 col-form-label" for="patientPassword">
                                 Access Password:
                             </label>
-                        
+
                             <div class="col-sm-8">
                                 <div class="input-group">
                                     <input type="password" class="form-control" id="patientPassword"
@@ -162,7 +162,7 @@
                                         </span>
                                     </div>
                                 </div>
-                        
+
                                 <!-- Constraints -->
                                 <small class="form-text text-muted mt-1">
                                     <span>Password must contain:</span>
@@ -173,14 +173,17 @@
                                         <li>One <strong>number</strong></li>
                                         <li>One <strong>special character</strong></li>
                                     </ul>
-                                    <span>This password encrypts your medical records. If forgotten, records must be re-encrypted.</span>
+                                    <span>This password encrypts your medical records. If forgotten, use recovery
+                                        key.</span>
                                 </small>
                                 <small id="passwordError" class="text-danger" style="display:none;">
                                     Password does not meet the required complexity.
                                 </small>
+
+
                             </div>
                         </div>
-                        
+
                     </div>
 
                     <div id="doctorFields" style="display:none;">
@@ -295,6 +298,58 @@
     <script src="/js/main.js"></script>
     <script src="/js/login.js"></script>
     <script src="/js/register.js"></script>
+
+    <!-- 🔐 Recovery Key Modal -->
+    <div class="modal fade" id="recoveryKeyModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        🔐 Save Your Recovery Key
+                    </h5>
+                </div>
+
+                <div class="modal-body">
+
+                    <p>
+                        This recovery key allows you to reset your access password
+                        if you forget it in the future.
+                    </p>
+
+                    <ul>
+                        <li>This key <strong>cannot be recovered</strong> by the system.</li>
+                        <li>Store it securely (password manager or offline).</li>
+                        <li>Do not share it with anyone.</li>
+                    </ul>
+
+                    <div class="recovery-key-box">
+                        <code id="recoveryKeyValue"></code>
+                    </div>
+
+                    <div class="text-center mt-2">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="copyRecoveryKey()">
+                            Copy Key
+                        </button>
+                    </div>
+
+
+                    <small class="text-muted">
+                        You will not be able to see this key again.
+                    </small>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="location.replace('./patient.html')">
+                        I saved my recovery key
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
 
 </body>
 

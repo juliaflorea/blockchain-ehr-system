@@ -80,7 +80,7 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
   try {
     console.log("🚀 Starting secure patient registration...");
 
-    const ethAddress = publicKey; // already lowercase
+    const ethAddress = publicKey.toLowerCase();
 
     // ---------- PASSWORD VALIDATION ----------
     const passwordInput = document.getElementById("patientPassword");
@@ -97,39 +97,32 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
     // ---------- Build FHIR Patient ----------
     const fhirPatient = {
       resourceType: "Patient",
-      name: [
-        {
-          family: data.lastName,
-          given: [data.firstName]
-        }
-      ],
+      name: [{
+        family: data.lastName,
+        given: [data.firstName]
+      }],
       gender: data.gender,
       birthDate: data.birthDate,
       telecom: [
-        {
-          system: "phone",
-          value: data.phoneNumber
-        },
-        {
-          system: "email",
-          value: data.email
-        }
+        { system: "phone", value: data.phoneNumber },
+        { system: "email", value: data.email }
       ],
-      address: [
-        {
-          use: "home",
-          line: [data.address]
-        }
-      ]
+      address: [{
+        use: "home",
+        line: [data.address]
+      }]
     };
 
     const plaintext = JSON.stringify(fhirPatient);
 
     // ---------- Generate RMK ----------
-    const rmk = await window.generateAESKey(); // extractable
+    const rmk = await window.generateAESKey();
 
     // ---------- Encrypt patient record ----------
-    const encryptedPayload = await window.encryptAES(plaintext, rmk);
+    const encryptedPayload = await window.encryptAES(
+      plaintext,
+      rmk
+    );
 
     const ipfsBuffer = Buffer.from(
       JSON.stringify(encryptedPayload)
@@ -139,16 +132,29 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
       await ipfs.files.add(ipfsBuffer)
     )[0].hash;
 
-    // ---------- Derive User Access Key ----------
-    const uak = await window.deriveUAK(
-      password,
-      ethAddress.toLowerCase()
-    );
+    // ---------- Derive password UAK ----------
+    const uak = await window.deriveUAK(password, ethAddress);
 
-    // ---------- Wrap RMK for patient ----------
-    const wrappedRMK = await window.wrapRMK(rmk, uak);
+    // ---------- Wrap RMK with password ----------
+    const wrappedRMK =
+      await window.wrapRMK(rmk, uak);
 
-    // ---------- Store patient info ----------
+    // ---------- Generate Recovery Key ----------
+    const recoveryKey =
+      window.generateRecoveryKey();
+
+    // ---------- Derive Recovery UAK ----------
+    const recoveryUAK =
+      await window.deriveRecoveryUAK(
+        recoveryKey,
+        ethAddress
+      );
+
+    // ---------- Wrap RMK with recovery key ----------
+    const wrappedRMKRecovery =
+      await window.wrapRMK(rmk, recoveryUAK);
+
+    // ---------- Register patient ----------
     await userRegistry.methods
       .addPatient(
         data.firstName,
@@ -158,33 +164,51 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
       )
       .send({
         from: ethAddress,
-        gas: 1_500_000
+        gas: 1500000
       });
 
-    // ---------- Store wrapped RMK for patient ----------
+    // ---------- Store wrapped RMK (normal login) ----------
     await medicalDataRegistry.methods
       .setEncryptedAESKey(
-        ethAddress.toLowerCase(),
-        ethAddress.toLowerCase(),
+        ethAddress,
+        ethAddress,
         wrappedRMK
       )
       .send({
         from: ethAddress,
-        gas: 500_000
+        gas: 500000
       });
 
-    // ✅ Store RMK in session for immediate access
-    sessionStorage.setItem("rmk", wrappedRMK);
+    // ---------- Store recovery wrapped RMK ----------
+    await medicalDataRegistry.methods
+      .setRecoveryEncryptedAESKey(
+        ethAddress,
+        wrappedRMKRecovery
+      )
+      .send({
+        from: ethAddress,
+        gas: 500000
+      });
 
-    console.log("Patient registered successfully");
+    // ---------- Store for current session ----------
+    sessionStorage.setItem("wrappedRMK", wrappedRMK);
 
-    location.replace("./patient.html");
+    console.log("✅ Patient registered successfully");
+
+    // ---------- SHOW RECOVERY KEY ----------
+    document.getElementById("recoveryKeyValue").innerText =
+      recoveryKey;
+
+    $("#recoveryKeyModal").modal("show");
 
   } catch (err) {
     console.error("❌ Patient registration failed:", err);
-    alert("Registration failed. Please check your password and inputs.");
+    alert("Registration failed. Please check your inputs.");
   }
 }
+
+
+
 
 // ================= Doctor Registration =================
 async function registerDoctor(ipfs, Buffer, publicKey, data) {
@@ -580,4 +604,9 @@ function validateDoctorCertificate(file, licenseNumber) {
 }
 
 
+function copyRecoveryKey() {
+    const key = document.getElementById("recoveryKeyValue").innerText;
+    navigator.clipboard.writeText(key);
+    alert("Recovery key copied to clipboard");
+}
 

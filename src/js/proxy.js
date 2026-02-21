@@ -670,12 +670,18 @@ async function loadSentAppointmentRequests() {
     // Derive proxy session key (UAK)
     const proxySessionKey = await window.deriveUAKForDoctor(proxyAddress);
 
-    // Get list of patients proxy has access to
+    // Get list of patients the proxy can access
     const patientAddresses = await accessControl.methods
       .getAccessedPatientListForProxy(proxyAddress)
       .call();
 
     for (const patientAddress of patientAddresses) {
+      // Get patient RMK for fallback decryption
+      const wrappedRMK = await medicalDataRegistry.methods
+        .getEncryptedAESKey(patientAddress)
+        .call({ from: proxyAddress });
+      const patientRMK = await window.unwrapRMK(wrappedRMK, proxySessionKey);
+
       // Get all appointment IDs for this patient
       const appointmentIds = await appointmentManager.methods
         .getPatientAppointments(patientAddress)
@@ -700,18 +706,30 @@ async function loadSentAppointmentRequests() {
           continue;
         }
 
-        // Ensure AES key exists for proxy
-        if (!encryptedPayload.aesKeyWrappedForProxy) continue;
-
-        // Unwrap AES key
-        let appointmentAESKey;
-        try {
-          appointmentAESKey = await window.unwrapRMK(
-            encryptedPayload.aesKeyWrappedForProxy,
-            proxySessionKey
-          );
-        } catch (e) {
-          console.warn("⚠️ Failed to unwrap appointment AES key, skipping", e);
+        // Determine which AES key to use
+        let appointmentAESKey = null;
+        if (encryptedPayload.aesKeyWrappedForProxy) {
+          try {
+            appointmentAESKey = await window.unwrapRMK(
+              encryptedPayload.aesKeyWrappedForProxy,
+              proxySessionKey
+            );
+          } catch (e) {
+            console.warn("⚠️ Failed to unwrap AES key for proxy, skipping", e);
+            continue;
+          }
+        } else if (encryptedPayload.aesKeyWrappedForPatient) {
+          try {
+            appointmentAESKey = await window.unwrapRMK(
+              encryptedPayload.aesKeyWrappedForPatient,
+              patientRMK
+            );
+          } catch (e) {
+            console.warn("⚠️ Failed to unwrap AES key via patient RMK, skipping", e);
+            continue;
+          }
+        } else {
+          console.warn("⚠️ No AES key available for appointment, skipping");
           continue;
         }
 
@@ -736,11 +754,15 @@ async function loadSentAppointmentRequests() {
         // Resolve doctor name
         let doctorName = "Unknown Doctor";
         try {
-          const doctor = await userRegistry.methods
-            .getDoctor(appointmentOnChain.doctorAddress)
-            .call();
-          doctorName = `${doctor[0]} ${doctor[1]}`;
-        } catch {}
+          const practitionerParticipant = appointmentData.participant.find(p =>
+            p.actor.reference.startsWith("Practitioner/")
+          );
+          if (practitionerParticipant) {
+            doctorName = practitionerParticipant.actor.display || "Unknown Doctor";
+          }
+        } catch (e) {
+          console.warn("⚠️ Failed to extract doctor name from appointment data", e);
+        }
 
         // Display appointment
         displaySentAppointmentRequest(id, appointmentData, status, doctorName);
@@ -751,6 +773,8 @@ async function loadSentAppointmentRequests() {
     alert(err.message || "Failed to load sent appointment requests.");
   }
 }
+
+
 
 // Display function stays the same as patient one
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {

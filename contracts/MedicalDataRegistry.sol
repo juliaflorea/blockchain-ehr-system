@@ -25,6 +25,9 @@ contract MedicalDataRegistry {
 
     // wrapped Record Master Key (AES-GCM, password-derived key)
     mapping(address => mapping(address => string)) private encryptedAESKeys;
+    // Recovery wrapped RMK (patient only)
+    mapping(address => string) private recoveryEncryptedAESKeys;
+
 
      
 
@@ -78,9 +81,11 @@ contract MedicalDataRegistry {
     );
 
     require(
-        userRegistry.userExists(accessorAddr),
-        "Accessor not registered"
-    );
+    accessorAddr == patientAddr ||
+    userRegistry.userExists(accessorAddr),
+    "Accessor not registered"
+);
+
 
     encryptedAESKeys[patientAddr][accessorAddr] = encryptedKey;
 
@@ -125,6 +130,42 @@ contract MedicalDataRegistry {
 
     return prx.accessGrantedViaToken;
 }
+
+function setRecoveryEncryptedAESKey(
+    address patientAddr,
+    string calldata encryptedKey
+) external {
+
+    require(
+        msg.sender == patientAddr,
+        "Only patient can set recovery key"
+    );
+
+    require(
+        userRegistry.userExists(patientAddr),
+        "Patient not registered"
+    );
+
+    recoveryEncryptedAESKeys[patientAddr] = encryptedKey;
+}
+
+function getRecoveryEncryptedAESKey(address patientAddr)
+    external
+    view
+    returns (string memory)
+{
+    require(
+        msg.sender == patientAddr,
+        "Only patient can access recovery key"
+    );
+
+    string memory key = recoveryEncryptedAESKeys[patientAddr];
+
+    require(bytes(key).length != 0, "No recovery key set");
+
+    return key;
+}
+
 
 
 }

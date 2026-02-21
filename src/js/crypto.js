@@ -173,3 +173,33 @@ window.deriveTempKeyFromToken = async function (token) {
     ["encrypt", "decrypt"]
   );
 };
+
+window.generateRecoveryKey = function () {
+  const arr = crypto.getRandomValues(new Uint8Array(32));
+  return b64encode(arr);
+};
+
+window.deriveRecoveryUAK = async function (recoveryKey, ethAddress) {
+  const enc = new TextEncoder();
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(recoveryKey),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: enc.encode("recovery-" + ethAddress.toLowerCase()),
+      iterations: 100000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+};

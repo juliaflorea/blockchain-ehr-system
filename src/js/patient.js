@@ -671,6 +671,7 @@ function viewDoctorInfo() {
     });
 }
 
+
 // Function to request appointment with doctor
 async function scheduleAppointment() {
   const doctorId = $("#doctorSelect").val();
@@ -738,31 +739,39 @@ async function scheduleAppointment() {
 
     // 3️⃣ Wrap AES key for doctor
     const doctorUAK = await window.deriveUAKForDoctor(doctorId);
-
-    console.log("Appointment AES Key:", appointmentAESKey);
-console.log("  extractable:", appointmentAESKey.extractable);
-console.log("  usages:", appointmentAESKey.usages);
-
-console.log("Doctor UAK usages:", doctorUAK.usages);
-
     const wrappedKeyForDoctor = await window.wrapRMK(
       appointmentAESKey,
       doctorUAK
     );
 
-    // 4️⃣ (Optional but recommended) wrap for patient too
+    // 4️⃣ Wrap AES key for patient
     const patientSessionKey = await getSessionAESKey();
     const wrappedKeyForPatient = await window.wrapRMK(
       appointmentAESKey,
       patientSessionKey
     );
 
+    // 4.1️⃣ Wrap AES key for proxy (if patient has a proxy)
+    let wrappedKeyForProxy = null;
+    try {
+      const proxyDetails = await userRegistry.methods.getProxyByPatient(patientAddress).call();
+      const proxyAddress = proxyDetails[0]; // adjust based on your contract return
+      if (proxyAddress && proxyAddress !== "0x0000000000000000000000000000000000000000") {
+        const proxyUAK = await window.deriveUAKForDoctor(proxyAddress);
+        wrappedKeyForProxy = await window.wrapRMK(appointmentAESKey, proxyUAK);
+        console.log("Wrapped AES key for proxy:", proxyAddress);
+      }
+    } catch (e) {
+      console.warn("No proxy detected for patient, skipping proxy wrap.", e);
+    }
+
     // 5️⃣ Store payload in IPFS
     const ipfsPayload = {
       iv: encrypted.iv,
       data: encrypted.data,
       aesKeyWrappedForDoctor: wrappedKeyForDoctor,
-      aesKeyWrappedForPatient: wrappedKeyForPatient
+      aesKeyWrappedForPatient: wrappedKeyForPatient,
+      aesKeyWrappedForProxy: wrappedKeyForProxy // ✅ new field
     };
 
     const buffer = ipfs.Buffer.from(JSON.stringify(ipfsPayload), "utf8");
@@ -780,6 +789,7 @@ console.log("Doctor UAK usages:", doctorUAK.usages);
       .send({ from: patientAddress, gas: 1000000 });
 
     alert("Appointment request sent successfully!");
+    console.log("✅ Appointment encrypted, uploaded, and scheduled:", ipfsHash);
 
   } catch (err) {
     console.error("scheduleAppointment failed:", err);
@@ -788,91 +798,64 @@ console.log("Doctor UAK usages:", doctorUAK.usages);
 }
 
 
+
 // Function to load  appointment requests sent to doctors
 async function loadSentAppointmentRequests() {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
-
-    // Session key for unwrapping AES
     const patientSessionKey = await getSessionAESKey();
 
-    const appointmentIds = await appointmentManager.methods
-      .getPatientAppointments(patientAddress)
-      .call();
+    $("#sentAppointmentRequests tbody").empty();
+
+    const appointmentIds = await appointmentManager.methods.getPatientAppointments(patientAddress).call();
 
     for (const id of appointmentIds) {
-      const appointmentOnChain = await appointmentManager.methods
-        .appointments(id)
-        .call();
-
-      // Only process appointments with an IPFS hash
+      const appointmentOnChain = await appointmentManager.methods.appointments(id).call();
       if (!appointmentOnChain.ipfsHash || appointmentOnChain.ipfsHash === "0x") continue;
 
-      // Fetch from IPFS
+      // Fetch encrypted payload
       let encryptedPayload;
       try {
         const files = await ipfs.files.get(appointmentOnChain.ipfsHash);
         const file = files.find(f => f.content);
         if (!file) continue;
-
-        encryptedPayload = JSON.parse(
-          new TextDecoder().decode(file.content)
-        );
-      } catch (e) {
-        console.warn("⚠️ Failed to fetch IPFS data, skipping", e);
+        encryptedPayload = JSON.parse(new TextDecoder().decode(file.content));
+      } catch {
+        console.warn("⚠️ Failed to fetch IPFS data for appointment", id);
         continue;
       }
 
-      // Ensure patient wrapped key exists
+      // Decrypt using patient key
       if (!encryptedPayload.aesKeyWrappedForPatient) continue;
-
-      // Unwrap AES key
-      let appointmentAESKey;
-      try {
-        appointmentAESKey = await window.unwrapRMK(
-          encryptedPayload.aesKeyWrappedForPatient,
-          patientSessionKey
-        );
-      } catch (e) {
-        console.warn("⚠️ Failed to unwrap appointment AES key, skipping", e);
-        continue;
-      }
-
-      // Decrypt appointment
       let appointmentData;
       try {
-        const decrypted = await window.decryptAES(
-          { iv: encryptedPayload.iv, data: encryptedPayload.data },
-          appointmentAESKey
-        );
+        const appointmentAESKey = await window.unwrapRMK(encryptedPayload.aesKeyWrappedForPatient, patientSessionKey);
+        const decrypted = await window.decryptAES({ iv: encryptedPayload.iv, data: encryptedPayload.data }, appointmentAESKey);
         appointmentData = JSON.parse(decrypted);
-      } catch (e) {
-        console.warn("⚠️ Failed to decrypt appointment, skipping", e);
+      } catch {
+        console.warn("⚠️ Failed to decrypt appointment", id);
         continue;
       }
 
-      // Resolve status (only Accepted or Pending)
-      let status = "Pending";
-      if (appointmentOnChain.isAccepted) status = "Accepted";
-
-      // Resolve doctor name
+      // Resolve doctor name and status
       let doctorName = "Unknown Doctor";
       try {
-        const doctor = await userRegistry.methods
-          .getDoctor(appointmentOnChain.doctorAddress)
-          .call();
+        const doctor = await userRegistry.methods.getDoctor(appointmentOnChain.doctorAddress).call();
         doctorName = `${doctor[0]} ${doctor[1]}`;
       } catch {}
 
-      // Display
+      const status = appointmentOnChain.isAccepted ? "Accepted" : appointmentOnChain.isRejected ? "Rejected" : "Pending";
+
       displaySentAppointmentRequest(id, appointmentData, status, doctorName);
     }
+
   } catch (err) {
     console.error("loadSentAppointmentRequests failed:", err);
-    alert(err.message || "Failed to load sent appointment requests.");
   }
 }
+
+
 
 
 // Function to display the requests
@@ -1058,6 +1041,169 @@ document.addEventListener("DOMContentLoaded", function () {
   }, 1000);
 });
 
+// Function to load accepted appointments (patient view)
+async function loadAcceptedAppointments(calendar) {
+  try {
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+    const patientAddress = accounts[0].toLowerCase();
+    const patientSessionKey = await getSessionAESKey();
+
+    const appointmentIds = await appointmentManager.methods
+      .getPatientAppointments(patientAddress)
+      .call();
+
+    for (const appointmentId of appointmentIds) {
+      const appointmentOnChain = await appointmentManager.methods
+        .appointments(appointmentId)
+        .call();
+
+      if (!appointmentOnChain.ipfsHash || appointmentOnChain.ipfsHash === "0x") continue;
+
+      let encryptedPayload;
+      try {
+        const files = await ipfs.files.get(appointmentOnChain.ipfsHash);
+        const file = files.find(f => f.content);
+        if (!file) continue;
+
+        encryptedPayload = JSON.parse(new TextDecoder().decode(file.content));
+      } catch (e) {
+        console.warn(`⚠️ Failed to fetch IPFS data for appointment ${appointmentId}, skipping`, e);
+        continue;
+      }
+
+      let appointmentAESKey = null;
+      try {
+        // Try patient key first
+        if (encryptedPayload.aesKeyWrappedForPatient) {
+          appointmentAESKey = await window.unwrapRMK(
+            encryptedPayload.aesKeyWrappedForPatient,
+            patientSessionKey
+          );
+        }
+        // If patient key unavailable, try proxy key
+        else if (encryptedPayload.aesKeyWrappedForProxy) {
+          appointmentAESKey = await window.unwrapRMK(
+            encryptedPayload.aesKeyWrappedForProxy,
+            patientSessionKey // still use patient session key to unwrap proxy-created appointments
+          );
+        }
+      } catch (e) {
+        console.warn(`⚠️ Failed to unwrap AES key for appointment ${appointmentId}, skipping`, e);
+        continue;
+      }
+
+      if (!appointmentAESKey) continue;
+
+      let appointmentData = null;
+      try {
+        const decrypted = await window.decryptAES(
+          { iv: encryptedPayload.iv, data: encryptedPayload.data },
+          appointmentAESKey
+        );
+        appointmentData = JSON.parse(decrypted);
+      } catch (e) {
+        console.warn(`⚠️ Failed to decrypt appointment ${appointmentId}, skipping`, e);
+        continue;
+      }
+
+      // Determine status
+      let status = "Pending";
+      if (appointmentOnChain.isAccepted) status = "Accepted";
+      else if (appointmentOnChain.isRejected) status = "Rejected";
+
+      // Format date & time
+      let appointmentDate = "Unknown Date";
+      let appointmentTime = "Unknown Time";
+      if (appointmentData?.start) {
+        const match = appointmentData.start.match(
+          /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+        );
+        if (match) {
+          const date = new Date(
+            Date.UTC(
+              parseInt(match[1], 10),
+              parseInt(match[2], 10) - 1,
+              parseInt(match[3], 10),
+              parseInt(match[4], 10),
+              parseInt(match[5], 10),
+              parseInt(match[6], 10)
+            )
+          );
+          appointmentDate = date.toISOString().substring(0, 10);
+          appointmentTime = date.toISOString().substring(11, 16);
+        }
+      }
+
+      // Fetch doctor name
+      let doctorName = "Unknown Doctor";
+      try {
+        const doctor = await userRegistry.methods
+          .getDoctor(appointmentOnChain.doctorAddress)
+          .call();
+        doctorName = `${doctor[0]} ${doctor[1]}`;
+      } catch {}
+
+      // Display in table
+      const row = $("<tr>");
+      $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+      $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
+      $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
+      const statusCell = $("<td>").text(status).appendTo(row);
+      if (status === "Accepted") statusCell.addClass("accepted-status");
+      else if (status === "Rejected") statusCell.addClass("rejected-status");
+      else if (status === "Pending") statusCell.addClass("pending-status");
+      else statusCell.addClass("unknown-status");
+
+      $("#acceptedAppointments tbody").append(row);
+
+      // Add to calendar only if accepted
+      if (appointmentData && status === "Accepted") {
+        addEventToCalendar(appointmentData, calendar);
+      }
+    }
+  } catch (err) {
+    console.error("loadAcceptedAppointments failed:", err);
+  }
+}
+
+// function to add details of appointment to calendar
+function addEventToCalendar(appointmentData, calendar) {
+  if (!calendar) {
+    console.error("Calendar not defined");
+    return;
+  }
+
+  try {
+    // Ensure the date is parsed correctly
+    const date = moment(appointmentData.start, "YYYYMMDDTHH:mm:ssZ").utc();
+    const formattedDate = date.format("YYYY-MM-DD");
+    const formattedTime = date.format("HH:mm");
+
+    // Find the patient's name in the participant array
+    const doctorInfo = appointmentData.participant.find((p) =>
+      p.actor.reference.startsWith("Practitioner")
+    );
+    const doctorName = doctorInfo ? doctorInfo.actor.display : "Unknown Doctor";
+
+    // Check if patient's name was found
+    if (doctorName === "Unknown Doctor") {
+      console.error("Doctor name is missing in appointment data");
+    }
+
+    calendar.addEvent({
+      title: `${formattedTime} ${doctorName}`,
+      start: formattedDate + "T" + formattedTime,
+      allDay: false,
+      color: "rgba(255, 179, 128, 0.5)", // Peach background with transparency
+      textColor: "#f26d21", // Orange text
+      extendedProps: {
+        description: doctorName, // Added to use in custom rendering
+      },
+    });
+  } catch (e) {
+    console.error("Error in adding event to calendar:", e);
+  }
+}
 // Function to populate dropdown for displaying only the available times for appointments based on the date selected
 function populateHoursDropdown() {
   const selectedDate = $("#appointmentDate").val(); //  "YYYY-MM-DD" format
@@ -1179,9 +1325,6 @@ async function designateProxy() {
     alert("Failed to designate proxy. Please try again.");
   }
 }
-
-
-
 
 
 // Function to generate token to send to proxy's email
@@ -1729,163 +1872,6 @@ function displayAllDiagnoses() {
     });
 }
 
-// Function to load accepted appointments
-async function loadAcceptedAppointments(calendar) {
-  try {
-    const accounts = await ethereum.request({ method: "eth_accounts" });
-    const patientAddress = accounts[0].toLowerCase();
-
-    const patientSessionKey = await getSessionAESKey();
-
-    const appointmentIds = await appointmentManager.methods
-      .getPatientAppointments(patientAddress)
-      .call();
-
-    for (const appointmentId of appointmentIds) {
-      const appointmentOnChain = await appointmentManager.methods
-        .appointments(appointmentId)
-        .call();
-
-      // Skip if no IPFS hash
-      if (!appointmentOnChain.ipfsHash || appointmentOnChain.ipfsHash === "0x") continue;
-
-      // Fetch from IPFS
-      let encryptedPayload;
-      try {
-        const files = await ipfs.files.get(appointmentOnChain.ipfsHash);
-        const file = files.find(f => f.content);
-        if (!file) continue;
-
-        encryptedPayload = JSON.parse(
-          new TextDecoder().decode(file.content)
-        );
-      } catch (e) {
-        console.warn(`⚠️ Failed to fetch IPFS data for appointment ${appointmentId}, skipping`, e);
-        continue;
-      }
-
-      let appointmentData = null;
-
-      // Try to decrypt if patient key exists
-      if (encryptedPayload.aesKeyWrappedForPatient) {
-        try {
-          const appointmentAESKey = await window.unwrapRMK(
-            encryptedPayload.aesKeyWrappedForPatient,
-            patientSessionKey
-          );
-
-          const decrypted = await window.decryptAES(
-            { iv: encryptedPayload.iv, data: encryptedPayload.data },
-            appointmentAESKey
-          );
-
-          appointmentData = JSON.parse(decrypted);
-        } catch (e) {
-          console.warn(`⚠️ Failed to decrypt appointment ${appointmentId}, showing minimal info`, e);
-        }
-      } else {
-        console.warn(`⚠️ No AES key for patient for appointment ${appointmentId}, showing minimal info`);
-      }
-
-      // Determine display values
-      let status = "Pending";
-      if (appointmentOnChain.isAccepted) status = "Accepted";
-      else if (appointmentOnChain.isRejected) status = "Rejected";
-
-      let appointmentDate = "Unknown Date";
-      let appointmentTime = "Unknown Time";
-
-      if (appointmentData?.start) {
-        const match = appointmentData.start.match(
-          /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
-        );
-        if (match) {
-          const date = new Date(
-            Date.UTC(
-              parseInt(match[1], 10),
-              parseInt(match[2], 10) - 1,
-              parseInt(match[3], 10),
-              parseInt(match[4], 10),
-              parseInt(match[5], 10),
-              parseInt(match[6], 10)
-            )
-          );
-          appointmentDate = date.toISOString().substring(0, 10);
-          appointmentTime = date.toISOString().substring(11, 16);
-        }
-      }
-
-      let doctorName = "Unknown Doctor";
-      try {
-        const doctor = await userRegistry.methods
-          .getDoctor(appointmentOnChain.doctorAddress)
-          .call();
-        doctorName = `${doctor[0]} ${doctor[1]}`;
-      } catch {}
-
-      // Display in table
-      var row = $("<tr>");
-      $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
-      $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
-      $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
-      var statusCell = $("<td>").text(status).appendTo(row);
-
-      if (status === "Accepted") statusCell.addClass("accepted-status");
-      else if (status === "Rejected") statusCell.addClass("rejected-status");
-      else if (status === "Pending") statusCell.addClass("pending-status");
-      else statusCell.addClass("unknown-status");
-
-      $("#acceptedAppointments tbody").append(row);
-
-      // Add to calendar if fully decrypted
-      if (appointmentData) addEventToCalendar(appointmentData, calendar);
-    }
-  } catch (err) {
-    console.error("loadAcceptedAppointments failed:", err);
-  }
-}
-
-
-
-// function to add details of appointment to calendar
-function addEventToCalendar(appointmentData, calendar) {
-  if (!calendar) {
-    console.error("Calendar not defined");
-    return;
-  }
-
-  try {
-    // Ensure the date is parsed correctly
-    const date = moment(appointmentData.start, "YYYYMMDDTHH:mm:ssZ").utc();
-    const formattedDate = date.format("YYYY-MM-DD");
-    const formattedTime = date.format("HH:mm");
-
-    // Find the patient's name in the participant array
-    const doctorInfo = appointmentData.participant.find((p) =>
-      p.actor.reference.startsWith("Practitioner")
-    );
-    const doctorName = doctorInfo ? doctorInfo.actor.display : "Unknown Doctor";
-
-    // Check if patient's name was found
-    if (doctorName === "Unknown Doctor") {
-      console.error("Doctor name is missing in appointment data");
-    }
-
-    calendar.addEvent({
-      title: `${formattedTime} ${doctorName}`,
-      start: formattedDate + "T" + formattedTime,
-      allDay: false,
-      color: "rgba(255, 179, 128, 0.5)", // Peach background with transparency
-      textColor: "#f26d21", // Orange text
-      extendedProps: {
-        description: doctorName, // Added to use in custom rendering
-      },
-    });
-  } catch (e) {
-    console.error("Error in adding event to calendar:", e);
-  }
-}
-
 // Function to check the age of patient and handle the display of data and proxy designation
 function checkAndHandleProxy(key) {
   userRegistry.methods
@@ -2058,8 +2044,162 @@ function requestPassword() {
   });
 }
 
+function getPasswordConstraintsMsg() {
+  return `
+    Password must meet the following criteria:<br>
+    - Minimum 8 characters<br>
+    - At least 1 uppercase letter<br>
+    - At least 1 lowercase letter<br>
+    - At least 1 number<br>
+    - At least 1 special character (e.g., !@#$%^&*)<br>
+  `;
+}
+
+function requestNewPassword() {
+  return new Promise((resolve) => {
+    $("#newPasswordInput").val("");
+    $("#confirmPasswordInput").val("");
+    $("#newPasswordError").hide();
+
+    const modalEl = document.getElementById("newPasswordModal");
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+    modal.show();
+
+    const btn = document.getElementById("submitNewPasswordButton");
+
+    function handle() {
+      const pw = $("#newPasswordInput").val();
+      const confirm = $("#confirmPasswordInput").val();
+
+      if (!pw || !confirm) return;
+
+      if (!isStrongPassword(pw)) {
+        $("#newPasswordError")
+          .html(getPasswordConstraintsMsg())
+          .show();
+        return;
+      }
+
+      if (pw !== confirm) {
+        $("#newPasswordError")
+          .text("Passwords do not match.")
+          .show();
+        return;
+      }
+
+      modal.hide();
+      btn.removeEventListener("click", handle);
+      resolve(pw);
+    }
+
+    btn.addEventListener("click", handle);
+  });
+}
 
 
+
+async function openRecoveryFlow() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
+
+    const wrappedRecoveryRMK =
+      await medicalDataRegistry.methods.getRecoveryEncryptedAESKey(patientAddress).call({ from: patientAddress });
+
+    if (!wrappedRecoveryRMK) {
+      alert("No recovery key found on chain.");
+      return;
+    }
+
+    // This now resolves only when the recovery key is correct
+    const recoveredRMK = await requestRecoveryKey(patientAddress, wrappedRecoveryRMK);
+
+    // Ask for new password
+    const newPassword = await requestNewPassword();
+    if (!newPassword) return;
+
+    const newUAK = await window.deriveUAK(newPassword, patientAddress);
+    const newWrappedRMK = await window.wrapRMK(recoveredRMK, newUAK);
+
+    await medicalDataRegistry.methods
+      .setEncryptedAESKey(patientAddress, patientAddress, newWrappedRMK)
+      .send({ from: patientAddress });
+
+    sessionAESKey = recoveredRMK;
+    alert("Password successfully reset!");
+
+  } catch (err) {
+    console.error(err);
+    alert("Recovery failed.");
+  }
+}
+
+
+
+function toggleRecoveryVisibility() {
+  const input = document.getElementById("recoveryKeyInput");
+  const icon = input.nextElementSibling.querySelector("i");
+
+  if (input.type === "password") {
+    input.type = "text";
+    icon.classList.replace("fa-eye", "fa-eye-slash");
+  } else {
+    input.type = "password";
+    icon.classList.replace("fa-eye-slash", "fa-eye");
+  }
+}
+
+function toggleNewPasswordVisibility(inputId) {
+  const input = document.getElementById(inputId);
+  const icon = input.nextElementSibling.querySelector("i");
+
+  if (input.type === "password") {
+    input.type = "text";
+    icon.classList.replace("fa-eye", "fa-eye-slash");
+  } else {
+    input.type = "password";
+    icon.classList.replace("fa-eye-slash", "fa-eye");
+  }
+}
+
+
+function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
+  return new Promise((resolve) => {
+    $("#recoveryKeyInput").val("");
+    $("#recoveryError").hide();
+
+    const modalEl = document.getElementById("recoveryModal");
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+    modal.show();
+
+    const btn = document.getElementById("submitRecoveryButton");
+
+    async function handle() {
+      const recoveryKey = $("#recoveryKeyInput").val();
+      if (!recoveryKey) return;
+
+      try {
+        const recoveryUAK = await window.deriveRecoveryUAK(recoveryKey, patientAddress);
+        const recoveredRMK = await window.unwrapRMK(wrappedRecoveryRMK, recoveryUAK);
+
+        modal.hide(); // hide only on success
+        btn.removeEventListener("click", handle);
+        resolve(recoveredRMK); // return the recovered RMK
+
+      } catch (err) {
+        $("#recoveryError").text("Invalid recovery key. Please try again.").show();
+        // keep modal open
+      }
+    }
+
+    btn.addEventListener("click", handle);
+  });
+}
+
+
+function showRecoveryError(msg) {
+  $("#recoveryError").text(msg).show();
+}
 
 
 
