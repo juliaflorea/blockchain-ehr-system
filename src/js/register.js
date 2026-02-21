@@ -27,11 +27,15 @@ async function addUser() {
     ? document.getElementById("poaDoc").files[0]
     : null;
 
-  const accounts = await web3.eth.getAccounts();
-  if (accounts.length === 0) {
-    alert("No MetaMask account found. Please connect your wallet.");
-    return;
-  }
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+
+    if (!accounts || accounts.length === 0) {
+      alert("Please connect MetaMask first.");
+      return;
+    }
+    
+   
+    
 
   const publicKey = accounts[0].toLowerCase();
   console.log("Public Key:", publicKey);
@@ -71,44 +75,140 @@ async function addUser() {
   }
 }
 
-// ================= Patient Registration =================
+// ================= Patient Registration (SECURE + VALIDATED) =================
 async function registerPatient(ipfs, Buffer, publicKey, data) {
-  const fhirPatient = {
-    resourceType: "Patient",
-    name: [{ family: data.lastName, given: [data.firstName] }],
-    gender: data.gender,
-    birthDate: data.birthDate,
-    telecom: [
-      { system: "phone", value: data.phoneNumber, use: "mobile" },
-      { system: "email", value: data.email },
-    ],
-    address: [{ use: "home", line: [data.address] }],
-  };
+  try {
+    console.log("🚀 Starting secure patient registration...");
 
-  const formatted = formatPatientData(fhirPatient, publicKey);
-  const buffer = Buffer.from(formatted);
+    const ethAddress = publicKey.toLowerCase();
 
-  ipfs.files.add(buffer, async (error, result) => {
-    if (error) return console.error("IPFS error:", error);
+    // ---------- PASSWORD VALIDATION ----------
+    const passwordInput = document.getElementById("patientPassword");
+    const passwordError = document.getElementById("passwordError");
+    const password = passwordInput.value;
 
-    const ipfsHash = result[0].hash;
-    try {
-      
-      await userRegistry.methods
+    if (!password || !isStrongPassword(password)) {
+      passwordError.style.display = "block";
+      throw new Error("Weak or missing password");
+    }
+
+    passwordError.style.display = "none";
+
+    // ---------- Build FHIR Patient ----------
+    const fhirPatient = {
+      resourceType: "Patient",
+      name: [{
+        family: data.lastName,
+        given: [data.firstName]
+      }],
+      gender: data.gender,
+      birthDate: data.birthDate,
+      telecom: [
+        { system: "phone", value: data.phoneNumber },
+        { system: "email", value: data.email }
+      ],
+      address: [{
+        use: "home",
+        line: [data.address]
+      }]
+    };
+
+    const plaintext = JSON.stringify(fhirPatient);
+
+    // ---------- Generate RMK ----------
+    const rmk = await window.generateAESKey();
+
+    // ---------- Encrypt patient record ----------
+    const encryptedPayload = await window.encryptAES(
+      plaintext,
+      rmk
+    );
+
+    const ipfsBuffer = Buffer.from(
+      JSON.stringify(encryptedPayload)
+    );
+
+    const ipfsHash = (
+      await ipfs.files.add(ipfsBuffer)
+    )[0].hash;
+
+    // ---------- Derive password UAK ----------
+    const uak = await window.deriveUAK(password, ethAddress);
+
+    // ---------- Wrap RMK with password ----------
+    const wrappedRMK =
+      await window.wrapRMK(rmk, uak);
+
+    // ---------- Generate Recovery Key ----------
+    const recoveryKey =
+      window.generateRecoveryKey();
+
+    // ---------- Derive Recovery UAK ----------
+    const recoveryUAK =
+      await window.deriveRecoveryUAK(
+        recoveryKey,
+        ethAddress
+      );
+
+    // ---------- Wrap RMK with recovery key ----------
+    const wrappedRMKRecovery =
+      await window.wrapRMK(rmk, recoveryUAK);
+
+    // ---------- Register patient ----------
+    await userRegistry.methods
       .addPatient(
         data.firstName,
         data.lastName,
         parseInt(data.age),
         ipfsHash
       )
-      .send({ from: publicKey, gas: 1000000 });
-    
-      location.replace("./patient.html");
-    } catch (err) {
-      console.error("Transaction error:", err);
-    }
-  });
+      .send({
+        from: ethAddress,
+        gas: 1500000
+      });
+
+    // ---------- Store wrapped RMK (normal login) ----------
+    await medicalDataRegistry.methods
+      .setEncryptedAESKey(
+        ethAddress,
+        ethAddress,
+        wrappedRMK
+      )
+      .send({
+        from: ethAddress,
+        gas: 500000
+      });
+
+    // ---------- Store recovery wrapped RMK ----------
+    await medicalDataRegistry.methods
+      .setRecoveryEncryptedAESKey(
+        ethAddress,
+        wrappedRMKRecovery
+      )
+      .send({
+        from: ethAddress,
+        gas: 500000
+      });
+
+    // ---------- Store for current session ----------
+    sessionStorage.setItem("wrappedRMK", wrappedRMK);
+
+    console.log("✅ Patient registered successfully");
+
+    // ---------- SHOW RECOVERY KEY ----------
+    document.getElementById("recoveryKeyValue").innerText =
+      recoveryKey;
+
+    $("#recoveryKeyModal").modal("show");
+
+  } catch (err) {
+    console.error("❌ Patient registration failed:", err);
+    alert("Registration failed. Please check your inputs.");
+  }
 }
+
+
+
 
 // ================= Doctor Registration =================
 async function registerDoctor(ipfs, Buffer, publicKey, data) {
@@ -185,6 +285,7 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
   }
 
   try {
+    // ---------- Determine registration type ----------
     const { isToken, hashOrToken } = await handleProxyRegistration(
       data.proxyOption, data.token, data.poaDocument, ipfs, Buffer
     );
@@ -198,6 +299,7 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
       return;
     }
 
+    // ---------- Prepare FHIR proxy record ----------
     const fhirProxy = {
       resourceType: "RelatedPerson",
       name: [{ family: data.lastName, given: [data.firstName] }],
@@ -213,32 +315,91 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
     const formatted = JSON.stringify(fhirProxy);
     const buffer = Buffer.from(formatted);
 
-    ipfs.files.add(buffer, async (error, result) => {
-      if (error) return console.error("IPFS error:", error);
+    // ---------- Store proxy FHIR record on IPFS ----------
+    const result = await ipfs.files.add(buffer);
+    const ipfsHash = result[0].hash;
 
-      const ipfsHash = result[0].hash;
+    // ---------- Register proxy in UserRegistry ----------
+    await userRegistry.methods
+      .addProxy(
+        data.firstName,
+        data.lastName,
+        parseInt(data.age),
+        ipfsHash,
+        isToken,
+        hashOrToken,
+        ethAddressParam
+      )
+      .send({ from: publicKey, gas: 1000000 });
 
-      await userRegistry.methods
-  .addProxy(
-    data.firstName,
-    data.lastName,
-    parseInt(data.age),
-    ipfsHash,
-    isToken,
-    hashOrToken,
-    ethAddressParam
+    // ---------- Get patient address ----------
+    let patientAddr;
+    if (isToken) {
+      patientAddr = await userRegistry.methods.getTokenToPatient(hashOrToken).call();
+    } else {
+      patientAddr = data.patientEthereumAddress.toLowerCase();
+    }
+
+    // ---------- Fetch temp wrapped RMK from IPFS safely ----------
+    let tempWrappedRMK;
+    try {
+      const tempHash = await userRegistry.methods.getTempWrappedRMK(hashOrToken).call();
+      if (!tempHash) throw new Error("No temp RMK hash returned from contract");
+      const tempData = await fetch("http://localhost:8080/ipfs/" + tempHash);
+      if (!tempData.ok) throw new Error(`IPFS fetch failed: ${tempData.status}`);
+      tempWrappedRMK = await tempData.json();
+    } catch (ipfsError) {
+      console.error("Failed to fetch temp wrapped RMK from IPFS:", ipfsError);
+      throw new Error("Cannot continue without temp wrapped RMK");
+    }
+
+    // ---------- Derive temp key from token ----------
+    const tempKey = await window.deriveTempKeyFromToken(hashOrToken);
+
+    // ---------- Unwrap RMK with temp key ----------
+    const rmk = await window.unwrapRMK(tempWrappedRMK, tempKey);
+
+    // ---------- Derive proxy UAK ----------
+    const proxyUAK = await window.deriveUAKForDoctor(publicKey);
+
+    // ---------- Wrap RMK for proxy ----------
+    const wrappedForProxy = await window.wrapRMK(rmk, proxyUAK);
+
+    // ---------- Patient stores key for proxy (use unlocked account) ----------
+    await medicalDataRegistry.methods
+  .setEncryptedAESKey(
+    patientAddr,
+    publicKey.toLowerCase(),
+    wrappedForProxy
   )
-  .send({ from: publicKey, gas: 1000000 });
+  .send({
+    from: publicKey,   // proxy sends transaction
+    gas: 500000
+  });
+
+    
+
+    // ---------- Save RMK locally ----------
+    sessionStorage.setItem("rmk", wrappedForProxy);
+
+    await userRegistry.methods
+  .consumeTempRMK(hashOrToken)
+  .send({ from: publicKey });
 
 
-      location.replace("./proxy.html");
-    });
+    // ---------- Redirect ----------
+    location.replace("./proxy.html");
+
   } catch (error) {
     console.error("Proxy registration failed:", error);
     $("#poaValidationError").show();
-    $("#poaValidationErrorMessage").text(error);
+    $("#poaValidationErrorMessage").text(error.message || error);
   }
 }
+
+
+
+
 
 // ================= Utility / Helper Functions =================
 async function checkLicenseUniqueness(licenseNumber) {
@@ -250,6 +411,7 @@ function toggleFields() {
   $("#commonFields").css("display", designation !== "" ? "block" : "none");
   $("#doctorFields").css("display", designation === "1" ? "block" : "none");
   $("#proxyFields").css("display", designation === "2" ? "block" : "none");
+  $("#patientPasswordGroup").css("display", designation === "0" ? "block" : "none");
 
   if (designation === "2") toggleProxyOptionFields();
 }
@@ -440,3 +602,11 @@ function validateDoctorCertificate(file, licenseNumber) {
       .catch(err => reject("OCR Error: " + err));
   });
 }
+
+
+function copyRecoveryKey() {
+    const key = document.getElementById("recoveryKeyValue").innerText;
+    navigator.clipboard.writeText(key);
+    alert("Recovery key copied to clipboard");
+}
+

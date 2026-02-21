@@ -89,6 +89,12 @@ contract AppointmentManager {
         doctorAppointments[_doctor].push(appointmentId);
         patientAppointments[msg.sender].push(appointmentId);
 
+        // Also push for the proxy if exists
+UserRegistry.Patient memory p = userRegistry.getPatient(msg.sender);
+if (p.hasDesignatedProxy) {
+    patientAppointments[p.proxyAddress].push(appointmentId);
+}
+
         emit AppointmentRequested(appointmentId, msg.sender, _doctor);
     }
 
@@ -136,6 +142,8 @@ contract AppointmentManager {
 
         patientAppointments[_patient].push(appointmentId);
         doctorAppointments[_doctor].push(appointmentId);
+        patientAppointments[msg.sender].push(appointmentId); // msg.sender is proxy
+
 
         emit AppointmentRequested(appointmentId, _patient, _doctor);
     }

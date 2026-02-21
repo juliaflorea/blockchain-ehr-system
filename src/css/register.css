@@ -198,3 +198,50 @@ body {
   border-color: #324cdd;
   color: #fff;
 }
+
+/* register.css */
+
+/* Align password constraints with input */
+#patientPasswordGroup .form-text {
+  display: block;        /* Ensure it takes full width */
+  margin-top: 0.5rem;
+  font-size: 0.875rem;   /* default small text */
+}
+
+#patientPasswordGroup .form-text ul {
+  margin: 0.25rem 0 0.25rem 1.25rem; /* small left indent to align nicely */
+  padding-left: 0; /* remove browser default padding */
+  list-style-position: inside; /* bullets inside content area */
+}
+
+#patientPasswordGroup .form-text ul li {
+  margin-bottom: 0.2rem; /* reduce spacing between lines */
+}
+
+#patientPasswordGroup .form-text {
+  text-align: left; /* ensure left alignment */
+}
+
+#patientPasswordGroup .col-sm-8 {
+  margin-left: auto;
+  margin-right: auto;
+  float: none;
+}
+
+.recovery-key-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 10px;
+
+    word-break: break-all;
+    overflow-wrap: anywhere;
+}
+
+.recovery-key-box code {
+    font-size: 15px;
+    font-family: "Courier New", monospace;
+    display: block;
+    white-space: normal;
+}

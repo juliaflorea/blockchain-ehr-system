@@ -78,7 +78,7 @@
 
 
 
-                <div class="panel panel-default active" id="personalInfoPanel" >
+                <div class="panel panel-default active" id="personalInfoPanel">
                     <div class="panel-heading">
                         <h3 class="text-center">Personal Information</h3>
                     </div>
@@ -286,12 +286,16 @@
                             <div class="row">
                                 <div class="col-sm-12">
                                     <table id="sentAppointmentRequestsTable" class="table table-hover">
-                                        <tr>
-                                            <th class="doctorName">Doctor</th>
-                                            <th class="appointmentDate">Appointment Date</th>
-                                            <th class="appointmentTime">Appointment Time</th>
-                                            <th>Status</th>
-                                        </tr>
+                                        <thead>
+                                            <tr>
+                                                <th class="doctorName">Doctor</th>
+                                                <th class="appointmentDate">Appointment Date</th>
+                                                <th class="appointmentTime">Appointment Time</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        </tbody>
                                     </table>
                                 </div>
                             </div>
@@ -499,9 +503,134 @@
     <script src="https://kendo.cdn.telerik.com/2023.3.1114/js/kendo.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <script src='https://unpkg.com/fullcalendar@5/main.min.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.11/dist/browsers/sodium.js"></script>
+
+
     <script src="./js/config.js"></script>
+    <script src="/js/crypto.js"></script>
     <script src="/js/main.js"></script>
+    <script src="/js/register.js"></script>
     <script src="/js/patient.js"></script>
+
+    <!-- Password Modal -->
+    <div class="modal fade" id="passwordModal" tabindex="-1" role="dialog" aria-labelledby="passwordModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="passwordModalLabel">Enter Access Password</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="modalPassword" placeholder="Password">
+                        <div class="input-group-append">
+                            <span class="input-group-text" style="cursor:pointer;"
+                                onclick="toggleModalPasswordVisibility()">
+                                <i class="fa fa-eye"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted mt-2">
+                        This password is required to decrypt your medical records.
+                    </small>
+                    <div id="modalPasswordError" class="text-danger mt-1" style="display:none;">Incorrect password</div>
+                    <div class="text-center mt-2">
+                        <a href="#" onclick="openRecoveryFlow(); return false;">
+                            Forgot password?
+                        </a>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="submitPasswordButton">Submit</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 🔐 Recovery Key Modal -->
+    <div class="modal fade" id="recoveryModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">Enter Recovery Key</h5>
+                </div>
+
+                <div class="modal-body">
+                    <div class="input-group">
+                        <input type="password" id="recoveryKeyInput" class="form-control" placeholder="Recovery Key">
+                        <div class="input-group-append">
+                            <span class="input-group-text" style="cursor:pointer;" onclick="toggleRecoveryVisibility()">
+                                <i class="fa fa-eye"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <small id="recoveryError" class="text-danger" style="display:none;">
+                        Invalid recovery key.
+                    </small>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="submitRecoveryButton" class="btn btn-primary">
+                        Continue
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <!-- 🔐 New Password Modal -->
+    <div class="modal fade" id="newPasswordModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Set New Password</h5>
+                </div>
+
+                <div class="modal-body">
+
+                    <!-- New Password -->
+                    <div class="input-group mb-2">
+                        <input type="password" id="newPasswordInput" class="form-control" placeholder="New Password">
+                        <div class="input-group-append">
+                            <span class="input-group-text" style="cursor:pointer;"
+                                onclick="toggleNewPasswordVisibility('newPasswordInput')">
+                                <i class="fa fa-eye"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Confirm Password -->
+                    <div class="input-group mb-2">
+                        <input type="password" id="confirmPasswordInput" class="form-control"
+                            placeholder="Confirm Password">
+                        <div class="input-group-append">
+                            <span class="input-group-text" style="cursor:pointer;"
+                                onclick="toggleNewPasswordVisibility('confirmPasswordInput')">
+                                <i class="fa fa-eye"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <small id="newPasswordError" class="text-danger" style="display:none;"></small>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button id="submitNewPasswordButton" class="btn btn-success">
+                        Reset Password
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
 
 
 </body>

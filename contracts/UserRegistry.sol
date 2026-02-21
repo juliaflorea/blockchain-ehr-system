@@ -33,6 +33,7 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
         address[] doctorAccessList;
         address[] proxyAccessList;
         uint[] diagnosis;
+        // Cached IPFS hash (authoritative value in MedicalDataRegistry)
         string record;
         address proxyAddress;
         bool hasDesignatedProxy;
@@ -73,6 +74,10 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
     mapping(string => address) private tokenToPatient;
     mapping(address => string) private patientToToken;
     mapping(address => bytes32) private proxyDetailsHash;
+    mapping(string => string) private tokenToTempWrappedRMK;
+
+   
+
 
     // ===== Events =====
     event PatientRegistered(address patient);
@@ -181,6 +186,7 @@ function addProxy(
     proxies[msg.sender] = prx;
     proxyList.push(msg.sender);
     medicalDataRegistry.setHash(msg.sender, recordHash);
+
     emit ProxyRegistered(msg.sender, patientAddr);
 }
 
@@ -293,11 +299,13 @@ function addProxy(
 }
 
 
-    function designateProxy(string memory token, bytes32 detailsHash) public {
+    function designateProxy(string memory token, bytes32 detailsHash,string memory tempWrappedRMKHash) public {
         
         require(bytes(patientInfo[msg.sender].firstName).length != 0, "Only patients can designate proxy");
 
         Patient storage p = patientInfo[msg.sender];
+        tokenToTempWrappedRMK[token] = tempWrappedRMKHash;
+
 
     // patient can only have one proxy
         require(!p.hasDesignatedProxy, "Proxy already designated");
@@ -334,5 +342,19 @@ function addProxy(
             proxies[userAddr].record = newHash;
         }
     }
+
+    function getTempWrappedRMK(string memory token) public view returns (string memory) {
+    return tokenToTempWrappedRMK[token];
+}
+
+function consumeTempRMK(string calldata token) external {
+    require(tokenToPatient[token] != address(0), "Invalid token");
+
+    delete tokenToTempWrappedRMK[token];
+    delete tokenToPatient[token];
+}
+
+
+
 
 }
