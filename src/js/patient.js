@@ -1,3 +1,4 @@
+
 var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
@@ -46,10 +47,6 @@ async function getSessionAESKey() {
 
   return sessionAESKey;
 }
-
-
-
-
 
 async function loadPatientData() {
   // Ensure contracts are ready
@@ -172,7 +169,6 @@ async function loadPatientData() {
   }
 }
 
-
 // Listen for contractsReady before loading patient data
 window.addEventListener("contractsReady", async () => {
   try {
@@ -188,7 +184,6 @@ window.addEventListener("contractsReady", async () => {
     // Other automatic data loads
     displayProxiesWithAccess();
     displayFormerProxies();
-    fetchSymptoms();
   } catch (err) {
     console.warn("Unable to auto-load data:", err.message);
   }
@@ -276,9 +271,6 @@ async function showRecords(element) {
     alert(err.message);
   }
 }
-
-
-
 
 
 // Get the patient name for the filename
@@ -856,8 +848,6 @@ async function loadSentAppointmentRequests() {
 }
 
 
-
-
 // Function to display the requests
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   console.log(`Full Appointment ${id} Data:`, appointment);
@@ -934,34 +924,39 @@ document.addEventListener("DOMContentLoaded", function () {
     revokeProxyAccess(proxyAddress);
   });
 
-  // Fetch symptoms when the document is ready
-  fetchSymptoms();
+ 
 
   // initialize views
   var panels = document.querySelectorAll(".panel");
-  // Initially hide all panels except the personalInfoPanel
-  panels.forEach(function (panel) {
-    if (panel.id !== "personalInfoPanel") {
-      panel.style.display = "none";
-    } else {
-      panel.style.display = "block"; // Ensure personalInfoPanel is visible
-    }
-  });
+  // Remove active from all panels
+panels.forEach(function (panel) {
+  panel.classList.remove("active");
+});
 
-  // Setup event listeners for sidebar links
-  var sidebarLinks = document.querySelectorAll(".list-group-item");
-  sidebarLinks.forEach(function (link) {
-    link.addEventListener("click", function () {
-      var targetPanelId = this.getAttribute("data-target");
-      panels.forEach(function (panel) {
-        if (panel.id === targetPanelId) {
-          panel.style.display = "block"; // Show the clicked panel
-        } else {
-          panel.style.display = "none"; // Hide others
-        }
-      });
+// Activate personalInfoPanel
+document.getElementById("personalInfoPanel").classList.add("active");
+
+ // Setup event listeners for sidebar links
+var sidebarLinks = document.querySelectorAll(".list-group-item");
+
+sidebarLinks.forEach(function (link) {
+  link.addEventListener("click", function () {
+    var targetPanelIds = this.getAttribute("data-target").split(" ");
+
+    // Remove active from all panels
+    panels.forEach(function (panel) {
+      panel.classList.remove("active");
+    });
+
+    // Activate all target panels
+    targetPanelIds.forEach(function (id) {
+      var panel = document.getElementById(id);
+      if (panel) {
+        panel.classList.add("active");
+      }
     });
   });
+});
 
   // reset symptoms
   const resetButton = document.getElementById("resetButton");
@@ -1694,11 +1689,9 @@ function displayRegularPatientDashboard() {
   // Hide all panels initially
   var panels = document.querySelectorAll(".panel");
   panels.forEach(function (panel) {
-    panel.style.display = "none"; // Hide all panels
-  });
-
-  // Show only the personalInfoPanel
-  document.getElementById("personalInfoPanel").style.display = "block";
+  panel.classList.remove("active");
+});
+document.getElementById("personalInfoPanel").classList.add("active");
 
   // Show all sidebar items
   $(".list-group-item").show();
@@ -1979,7 +1972,4 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
 function showRecoveryError(msg) {
   $("#recoveryError").text(msg).show();
 }
-
-
-
 
