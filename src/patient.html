@@ -43,6 +43,12 @@
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i>Appointment
                     Calendar</a>
+                <hr class="sidebar-divider">
+                <p class="sidebar-category ">AI ASSISTANT</p>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="aiAssistantPanel">
+                    <i class="fas fa-robot"></i> AI Symptom Assistant
+                </a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
                 <hr class="sidebar-divider">
@@ -441,13 +447,48 @@
                     </div>
                 </div>
 
-    
+
                 <div class="panel panel-default" id="appointmentCalendarPanel">
                     <div class="panel-heading">
                         <h3 class="text-center">Appointment Calendar</h3>
                     </div>
                     <div class="panel-body">
                         <div id="calendar"></div>
+                    </div>
+                </div>
+
+                <div class="panel panel-default" id="aiAssistantPanel">
+                    <div class="panel-heading">
+                        <h3 class="text-center">AI Symptom Assistant</h3>
+                    </div>
+                    <div class="panel-body">
+
+                        <div class="alert alert-info">
+                            This AI assistant provides educational clinical insights only.
+                            It does NOT replace professional medical consultation.
+                        </div>
+
+                        <!-- Chat Window -->
+                        <div id="chatWindow" style="height:400px;
+                    overflow-y:auto;
+                    border:1px solid #ccc;
+                    padding:15px;
+                    background:#f8f9fa;
+                    margin-bottom:15px;">
+                        </div>
+
+                        <!-- Input Area -->
+                        <div class="input-group">
+                            <textarea id="symptomInput" class="form-control" rows="2"
+                                placeholder="Describe your symptoms..."></textarea>
+
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" onclick="sendSymptomMessage()">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 

@@ -327,7 +327,7 @@ function getDateTime() {
   return strDateTime;
 }
 
-// ----- Submit Diagnosis -----
+
 // ----- Submit Diagnosis -----
 async function submitDiagnosis(element, index) {
   try {

@@ -1973,3 +1973,157 @@ function showRecoveryError(msg) {
   $("#recoveryError").text(msg).show();
 }
 
+async function buildPatientLLMContext() {
+  const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  const patientAddress = accounts[0].toLowerCase();
+  const patientAESKey = await getSessionAESKey();
+
+  const recordHash = await medicalDataRegistry.methods
+    .getHash(patientAddress)
+    .call();
+
+  const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
+  const encryptedPayload = await resp.json();
+
+  const decryptedString = await window.decryptAES(encryptedPayload, patientAESKey);
+  const record = JSON.parse(decryptedString);
+
+  let age = null;
+  let gender = null;
+  let allergies = [];
+  let pastDiagnoses = [];
+  let treatments = [];
+
+  const resources =
+    record.resourceType === "Bundle"
+      ? record.entry.map(e => e.resource)
+      : [record];
+
+  resources.forEach(r => {
+    if (r.birthDate) {
+      const birthYear = new Date(r.birthDate).getFullYear();
+      age = new Date().getFullYear() - birthYear;
+    }
+
+    if (r.gender) gender = r.gender;
+
+    if (r.allergies) {
+      r.allergies.forEach(a => allergies.push(a.substance));
+    }
+
+    if (r.diagnosis) {
+      r.diagnosis.forEach(d => pastDiagnoses.push(d.diagnosed));
+    }
+
+    if (r.treatmentPlan) {
+      r.treatmentPlan.forEach(t => treatments.push(t.medicationName));
+    }
+  });
+
+  return { age, gender, allergies, pastDiagnoses, treatments };
+}
+
+async function sendSymptomMessage() {
+
+  const input = document.getElementById("symptomInput");
+  const chatWindow = document.getElementById("chatWindow");
+
+  const message = input.value.trim();
+  if (!message) return;
+
+  // Display user message
+  chatWindow.innerHTML += `
+    <div style="text-align:right; margin-bottom:10px;">
+      <span style="background:#6f42c1;color:white;padding:8px 12px;border-radius:15px;">
+        ${message}
+      </span>
+    </div>
+  `;
+
+  input.value = "";
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  try {
+
+    // Get blockchain + decrypted context
+    const patientContext = await buildPatientLLMContext();
+
+    const response = await fetch("http://localhost:3000/api/diagnose", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...patientContext,
+        symptoms: [message]   // IMPORTANT: send as array
+      })
+    });
+
+    const data = await response.json();
+
+    let aiReply = "";
+
+    if (data.emergency) {
+
+      aiReply = `
+        <div style="color:red;font-weight:bold;">
+          ⚠ EMERGENCY: ${data.message}
+        </div>
+      `;
+
+    } else {
+
+      aiReply += `<strong>Differential Diagnoses:</strong><br><br>`;
+
+      if (data.differential_diagnoses && Array.isArray(data.differential_diagnoses)) {
+  data.differential_diagnoses.forEach(d => {
+    const rawReasoning = typeof d.reasoning === "string" ? d.reasoning.trim() : "";
+    const hasReasoning = rawReasoning && !/^reasoning not provided\.?$/i.test(rawReasoning);
+    const reasoningLine = hasReasoning ? `${rawReasoning}<br>` : "";
+
+    aiReply += `
+      <b>${d.condition}</b> (${d.likelihood})<br>
+      ${reasoningLine}<br>
+    `;
+  });
+}
+
+     if (Array.isArray(data.follow_up_questions) && data.follow_up_questions.length > 0) {
+  aiReply += `<strong>Follow-up Questions:</strong><br>`;
+
+  data.follow_up_questions.forEach(q => {
+    if (typeof q === "string") {
+      aiReply += `• ${q}<br>`;
+    } else if (typeof q === "object" && q.question) {
+      aiReply += `• ${q.question}<br>`;
+    }
+  });
+
+  aiReply += `<br>`;
+}
+
+      if (data.safety_advice) {
+        aiReply += `<strong>Safety Advice:</strong><br>${data.safety_advice}`;
+      }
+    }
+
+    // Display AI response
+    chatWindow.innerHTML += `
+      <div style="text-align:left; margin-bottom:10px;">
+        <span style="background:#e2e3e5;padding:8px 12px;border-radius:15px;">
+          ${aiReply}
+        </span>
+      </div>
+    `;
+
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  } catch (err) {
+
+    chatWindow.innerHTML += `
+      <div style="color:red;">
+        AI assistant failed to respond.
+      </div>
+    `;
+
+    console.error(err);
+  }
+}
