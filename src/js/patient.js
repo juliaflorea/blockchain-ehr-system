@@ -17,6 +17,13 @@ if (window.IpfsApi) {
 toggleRecordsButton = 0;
 let decryptedRecordCache = null;
 var recordHash = "";
+let llmChatState = {
+  awaitingFollowUpReply: false,
+  lastDiagnoses: [],
+  lastFollowUpQuestions: []
+};
+let cachedLLMContext = null;
+let cachedLLMContextHash = null;
 
 
 async function getSessionAESKey() {
@@ -1974,13 +1981,23 @@ function showRecoveryError(msg) {
 }
 
 async function buildPatientLLMContext() {
-  const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  // Use existing wallet session when available to avoid repeated prompts.
+  let accounts = await ethereum.request({ method: "eth_accounts" });
+  if (!accounts || accounts.length === 0) {
+    accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  }
   const patientAddress = accounts[0].toLowerCase();
-  const patientAESKey = await getSessionAESKey();
 
   const recordHash = await medicalDataRegistry.methods
     .getHash(patientAddress)
     .call();
+
+  // Reuse decrypted patient context if the record hash hasn't changed.
+  if (cachedLLMContext && cachedLLMContextHash === recordHash) {
+    return cachedLLMContext;
+  }
+
+  const patientAESKey = await getSessionAESKey();
 
   const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
   const encryptedPayload = await resp.json();
@@ -2020,7 +2037,9 @@ async function buildPatientLLMContext() {
     }
   });
 
-  return { age, gender, allergies, pastDiagnoses, treatments };
+  cachedLLMContext = { age, gender, allergies, pastDiagnoses, treatments };
+  cachedLLMContextHash = recordHash;
+  return cachedLLMContext;
 }
 
 async function sendSymptomMessage() {
@@ -2053,7 +2072,10 @@ async function sendSymptomMessage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...patientContext,
-        symptoms: [message]   // IMPORTANT: send as array
+        symptoms: [message],   // IMPORTANT: send as array
+        is_follow_up_reply: llmChatState.awaitingFollowUpReply,
+        previous_diagnoses: llmChatState.lastDiagnoses,
+        previous_follow_up_questions: llmChatState.lastFollowUpQuestions
       })
     });
 
@@ -2068,26 +2090,33 @@ async function sendSymptomMessage() {
           ⚠ EMERGENCY: ${data.message}
         </div>
       `;
+      llmChatState.awaitingFollowUpReply = false;
+      llmChatState.lastDiagnoses = [];
+      llmChatState.lastFollowUpQuestions = [];
 
     } else {
-
-      aiReply += `<strong>Differential Diagnoses:</strong><br><br>`;
+      if (typeof data.interpretation === "string" && data.interpretation.trim()) {
+        aiReply += `${data.interpretation.trim()}<br><br>`;
+      }
 
       if (data.differential_diagnoses && Array.isArray(data.differential_diagnoses)) {
-  data.differential_diagnoses.forEach(d => {
+  data.differential_diagnoses.forEach((d, index) => {
     const rawReasoning = typeof d.reasoning === "string" ? d.reasoning.trim() : "";
-    const hasReasoning = rawReasoning && !/^reasoning not provided\.?$/i.test(rawReasoning);
+    const hasReasoning = rawReasoning &&
+      !/^reasoning not provided\.?$/i.test(rawReasoning) &&
+      !/\bshort reasoning\b/i.test(rawReasoning);
     const reasoningLine = hasReasoning ? `${rawReasoning}<br>` : "";
+    const spacer = index === data.differential_diagnoses.length - 1 ? "<br>" : "";
 
     aiReply += `
       <b>${d.condition}</b> (${d.likelihood})<br>
-      ${reasoningLine}<br>
+      ${reasoningLine}${spacer}
     `;
   });
 }
 
      if (Array.isArray(data.follow_up_questions) && data.follow_up_questions.length > 0) {
-  aiReply += `<strong>Follow-up Questions:</strong><br>`;
+  aiReply += `<br>`;
 
   data.follow_up_questions.forEach(q => {
     if (typeof q === "string") {
@@ -2101,8 +2130,22 @@ async function sendSymptomMessage() {
 }
 
       if (data.safety_advice) {
-        aiReply += `<strong>Safety Advice:</strong><br>${data.safety_advice}`;
+        aiReply += `<br>${data.safety_advice}`;
       }
+
+      llmChatState.lastDiagnoses = Array.isArray(data.differential_diagnoses)
+        ? data.differential_diagnoses
+            .map(d => (d && typeof d.condition === "string" ? d.condition.trim() : ""))
+            .filter(Boolean)
+        : [];
+
+      llmChatState.lastFollowUpQuestions = Array.isArray(data.follow_up_questions)
+        ? data.follow_up_questions
+            .map(q => (typeof q === "string" ? q.trim() : (q && q.question ? String(q.question).trim() : "")))
+            .filter(Boolean)
+        : [];
+
+      llmChatState.awaitingFollowUpReply = llmChatState.lastFollowUpQuestions.length > 0;
     }
 
     // Display AI response

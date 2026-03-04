@@ -12,6 +12,7 @@ const MODEL_NAME = "mistral:7b-instruct-q4_K_M";
 // 🧠 Robust Output parser
 function parseLLMOutput(text) {
   const result = {
+    interpretation: "",
     differential_diagnoses: [],
     follow_up_questions: [],
     safety_advice: ""
@@ -21,8 +22,24 @@ function parseLLMOutput(text) {
     // Normalize line endings
     const normalized = text.replace(/\r/g, "");
 
-    // 1️⃣ DIAGNOSES
-    const diagnosesSection = normalized.match(/DIAGNOSES:\s*([\s\S]*?)(FOLLOW_UP_QUESTIONS:|$)/i);
+    // 1️⃣ INTERPRETATION (optional, used for follow-up replies)
+    const interpretationSection = normalized.match(/INTERPRETATION:\s*([\s\S]*?)(DIAGNOSES:|FOLLOW_UP_QUESTIONS:|SAFETY_ADVICE:|$)/i);
+    if (interpretationSection) {
+      result.interpretation = interpretationSection[1].trim();
+    }
+
+    // Fallback: if model omits the INTERPRETATION header but includes free text before DIAGNOSES.
+    if (!result.interpretation) {
+      const beforeDiagnoses = normalized.split(/DIAGNOSES:/i)[0].trim();
+      if (beforeDiagnoses) {
+        result.interpretation = beforeDiagnoses
+          .replace(/^assistant:\s*/i, "")
+          .trim();
+      }
+    }
+
+    // 2️⃣ DIAGNOSES
+    const diagnosesSection = normalized.match(/DIAGNOSES:\s*([\s\S]*?)(FOLLOW_UP_QUESTIONS:|SAFETY_ADVICE:|$)/i);
     if (diagnosesSection) {
       const lines = diagnosesSection[1]
         .split(/\n+/)
@@ -31,6 +48,8 @@ function parseLLMOutput(text) {
 
       lines.forEach(line => {
         const cleanLine = line.replace(/^\d+\.\s*/, "");
+        if (/^(none|unchanged|no changes?)\.?$/i.test(cleanLine)) return;
+
         // Attempt split by dash, if missing, use first sentence
         let condition = cleanLine;
         let reasoning = "This condition is possible given the patient's symptoms.";
@@ -47,10 +66,26 @@ function parseLLMOutput(text) {
           }
         }
 
+        // Normalize common model placeholders/format artifacts.
+        condition = condition
+          .replace(/\s*[-–—:]\s*short reasoning\b.*$/i, "")
+          .replace(/\s*\((possible|likely|unlikely)\)\s*$/i, "")
+          .trim();
+
+        reasoning = reasoning
+          .replace(/^short reasoning\b[:\-]?\s*/i, "")
+          .replace(/\((possible|likely|unlikely)\)\s*$/i, "")
+          .trim();
+
         // Remove placeholder reasoning text so UI can omit it cleanly.
-        if (/^reasoning not provided\.?$/i.test(reasoning)) {
+        if (
+          /^(reasoning not provided|short reasoning|n\/a|none)\.?$/i.test(reasoning) ||
+          /\bshort reasoning\b/i.test(reasoning)
+        ) {
           reasoning = "";
         }
+
+        if (!condition) return;
 
         result.differential_diagnoses.push({
           condition,
@@ -60,17 +95,18 @@ function parseLLMOutput(text) {
       });
     }
 
-    // 2️⃣ FOLLOW_UP_QUESTIONS
+    // 3️⃣ FOLLOW_UP_QUESTIONS
     const questionsSection = normalized.match(/FOLLOW_UP_QUESTIONS:\s*([\s\S]*?)(SAFETY_ADVICE:|$)/i);
     if (questionsSection) {
       const lines = questionsSection[1]
         .split(/\n+/)
         .map(l => l.replace(/^[-•]\s*/, "").trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter(l => !/^(none|no further questions?)\.?$/i.test(l));
       result.follow_up_questions = lines;
     }
 
-    // 3️⃣ SAFETY_ADVICE
+    // 4️⃣ SAFETY_ADVICE
     const safetySection = normalized.match(/SAFETY_ADVICE:\s*([\s\S]*)/i);
     if (safetySection) {
       result.safety_advice = safetySection[1].trim();
@@ -92,7 +128,10 @@ app.post("/api/diagnose", async (req, res) => {
       allergies = [],
       pastDiagnoses = [],
       treatments = [],
-      symptoms
+      symptoms,
+      is_follow_up_reply = false,
+      previous_diagnoses = [],
+      previous_follow_up_questions = []
     } = req.body;
 
     if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
@@ -119,22 +158,10 @@ app.post("/api/diagnose", async (req, res) => {
       });
     }
 
-    // Prompt — now forces structured reasoning and complete output
-    const prompt = `
-You are a clinical AI medical triage assistant.
+    const latestMessage = String(symptoms[symptoms.length - 1] || "").trim();
+    const askedDirectQuestion = /\?/.test(latestMessage);
 
-RESPOND IN THIS EXACT FORMAT — DO NOT DEVIATE:
-
-DIAGNOSES:
-1. Condition - provide a 1-sentence reasoning why this could be a possible diagnosis
-2. Condition - provide a 1-sentence reasoning why this could be a possible diagnosis
-
-FOLLOW_UP_QUESTIONS:
-- Provide 2 full follow-up questions for the patient.
-
-SAFETY_ADVICE:
-Provide a short, complete paragraph of safety advice.
-
+    const patientBlock = `
 PATIENT:
 Age: ${age || "Unknown"}
 Gender: ${gender || "Unknown"}
@@ -142,6 +169,58 @@ Allergies: ${allergies.join(", ") || "None"}
 Past Diagnoses: ${pastDiagnoses.slice(0, 2).join(", ") || "None"}
 Current Medications: ${treatments.slice(0, 2).join(", ") || "None"}
 Symptoms: ${symptoms.join(", ")}
+Latest Patient Message: ${latestMessage || "None"}
+`;
+
+    // Prompt with conversation-aware mode
+    const prompt = is_follow_up_reply ? `
+You are a clinical AI medical triage assistant.
+The patient is replying to your previous follow-up questions.
+
+RESPOND IN THIS EXACT FORMAT — DO NOT DEVIATE:
+
+INTERPRETATION:
+Explain in 2-3 plain-language sentences what the patient's new details suggest (severity, urgency, likely meaning).
+${askedDirectQuestion ? "- The first sentence must directly answer the patient's question in plain language (for example: 'Yes, this can happen before menstruation because of hormonal shifts')." : ""}
+
+DIAGNOSES:
+- List only diagnoses that are new or meaningfully changed based on the new reply.
+- If none changed, write exactly: NONE
+
+FOLLOW_UP_QUESTIONS:
+- Ask at most 1 short additional question only if needed.
+- If no more questions are needed, write exactly: NONE
+
+SAFETY_ADVICE:
+Give concise tailored safety advice in 1 sentence.
+
+PREVIOUS_DIAGNOSES:
+${Array.isArray(previous_diagnoses) && previous_diagnoses.length ? previous_diagnoses.join(", ") : "None"}
+
+PREVIOUS_FOLLOW_UP_QUESTIONS:
+${Array.isArray(previous_follow_up_questions) && previous_follow_up_questions.length ? previous_follow_up_questions.join(" | ") : "None"}
+
+${patientBlock}
+` : `
+You are a clinical AI medical triage assistant.
+
+RESPOND IN THIS EXACT FORMAT — DO NOT DEVIATE:
+
+INTERPRETATION:
+Briefly explain in 1-2 plain-language sentences what the symptom pattern suggests.
+${askedDirectQuestion ? "- If the patient asked a direct question, answer it clearly in the first sentence." : ""}
+
+DIAGNOSES:
+1. Condition - provide a 1-sentence reasoning why this could be a possible diagnosis
+2. Condition - provide a 1-sentence reasoning why this could be a possible diagnosis
+
+FOLLOW_UP_QUESTIONS:
+- Provide 1 short follow-up question for the patient.
+
+SAFETY_ADVICE:
+Provide 1 concise safety sentence.
+
+${patientBlock}
 `;
 
     const response = await axios.post(
@@ -150,10 +229,11 @@ Symptoms: ${symptoms.join(", ")}
         model: MODEL_NAME,
         prompt,
         stream: false,
+        keep_alive: "30m",
         options: {
           temperature: 0.1,
-          num_ctx: 512,
-          num_predict: 1024, // increased to prevent truncation
+          num_ctx: 384,
+          num_predict: 220,
           top_p: 0.8
         }
       },
@@ -179,6 +259,7 @@ async function warmModel() {
       model: MODEL_NAME,
       prompt: "Hello",
       stream: false,
+      keep_alive: "30m",
       options: { num_predict: 10 }
     });
     console.log("Mistral 7B ready.");
