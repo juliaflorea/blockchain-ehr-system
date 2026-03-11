@@ -3,272 +3,126 @@ const axios = require("axios");
 const cors = require("cors");
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-const OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
-const MODEL_NAME = "mistral:7b-instruct-q4_K_M";
+const OLLAMA_URL = "http://localhost:11434/api/generate";
 
-// 🧠 Robust Output parser
-function parseLLMOutput(text) {
-  const result = {
-    interpretation: "",
-    differential_diagnoses: [],
-    follow_up_questions: [],
-    safety_advice: ""
-  };
-
-  try {
-    // Normalize line endings
-    const normalized = text.replace(/\r/g, "");
-
-    // 1️⃣ INTERPRETATION (optional, used for follow-up replies)
-    const interpretationSection = normalized.match(/INTERPRETATION:\s*([\s\S]*?)(DIAGNOSES:|FOLLOW_UP_QUESTIONS:|SAFETY_ADVICE:|$)/i);
-    if (interpretationSection) {
-      result.interpretation = interpretationSection[1].trim();
-    }
-
-    // Fallback: if model omits the INTERPRETATION header but includes free text before DIAGNOSES.
-    if (!result.interpretation) {
-      const beforeDiagnoses = normalized.split(/DIAGNOSES:/i)[0].trim();
-      if (beforeDiagnoses) {
-        result.interpretation = beforeDiagnoses
-          .replace(/^assistant:\s*/i, "")
-          .trim();
-      }
-    }
-
-    // 2️⃣ DIAGNOSES
-    const diagnosesSection = normalized.match(/DIAGNOSES:\s*([\s\S]*?)(FOLLOW_UP_QUESTIONS:|SAFETY_ADVICE:|$)/i);
-    if (diagnosesSection) {
-      const lines = diagnosesSection[1]
-        .split(/\n+/)
-        .map(l => l.trim())
-        .filter(Boolean);
-
-      lines.forEach(line => {
-        const cleanLine = line.replace(/^\d+\.\s*/, "");
-        if (/^(none|unchanged|no changes?)\.?$/i.test(cleanLine)) return;
-
-        // Attempt split by dash, if missing, use first sentence
-        let condition = cleanLine;
-        let reasoning = "This condition is possible given the patient's symptoms.";
-        const dashSplit = cleanLine.split(/\s*[-–—]\s*/);
-        if (dashSplit.length > 1) {
-          condition = dashSplit[0].trim();
-          reasoning = dashSplit.slice(1).join(" - ").trim();
-        } else {
-          // fallback: first sentence as condition, rest as reasoning
-          const sentenceSplit = cleanLine.split(/\. (.+)/);
-          if (sentenceSplit.length > 1) {
-            condition = sentenceSplit[0].trim();
-            reasoning = sentenceSplit[1].trim();
-          }
-        }
-
-        // Normalize common model placeholders/format artifacts.
-        condition = condition
-          .replace(/\s*[-–—:]\s*short reasoning\b.*$/i, "")
-          .replace(/\s*\((possible|likely|unlikely)\)\s*$/i, "")
-          .trim();
-
-        reasoning = reasoning
-          .replace(/^short reasoning\b[:\-]?\s*/i, "")
-          .replace(/\((possible|likely|unlikely)\)\s*$/i, "")
-          .trim();
-
-        // Remove placeholder reasoning text so UI can omit it cleanly.
-        if (
-          /^(reasoning not provided|short reasoning|n\/a|none)\.?$/i.test(reasoning) ||
-          /\bshort reasoning\b/i.test(reasoning)
-        ) {
-          reasoning = "";
-        }
-
-        if (!condition) return;
-
-        result.differential_diagnoses.push({
-          condition,
-          likelihood: "Possible",
-          reasoning
-        });
-      });
-    }
-
-    // 3️⃣ FOLLOW_UP_QUESTIONS
-    const questionsSection = normalized.match(/FOLLOW_UP_QUESTIONS:\s*([\s\S]*?)(SAFETY_ADVICE:|$)/i);
-    if (questionsSection) {
-      const lines = questionsSection[1]
-        .split(/\n+/)
-        .map(l => l.replace(/^[-•]\s*/, "").trim())
-        .filter(Boolean)
-        .filter(l => !/^(none|no further questions?)\.?$/i.test(l));
-      result.follow_up_questions = lines;
-    }
-
-    // 4️⃣ SAFETY_ADVICE
-    const safetySection = normalized.match(/SAFETY_ADVICE:\s*([\s\S]*)/i);
-    if (safetySection) {
-      result.safety_advice = safetySection[1].trim();
-    }
-
-  } catch (err) {
-    console.error("Parsing error:", err.message);
-  }
-
-  return result;
-}
-
-// 🚨 API route
 app.post("/api/diagnose", async (req, res) => {
+
   try {
+
     const {
       age,
       gender,
-      allergies = [],
-      pastDiagnoses = [],
-      treatments = [],
+      allergies,
+      pastDiagnoses,
+      treatments,
       symptoms,
-      is_follow_up_reply = false,
-      previous_diagnoses = [],
-      previous_follow_up_questions = []
+      prompt: clientPrompt
     } = req.body;
 
-    if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
-      return res.status(400).json({ error: "No symptoms provided" });
-    }
+    const symptomText = Array.isArray(symptoms)
+      ? symptoms.join(", ")
+      : symptoms;
 
-    // Emergency keyword override
-    const emergencyKeywords = [
-      "chest pain",
-      "loss of consciousness",
-      "seizure",
-      "shortness of breath",
-      "uncontrolled bleeding"
-    ];
+    const prompt = clientPrompt || `
+You are an AI medical triage assistant.
 
-    if (
-      symptoms.some(s =>
-        emergencyKeywords.some(k => s.toLowerCase().includes(k))
-      )
-    ) {
-      return res.json({
-        emergency: true,
-        message: "Seek immediate emergency medical attention."
-      });
-    }
+Speak directly to the user using "you".
+Never say "the patient".
 
-    const latestMessage = String(symptoms[symptoms.length - 1] || "").trim();
-    const askedDirectQuestion = /\?/.test(latestMessage);
+Patient context:
+Age: ${age || "unknown"}
+Gender: ${gender || "unknown"}
+Allergies: ${(allergies || []).join(", ") || "none"}
+Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
+Treatments: ${(treatments || []).join(", ") || "none"}
 
-    const patientBlock = `
-PATIENT:
-Age: ${age || "Unknown"}
-Gender: ${gender || "Unknown"}
-Allergies: ${allergies.join(", ") || "None"}
-Past Diagnoses: ${pastDiagnoses.slice(0, 2).join(", ") || "None"}
-Current Medications: ${treatments.slice(0, 2).join(", ") || "None"}
-Symptoms: ${symptoms.join(", ")}
-Latest Patient Message: ${latestMessage || "None"}
+Current symptoms:
+${symptomText}
+
+Return plain text with these sections and nothing else:
+Possible causes:
+- ...
+- ...
+Follow-up questions:
+- ...
+- ...
+Safety advice:
+...
+
+Rules:
+- Plain text only (no JSON)
+- No repetition
+- Keep it concise
 `;
 
-    // Prompt with conversation-aware mode
-    const prompt = is_follow_up_reply ? `
-You are a clinical AI medical triage assistant.
-The patient is replying to your previous follow-up questions.
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
 
-RESPOND IN THIS EXACT FORMAT — DO NOT DEVIATE:
-
-INTERPRETATION:
-Explain in 2-3 plain-language sentences what the patient's new details suggest (severity, urgency, likely meaning).
-${askedDirectQuestion ? "- The first sentence must directly answer the patient's question in plain language (for example: 'Yes, this can happen before menstruation because of hormonal shifts')." : ""}
-
-DIAGNOSES:
-- List only diagnoses that are new or meaningfully changed based on the new reply.
-- If none changed, write exactly: NONE
-
-FOLLOW_UP_QUESTIONS:
-- Ask at most 1 short additional question only if needed.
-- If no more questions are needed, write exactly: NONE
-
-SAFETY_ADVICE:
-Give concise tailored safety advice in 1 sentence.
-
-PREVIOUS_DIAGNOSES:
-${Array.isArray(previous_diagnoses) && previous_diagnoses.length ? previous_diagnoses.join(", ") : "None"}
-
-PREVIOUS_FOLLOW_UP_QUESTIONS:
-${Array.isArray(previous_follow_up_questions) && previous_follow_up_questions.length ? previous_follow_up_questions.join(" | ") : "None"}
-
-${patientBlock}
-` : `
-You are a clinical AI medical triage assistant.
-
-RESPOND IN THIS EXACT FORMAT — DO NOT DEVIATE:
-
-INTERPRETATION:
-Briefly explain in 1-2 plain-language sentences what the symptom pattern suggests.
-${askedDirectQuestion ? "- If the patient asked a direct question, answer it clearly in the first sentence." : ""}
-
-DIAGNOSES:
-1. Condition - provide a 1-sentence reasoning why this could be a possible diagnosis
-2. Condition - provide a 1-sentence reasoning why this could be a possible diagnosis
-
-FOLLOW_UP_QUESTIONS:
-- Provide 1 short follow-up question for the patient.
-
-SAFETY_ADVICE:
-Provide 1 concise safety sentence.
-
-${patientBlock}
-`;
-
-    const response = await axios.post(
+    const ollamaResponse = await axios.post(
       OLLAMA_URL,
       {
-        model: MODEL_NAME,
-        prompt,
-        stream: false,
-        keep_alive: "30m",
+        model: "qwen2.5:3b-instruct",
+        prompt: prompt,
+        stream: true,
+        keep_alive: "10m",
         options: {
-          temperature: 0.1,
-          num_ctx: 384,
-          num_predict: 220,
-          top_p: 0.8
+          temperature: 0.2,
+          num_predict: 400    // allow full response without truncation
         }
       },
-      { timeout: 180000 }
+      { timeout: 60000, responseType: "stream" }
     );
 
-    const rawText = response.data.response;
-    console.log("RAW OUTPUT:\n", rawText);
+    let buffer = "";
 
-    const structured = parseLLMOutput(rawText);
-    res.json(structured);
+    ollamaResponse.data.on("data", chunk => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const payload = JSON.parse(trimmed);
+          if (payload.response) {
+            res.write(payload.response);
+          }
+          if (payload.done) {
+            res.end();
+          }
+        } catch (err) {
+          console.error("Stream JSON parse failed:", trimmed);
+        }
+      }
+    });
+
+    ollamaResponse.data.on("end", () => {
+      if (!res.writableEnded) res.end();
+    });
+
+    ollamaResponse.data.on("error", err => {
+      console.error("Ollama stream error:", err.message);
+      if (!res.writableEnded) res.end();
+    });
 
   } catch (error) {
-    console.error("LLM ERROR:", error.message);
-    res.status(500).json({ error: "LLM processing failed" });
-  }
-});
 
-// Warm model on startup
-async function warmModel() {
-  try {
-    await axios.post(OLLAMA_URL, {
-      model: MODEL_NAME,
-      prompt: "Hello",
-      stream: false,
-      keep_alive: "30m",
-      options: { num_predict: 10 }
+    console.error("Server error:", error.message);
+
+    res.status(500).json({
+      error: "AI assistant failed to respond."
     });
-    console.log("Mistral 7B ready.");
-  } catch (e) {
-    console.error("Warmup failed:", e.message);
-  }
-}
 
-warmModel();
+  }
+
+});
 
 app.listen(3000, () => {
   console.log("Server running on port 3000");

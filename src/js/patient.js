@@ -2043,7 +2043,6 @@ async function buildPatientLLMContext() {
 }
 
 async function sendSymptomMessage() {
-
   const input = document.getElementById("symptomInput");
   const chatWindow = document.getElementById("chatWindow");
 
@@ -2063,110 +2062,69 @@ async function sendSymptomMessage() {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 
   try {
-
-    // Get blockchain + decrypted context
+    // Get blockchain + decrypted patient context
     const patientContext = await buildPatientLLMContext();
 
+    // Build prompt for Ollama
+    const prompt = `
+You are a medical AI assistant. Speak directly to the user in first person. 
+Do NOT repeat reasoning. Only include relevant differential diagnoses, follow-up questions, and safety advice.
+Patient info: ${JSON.stringify(patientContext)}
+Symptoms: ${message}
+`;
+
+    // Fetch streaming response from server
     const response = await fetch("http://localhost:3000/api/diagnose", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...patientContext,
-        symptoms: [message],   // IMPORTANT: send as array
-        is_follow_up_reply: llmChatState.awaitingFollowUpReply,
-        previous_diagnoses: llmChatState.lastDiagnoses,
-        previous_follow_up_questions: llmChatState.lastFollowUpQuestions
+        prompt: prompt,
+        stream: true
       })
     });
 
-    const data = await response.json();
-
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
     let aiReply = "";
+    let chatBubble = document.createElement("div");
+    chatBubble.style.textAlign = "left";
+    chatBubble.style.marginBottom = "10px";
+    chatBubble.innerHTML = `<span style="background:#e2e3e5;padding:8px 12px;border-radius:15px;"></span>`;
+    chatWindow.appendChild(chatBubble);
+    const span = chatBubble.querySelector("span");
 
-    if (data.emergency) {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
 
-      aiReply = `
-        <div style="color:red;font-weight:bold;">
-          ⚠ EMERGENCY: ${data.message}
-        </div>
-      `;
-      llmChatState.awaitingFollowUpReply = false;
-      llmChatState.lastDiagnoses = [];
-      llmChatState.lastFollowUpQuestions = [];
-
-    } else {
-      if (typeof data.interpretation === "string" && data.interpretation.trim()) {
-        aiReply += `${data.interpretation.trim()}<br><br>`;
-      }
-
-      if (data.differential_diagnoses && Array.isArray(data.differential_diagnoses)) {
-  data.differential_diagnoses.forEach((d, index) => {
-    const rawReasoning = typeof d.reasoning === "string" ? d.reasoning.trim() : "";
-    const hasReasoning = rawReasoning &&
-      !/^reasoning not provided\.?$/i.test(rawReasoning) &&
-      !/\bshort reasoning\b/i.test(rawReasoning);
-    const reasoningLine = hasReasoning ? `${rawReasoning}<br>` : "";
-    const spacer = index === data.differential_diagnoses.length - 1 ? "<br>" : "";
-
-    aiReply += `
-      <b>${d.condition}</b> (${d.likelihood})<br>
-      ${reasoningLine}${spacer}
-    `;
-  });
-}
-
-     if (Array.isArray(data.follow_up_questions) && data.follow_up_questions.length > 0) {
-  aiReply += `<br>`;
-
-  data.follow_up_questions.forEach(q => {
-    if (typeof q === "string") {
-      aiReply += `• ${q}<br>`;
-    } else if (typeof q === "object" && q.question) {
-      aiReply += `• ${q.question}<br>`;
-    }
-  });
-
-  aiReply += `<br>`;
-}
-
-      if (data.safety_advice) {
-        aiReply += `<br>${data.safety_advice}`;
-      }
-
-      llmChatState.lastDiagnoses = Array.isArray(data.differential_diagnoses)
-        ? data.differential_diagnoses
-            .map(d => (d && typeof d.condition === "string" ? d.condition.trim() : ""))
-            .filter(Boolean)
-        : [];
-
-      llmChatState.lastFollowUpQuestions = Array.isArray(data.follow_up_questions)
-        ? data.follow_up_questions
-            .map(q => (typeof q === "string" ? q.trim() : (q && q.question ? String(q.question).trim() : "")))
-            .filter(Boolean)
-        : [];
-
-      llmChatState.awaitingFollowUpReply = llmChatState.lastFollowUpQuestions.length > 0;
+      const chunk = decoder.decode(value, { stream: true });
+      // Append chunk to AI reply progressively
+      aiReply += chunk;
+      span.innerHTML = aiReply.replace(/\n/g, "<br>");
+      chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
-    // Display AI response
-    chatWindow.innerHTML += `
-      <div style="text-align:left; margin-bottom:10px;">
-        <span style="background:#e2e3e5;padding:8px 12px;border-radius:15px;">
-          ${aiReply}
-        </span>
-      </div>
-    `;
+    // Final parsing (optional if server sends structured JSON)
+    let data;
+    try {
+      data = JSON.parse(aiReply);
+    } catch {
+      data = { differential_diagnoses: [], follow_up_questions: [], safety_advice: aiReply };
+    }
 
-    chatWindow.scrollTop = chatWindow.scrollHeight;
+    // Update last diagnoses / follow-ups state
+    llmChatState.lastDiagnoses = Array.isArray(data.differential_diagnoses)
+      ? data.differential_diagnoses
+      : [];
+    llmChatState.lastFollowUpQuestions = Array.isArray(data.follow_up_questions)
+      ? data.follow_up_questions
+      : [];
+    llmChatState.awaitingFollowUpReply = llmChatState.lastFollowUpQuestions.length > 0;
 
   } catch (err) {
-
     chatWindow.innerHTML += `
-      <div style="color:red;">
-        AI assistant failed to respond.
-      </div>
+      <div style="color:red;">AI assistant failed to respond.</div>
     `;
-
     console.error(err);
   }
 }
