@@ -2045,18 +2045,24 @@ async function buildPatientLLMContext() {
 async function sendSymptomMessage() {
   const input = document.getElementById("symptomInput");
   const chatWindow = document.getElementById("chatWindow");
+  const escapeHtml = (text) =>
+    text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
   const message = input.value.trim();
   if (!message) return;
 
   // Display user message
-  chatWindow.innerHTML += `
-    <div style="text-align:right; margin-bottom:10px;">
-      <span style="background:#6f42c1;color:white;padding:8px 12px;border-radius:15px;">
-        ${message}
-      </span>
-    </div>
-  `;
+  {
+    const bubble = document.createElement("div");
+    bubble.className = "ai-bubble ai-user";
+    const span = document.createElement("span");
+    span.textContent = message;
+    bubble.appendChild(span);
+    chatWindow.appendChild(bubble);
+  }
 
   input.value = "";
   chatWindow.scrollTop = chatWindow.scrollHeight;
@@ -2065,21 +2071,17 @@ async function sendSymptomMessage() {
     // Get blockchain + decrypted patient context
     const patientContext = await buildPatientLLMContext();
 
-    // Build prompt for Ollama
-    const prompt = `
-You are a medical AI assistant. Speak directly to the user in first person. 
-Do NOT repeat reasoning. Only include relevant differential diagnoses, follow-up questions, and safety advice.
-Patient info: ${JSON.stringify(patientContext)}
-Symptoms: ${message}
-`;
-
     // Fetch streaming response from server
     const response = await fetch("http://localhost:3000/api/diagnose", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: prompt,
-        stream: true
+        age: patientContext.age,
+        gender: patientContext.gender,
+        allergies: patientContext.allergies,
+        pastDiagnoses: patientContext.pastDiagnoses,
+        treatments: patientContext.treatments,
+        symptoms: message
       })
     });
 
@@ -2087,9 +2089,8 @@ Symptoms: ${message}
     const decoder = new TextDecoder();
     let aiReply = "";
     let chatBubble = document.createElement("div");
-    chatBubble.style.textAlign = "left";
-    chatBubble.style.marginBottom = "10px";
-    chatBubble.innerHTML = `<span style="background:#e2e3e5;padding:8px 12px;border-radius:15px;"></span>`;
+    chatBubble.className = "ai-bubble ai-assistant";
+    chatBubble.innerHTML = `<span></span>`;
     chatWindow.appendChild(chatBubble);
     const span = chatBubble.querySelector("span");
 
@@ -2099,27 +2100,16 @@ Symptoms: ${message}
 
       const chunk = decoder.decode(value, { stream: true });
       // Append chunk to AI reply progressively
-      aiReply += chunk;
-      span.innerHTML = aiReply.replace(/\n/g, "<br>");
+      aiReply += chunk.replace(/\*\*/g, "");
+      const safe = escapeHtml(aiReply);
+      span.innerHTML = safe.replace(/\n/g, "<br>");
       chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
-    // Final parsing (optional if server sends structured JSON)
-    let data;
-    try {
-      data = JSON.parse(aiReply);
-    } catch {
-      data = { differential_diagnoses: [], follow_up_questions: [], safety_advice: aiReply };
-    }
-
-    // Update last diagnoses / follow-ups state
-    llmChatState.lastDiagnoses = Array.isArray(data.differential_diagnoses)
-      ? data.differential_diagnoses
-      : [];
-    llmChatState.lastFollowUpQuestions = Array.isArray(data.follow_up_questions)
-      ? data.follow_up_questions
-      : [];
-    llmChatState.awaitingFollowUpReply = llmChatState.lastFollowUpQuestions.length > 0;
+    // Plain text responses don't include structured follow-ups.
+    llmChatState.lastDiagnoses = [];
+    llmChatState.lastFollowUpQuestions = [];
+    llmChatState.awaitingFollowUpReply = false;
 
   } catch (err) {
     chatWindow.innerHTML += `

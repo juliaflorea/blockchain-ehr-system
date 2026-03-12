@@ -43,20 +43,10 @@ Treatments: ${(treatments || []).join(", ") || "none"}
 Current symptoms:
 ${symptomText}
 
-Return plain text with these sections and nothing else:
-Possible causes:
-- ...
-- ...
-Follow-up questions:
-- ...
-- ...
-Safety advice:
-...
-
-Rules:
-- Plain text only (no JSON)
-- No repetition
-- Keep it concise
+Respond in natural, conversational plain text.
+Include likely causes, follow-up questions, and safety advice, but do NOT use headings, bullet points, or numbered lists.
+Provide fuller explanations for the likely causes (a few sentences each), then weave in the follow-up questions and safety advice naturally.
+Avoid repetition.
 `;
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");

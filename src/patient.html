@@ -463,30 +463,21 @@
                     </div>
                     <div class="panel-body">
 
-                        <div class="alert alert-info">
+                        <div class="alert alert-info ai-assistant-alert">
                             This AI assistant provides educational clinical insights only.
                             It does NOT replace professional medical consultation.
                         </div>
 
                         <!-- Chat Window -->
-                        <div id="chatWindow" style="height:400px;
-                    overflow-y:auto;
-                    border:1px solid #ccc;
-                    padding:15px;
-                    background:#f8f9fa;
-                    margin-bottom:15px;">
-                        </div>
+                        <div id="chatWindow" class="ai-chat-window"></div>
 
                         <!-- Input Area -->
-                        <div class="input-group">
-                            <textarea id="symptomInput" class="form-control" rows="2"
+                        <div class="ai-input-row">
+                            <textarea id="symptomInput" class="form-control ai-input" rows="2"
                                 placeholder="Describe your symptoms..."></textarea>
-
-                            <div class="input-group-append">
-                                <button class="btn btn-primary" onclick="sendSymptomMessage()">
-                                    Send
-                                </button>
-                            </div>
+                            <button class="btn btn-primary ai-send" onclick="sendSymptomMessage()">
+                                Send
+                            </button>
                         </div>
 
                     </div>
