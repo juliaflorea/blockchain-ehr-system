@@ -24,6 +24,289 @@ let llmChatState = {
 };
 let cachedLLMContext = null;
 let cachedLLMContextHash = null;
+let chatStorageKey = "aiChatThreads:default";
+let chatThreads = [];
+let activeThreadId = null;
+let lastGeneratedTriageReport = null;
+let cachedTriageReports = null;
+let cachedTriageReportsHash = null;
+let draftTriageReports = {};
+
+async function initChatHistoryStorageKey() {
+  try {
+    let accounts = await ethereum.request({ method: "eth_accounts" });
+    if (!accounts || accounts.length === 0) {
+      accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    }
+    if (accounts && accounts[0]) {
+      chatStorageKey = `aiChatThreads:${accounts[0].toLowerCase()}`;
+    }
+  } catch (err) {
+    console.warn("Chat history key fallback:", err.message);
+  }
+}
+
+function loadChatThreadsFromStorage() {
+  const raw = localStorage.getItem(chatStorageKey);
+  if (!raw) return;
+
+  try {
+    const parsed = JSON.parse(raw);
+    chatThreads = Array.isArray(parsed.threads) ? parsed.threads : [];
+    activeThreadId = parsed.activeThreadId || (chatThreads[0] && chatThreads[0].id) || null;
+  } catch (err) {
+    console.warn("Failed to parse chat threads:", err.message);
+  }
+}
+
+function saveChatThreadsToStorage() {
+  localStorage.setItem(
+    chatStorageKey,
+    JSON.stringify({ threads: chatThreads, activeThreadId })
+  );
+}
+
+function createNewThread(title) {
+  const id = `t_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  const thread = {
+    id,
+    title: title || "New conversation",
+    updatedAt: Date.now(),
+    messages: []
+  };
+  chatThreads.unshift(thread);
+  activeThreadId = id;
+  saveChatThreadsToStorage();
+  renderChatThreadsList();
+  renderActiveThread();
+}
+
+function setActiveThread(id) {
+  activeThreadId = id;
+  saveChatThreadsToStorage();
+  renderChatThreadsList();
+  renderActiveThread();
+}
+
+function deleteThreadById(id) {
+  if (!id) return;
+  const wasActive = id === activeThreadId;
+  chatThreads = chatThreads.filter(t => t.id !== id);
+  if (!chatThreads.length) {
+    createNewThread("New conversation");
+    return;
+  }
+  if (wasActive) {
+    activeThreadId = chatThreads[0].id;
+    renderActiveThread();
+  }
+  saveChatThreadsToStorage();
+  renderChatThreadsList();
+}
+
+function renameThreadById(id) {
+  const thread = chatThreads.find(t => t.id === id);
+  if (!thread) return;
+  const nextTitle = window.prompt("Rename conversation", thread.title || "Conversation");
+  if (!nextTitle) return;
+  thread.title = nextTitle.trim().slice(0, 60) || thread.title;
+  thread.updatedAt = Date.now();
+  saveChatThreadsToStorage();
+  renderChatThreadsList();
+}
+
+function getActiveThread() {
+  return chatThreads.find(t => t.id === activeThreadId) || null;
+}
+
+function renderChatThreadsList() {
+  const list = document.getElementById("aiChatList");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const search = document.getElementById("aiChatSearch");
+  const query = search ? search.value.trim().toLowerCase() : "";
+  const sorted = [...chatThreads].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  sorted.forEach(thread => {
+    if (query && !(thread.title || "").toLowerCase().includes(query)) {
+      return;
+    }
+    const item = document.createElement("div");
+    item.className = "ai-chat-item" + (thread.id === activeThreadId ? " active" : "");
+    item.dataset.threadId = thread.id;
+
+    const label = document.createElement("div");
+    label.className = "ai-chat-item-label";
+    label.textContent = thread.title || "Conversation";
+    label.addEventListener("click", () => setActiveThread(thread.id));
+
+    const menu = document.createElement("div");
+    menu.className = "ai-chat-item-menu";
+    const menuBtn = document.createElement("button");
+    menuBtn.type = "button";
+    menuBtn.textContent = "⋯";
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeAllChatMenus();
+      toggleChatMenu(menu);
+    });
+
+    menu.appendChild(menuBtn);
+    item.appendChild(label);
+    item.appendChild(menu);
+    list.appendChild(item);
+  });
+}
+
+function toggleChatMenu(menuRoot) {
+  const open = menuRoot.querySelector(".ai-chat-item-dropdown");
+  if (open) {
+    open.remove();
+    return;
+  }
+
+  const threadId = getThreadIdFromListItem(menuRoot.parentElement);
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "ai-chat-item-dropdown";
+
+  const renameBtn = document.createElement("button");
+  renameBtn.textContent = "Rename";
+  renameBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdown.remove();
+    if (threadId) renameThreadById(threadId);
+  });
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "danger";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdown.remove();
+    if (threadId) deleteThreadById(threadId);
+  });
+
+  dropdown.appendChild(renameBtn);
+  dropdown.appendChild(deleteBtn);
+  menuRoot.appendChild(dropdown);
+}
+
+function closeAllChatMenus() {
+  document.querySelectorAll(".ai-chat-item-dropdown").forEach(el => el.remove());
+}
+
+function getThreadIdFromListItem(listItem) {
+  return listItem?.dataset?.threadId || null;
+}
+
+function renderActiveThread() {
+  const chatWindow = document.getElementById("chatWindow");
+  if (!chatWindow) return;
+  chatWindow.innerHTML = "";
+
+  const thread = getActiveThread();
+  if (!thread) return;
+
+  thread.messages.forEach(msg => {
+    appendMessageToUI(msg.role, msg.text);
+  });
+
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+  refreshTriageReportForActiveThread();
+}
+
+function appendMessageToUI(role, text) {
+  const chatWindow = document.getElementById("chatWindow");
+  if (!chatWindow) return;
+  const bubble = document.createElement("div");
+  bubble.className = role === "assistant" ? "ai-bubble ai-assistant" : "ai-bubble ai-user";
+  bubble.dataset.role = role;
+  const span = document.createElement("span");
+  span.textContent = text || "";
+  bubble.appendChild(span);
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "ai-copy-btn";
+  copyBtn.textContent = "Copy";
+  bubble.appendChild(copyBtn);
+
+  chatWindow.appendChild(bubble);
+  return span;
+}
+
+function formatRiskLevelMarkup(escapedText) {
+  return escapedText
+    .replace(/Risk level:\s*LOW/gi, 'Risk level: <span class="risk-low">LOW</span>')
+    .replace(/Risk level:\s*MODERATE/gi, 'Risk level: <span class="risk-moderate">MODERATE</span>')
+    .replace(/Risk level:\s*HIGH/gi, 'Risk level: <span class="risk-high">HIGH</span>');
+}
+
+function dedupeConsecutiveSentences(text) {
+  const parts = text.split(/(?<=[.!?])\s+/);
+  const out = [];
+  let last = "";
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const normalized = trimmed.toLowerCase();
+    if (normalized === last) continue;
+    out.push(trimmed);
+    last = normalized;
+  }
+  return out.join(" ");
+}
+
+function addSectionSpacing(text) {
+  return text
+    .replace(/\s*(Safety Alert:)/g, "\n\n$1")
+    .replace(/\s*(Risk level:)/g, "\n\n$1");
+}
+
+function appendTypingIndicator() {
+  const chatWindow = document.getElementById("chatWindow");
+  if (!chatWindow) return null;
+  const bubble = document.createElement("div");
+  bubble.className = "ai-bubble ai-assistant ai-typing";
+  bubble.dataset.role = "assistant";
+
+  const dotWrap = document.createElement("div");
+  dotWrap.className = "ai-typing-dots";
+  dotWrap.setAttribute("aria-label", "Assistant is typing");
+  dotWrap.innerHTML = "<span></span><span></span><span></span>";
+
+  bubble.appendChild(dotWrap);
+  chatWindow.appendChild(bubble);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+  return bubble;
+}
+
+function removeTypingIndicator(bubble) {
+  if (bubble && bubble.parentNode) {
+    bubble.parentNode.removeChild(bubble);
+  }
+}
+
+function addMessageToActiveThread(role, text) {
+  const thread = getActiveThread();
+  if (!thread) return;
+  thread.messages.push({ role, text, ts: Date.now() });
+  thread.updatedAt = Date.now();
+
+  if (role === "user" && (!thread.title || thread.title === "New conversation")) {
+    const trimmed = (text || "").trim();
+    thread.title = trimmed ? trimmed.slice(0, 40) : "Conversation";
+  }
+
+  // Keep history bounded to last 200 messages per thread.
+  if (thread.messages.length > 200) {
+    thread.messages = thread.messages.slice(thread.messages.length - 200);
+  }
+
+  saveChatThreadsToStorage();
+  renderChatThreadsList();
+}
 
 
 async function getSessionAESKey() {
@@ -184,6 +467,26 @@ window.addEventListener("contractsReady", async () => {
 
     // Load patient info
     await loadPatientData();
+    await refreshShareAvailability();
+    await loadStoredTriageReport();
+
+    // Initialize chat history storage key and load past conversation
+    await initChatHistoryStorageKey();
+    loadChatThreadsFromStorage();
+    if (!chatThreads.length) {
+      createNewThread("New conversation");
+    } else {
+      renderChatThreadsList();
+      renderActiveThread();
+    }
+
+    document.getElementById("aiNewChatBtn")?.addEventListener("click", () => {
+      createNewThread("New conversation");
+    });
+    document.getElementById("aiChatSearch")?.addEventListener("input", () => {
+      renderChatThreadsList();
+    });
+    document.addEventListener("click", () => closeAllChatMenus());
 
     // Load sent appointment requests (uses cached AES key, no prompt)
     await loadSentAppointmentRequests();
@@ -250,6 +553,9 @@ async function showRecords(element) {
       record.entry.forEach((e) => {
         if (e.resource) html += renderResource(e.resource);
       });
+      if (record.aiTriageReports || record.aiTriageReport) {
+        html += renderResource(record);
+      }
     } else {
       html += renderResource(record);
     }
@@ -308,9 +614,13 @@ function getPatientName(record) {
 function recordToPlainText(record) {
   let text = "Medical Record\n\n";
 
-  const resources = record.resourceType === "Bundle" && Array.isArray(record.entry)
+  let resources = record.resourceType === "Bundle" && Array.isArray(record.entry)
     ? record.entry.map(e => e.resource)
     : [record];
+
+  if (record.resourceType === "Bundle" && (record.aiTriageReports || record.aiTriageReport)) {
+    resources = resources.concat([record]);
+  }
 
   resources.forEach(r => {
     // Patient Info
@@ -356,9 +666,9 @@ function recordToPlainText(record) {
       });
     }
 
-    // Treatment Plan History
-    if (r.treatmentPlan && r.treatmentPlan.length > 0) {
-      text += "Treatment History:\n";
+  // Treatment Plan History
+  if (r.treatmentPlan && r.treatmentPlan.length > 0) {
+    text += "Treatment History:\n";
       r.treatmentPlan.forEach(t => {
         text += `  Date: ${t.datetime}\n`;
         text += `  Doctor: ${t.doctor}\n`;
@@ -368,10 +678,31 @@ function recordToPlainText(record) {
         text += `  Frequency: ${t.frequency}\n`;
         text += `  Instructions: ${t.instructions}\n`;
         text += "  ------------------\n";
-      });
-    }
+    });
+  }
 
-    text += "\n====================\n\n";
+  const triageReports = Array.isArray(r.aiTriageReports)
+    ? r.aiTriageReports
+    : (r.aiTriageReport ? [r.aiTriageReport] : []);
+
+  if (triageReports.length > 0) {
+    text += "AI Triage Reports:\n";
+    triageReports.forEach(report => {
+      text += `  Title: ${report.title || "AI Triage Report"}\n`;
+      text += `  Status: ${report.status || "preliminary"}\n`;
+      if (report.updatedAt) text += `  Updated: ${report.updatedAt}\n`;
+      if (report.sharedAt) text += `  Shared: ${report.sharedAt}\n`;
+      text += `  Chief Complaint: ${getSectionText(report.bundle, "Chief Complaint") || "Not provided"}\n`;
+      text += `  Symptoms: ${getSectionText(report.bundle, "Symptoms") || "Not provided"}\n`;
+      text += `  AI Differential Diagnosis: ${getSectionText(report.bundle, "AI Differential Diagnosis") || "Not provided"}\n`;
+      text += `  Suggested Treatments: ${getSectionText(report.bundle, "Suggested Treatments") || "Not provided"}\n`;
+      text += `  Recommended Follow-up: ${getSectionText(report.bundle, "Recommended Follow-up") || "Not provided"}\n`;
+      text += `  Doctor Notes: ${getSectionText(report.bundle, "Doctor Notes") || "Not provided"}\n`;
+      text += "  ------------------\n";
+    });
+  }
+
+  text += "\n====================\n\n";
   });
 
   return text;
@@ -448,6 +779,31 @@ function renderResource(r) {
         <p><strong>Route:</strong> ${t.route}</p>
         <p><strong>Frequency:</strong> ${t.frequency}</p>
         <p><strong>Instructions:</strong> ${t.instructions}</p>
+        <hr>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  const triageReports = Array.isArray(r.aiTriageReports)
+    ? r.aiTriageReports
+    : (r.aiTriageReport ? [r.aiTriageReport] : []);
+
+  if (triageReports.length > 0) {
+    html += `<div style="border:1px solid #f0ad4e; padding:10px; margin:5px;">
+               <h5>AI Triage Reports</h5>`;
+    triageReports.forEach(report => {
+      html += `
+        <p><strong>Title:</strong> ${report.title || "AI Triage Report"}</p>
+        <p><strong>Status:</strong> ${report.status || "preliminary"}</p>
+        ${report.updatedAt ? `<p><strong>Updated:</strong> ${report.updatedAt}</p>` : ""}
+        ${report.sharedAt ? `<p><strong>Shared:</strong> ${report.sharedAt}</p>` : ""}
+        <p><strong>Chief Complaint:</strong> ${getSectionText(report.bundle, "Chief Complaint") || "Not provided"}</p>
+        <p><strong>Symptoms:</strong> ${getSectionText(report.bundle, "Symptoms") || "Not provided"}</p>
+        <p><strong>AI Differential Diagnosis:</strong> ${getSectionText(report.bundle, "AI Differential Diagnosis") || "Not provided"}</p>
+        <p><strong>Suggested Treatments:</strong> ${getSectionText(report.bundle, "Suggested Treatments") || "Not provided"}</p>
+        <p><strong>Recommended Follow-up:</strong> ${getSectionText(report.bundle, "Recommended Follow-up") || "Not provided"}</p>
+        <p><strong>Doctor Notes:</strong> ${getSectionText(report.bundle, "Doctor Notes") || "Not provided"}</p>
         <hr>
       `;
     });
@@ -2008,8 +2364,11 @@ async function buildPatientLLMContext() {
   let age = null;
   let gender = null;
   let allergies = [];
+  let allergyDetails = [];
   let pastDiagnoses = [];
+  let diagnosisDetails = [];
   let treatments = [];
+  let treatmentDetails = [];
 
   const resources =
     record.resourceType === "Bundle"
@@ -2025,19 +2384,49 @@ async function buildPatientLLMContext() {
     if (r.gender) gender = r.gender;
 
     if (r.allergies) {
-      r.allergies.forEach(a => allergies.push(a.substance));
+      r.allergies.forEach(a => {
+        allergies.push(a.substance);
+        allergyDetails.push({
+          substance: a.substance,
+          reaction: a.reaction
+        });
+      });
     }
 
     if (r.diagnosis) {
-      r.diagnosis.forEach(d => pastDiagnoses.push(d.diagnosed));
+      r.diagnosis.forEach(d => {
+        pastDiagnoses.push(d.diagnosed);
+        diagnosisDetails.push({
+          diagnosed: d.diagnosed,
+          details: d.details,
+          datetime: d.datetime,
+          severity: d.severity
+        });
+      });
     }
 
     if (r.treatmentPlan) {
-      r.treatmentPlan.forEach(t => treatments.push(t.medicationName));
+      r.treatmentPlan.forEach(t => {
+        treatments.push(t.medicationName);
+        treatmentDetails.push({
+          medicationName: t.medicationName,
+          dose: t.dose,
+          frequency: t.frequency
+        });
+      });
     }
   });
 
-  cachedLLMContext = { age, gender, allergies, pastDiagnoses, treatments };
+  cachedLLMContext = {
+    age,
+    gender,
+    allergies,
+    allergyDetails,
+    pastDiagnoses,
+    diagnosisDetails,
+    treatments,
+    treatmentDetails
+  };
   cachedLLMContextHash = recordHash;
   return cachedLLMContext;
 }
@@ -2055,17 +2444,12 @@ async function sendSymptomMessage() {
   if (!message) return;
 
   // Display user message
-  {
-    const bubble = document.createElement("div");
-    bubble.className = "ai-bubble ai-user";
-    const span = document.createElement("span");
-    span.textContent = message;
-    bubble.appendChild(span);
-    chatWindow.appendChild(bubble);
-  }
+  appendMessageToUI("user", message);
+  addMessageToActiveThread("user", message);
 
   input.value = "";
   chatWindow.scrollTop = chatWindow.scrollHeight;
+  const typingBubble = appendTypingIndicator();
 
   try {
     // Get blockchain + decrypted patient context
@@ -2079,8 +2463,11 @@ async function sendSymptomMessage() {
         age: patientContext.age,
         gender: patientContext.gender,
         allergies: patientContext.allergies,
+        allergyDetails: patientContext.allergyDetails,
         pastDiagnoses: patientContext.pastDiagnoses,
+        diagnosisDetails: patientContext.diagnosisDetails,
         treatments: patientContext.treatments,
+        treatmentDetails: patientContext.treatmentDetails,
         symptoms: message
       })
     });
@@ -2088,11 +2475,8 @@ async function sendSymptomMessage() {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let aiReply = "";
-    let chatBubble = document.createElement("div");
-    chatBubble.className = "ai-bubble ai-assistant";
-    chatBubble.innerHTML = `<span></span>`;
-    chatWindow.appendChild(chatBubble);
-    const span = chatBubble.querySelector("span");
+    let span = null;
+    let typingRemoved = false;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -2100,9 +2484,16 @@ async function sendSymptomMessage() {
 
       const chunk = decoder.decode(value, { stream: true });
       // Append chunk to AI reply progressively
+      if (!typingRemoved) {
+        removeTypingIndicator(typingBubble);
+        typingRemoved = true;
+        span = appendMessageToUI("assistant", "");
+      }
       aiReply += chunk.replace(/\*\*/g, "");
-      const safe = escapeHtml(aiReply);
-      span.innerHTML = safe.replace(/\n/g, "<br>");
+      const displayReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply));
+      let safe = escapeHtml(displayReply);
+      safe = formatRiskLevelMarkup(safe);
+      if (span) span.innerHTML = safe.replace(/\n/g, "<br>");
       chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
@@ -2111,10 +2502,716 @@ async function sendSymptomMessage() {
     llmChatState.lastFollowUpQuestions = [];
     llmChatState.awaitingFollowUpReply = false;
 
+    if (!typingRemoved) {
+      removeTypingIndicator(typingBubble);
+      typingRemoved = true;
+      span = appendMessageToUI("assistant", "");
+      const displayReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply));
+      let safe = escapeHtml(displayReply);
+      safe = formatRiskLevelMarkup(safe);
+      if (span) span.innerHTML = safe.replace(/\n/g, "<br>");
+    }
+
+    const finalReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply)).trim();
+    addMessageToActiveThread("assistant", finalReply);
+
   } catch (err) {
+    removeTypingIndicator(typingBubble);
     chatWindow.innerHTML += `
       <div style="color:red;">AI assistant failed to respond.</div>
     `;
     console.error(err);
   }
 }
+
+function getRecentChatMessages(limit = 12) {
+  const thread = getActiveThread();
+  if (!thread || !Array.isArray(thread.messages)) return [];
+  return thread.messages.slice(-limit).map((msg) => ({
+    role: msg.role,
+    text: msg.text,
+    ts: msg.ts
+  }));
+}
+
+function getActiveConversationExport(thread) {
+  if (!thread) return null;
+  const messages = Array.isArray(thread.messages) ? thread.messages : [];
+  const lines = [];
+  const title = thread.title || "Conversation";
+  lines.push(title);
+  lines.push(`Exported: ${new Date().toISOString()}`);
+  lines.push("");
+
+  messages.forEach((msg) => {
+    const when = msg.ts ? new Date(msg.ts).toLocaleString() : "";
+    const role = msg.role === "assistant" ? "Assistant" : "Patient";
+    const header = when ? `${role} (${when}):` : `${role}:`;
+    lines.push(header);
+    lines.push(msg.text || "");
+    lines.push("");
+  });
+
+  return {
+    title,
+    text: lines.join("\n").trim(),
+    messages
+  };
+}
+
+const TRIAGE_SECTION_TITLES = [
+  "Chief Complaint",
+  "Symptoms",
+  "AI Differential Diagnosis",
+  "Suggested Treatments",
+  "Recommended Follow-up",
+  "Doctor Notes"
+];
+
+function getCompositionFromBundle(bundle) {
+  if (!bundle || bundle.resourceType !== "Bundle") return null;
+  const entry = Array.isArray(bundle.entry) ? bundle.entry : [];
+  const compEntry = entry.find((e) => e && e.resource && e.resource.resourceType === "Composition");
+  return compEntry ? compEntry.resource : null;
+}
+
+function ensureComposition(bundle) {
+  if (!bundle || bundle.resourceType !== "Bundle") return null;
+  if (!Array.isArray(bundle.entry)) bundle.entry = [];
+  let composition = getCompositionFromBundle(bundle);
+  if (!composition) {
+    composition = {
+      resourceType: "Composition",
+      status: "preliminary",
+      type: {
+        coding: [
+          {
+            system: "http://loinc.org",
+            code: "11488-4",
+            display: "Consult note"
+          }
+        ]
+      },
+      title: "AI Triage Report",
+      date: new Date().toISOString(),
+      author: [{ reference: "Device/AI-Triage-System" }],
+      section: TRIAGE_SECTION_TITLES.map((title) => ({
+        title,
+        text: "Not provided"
+      }))
+    };
+    bundle.entry.unshift({ resource: composition });
+  }
+  if (!Array.isArray(composition.section)) {
+    composition.section = TRIAGE_SECTION_TITLES.map((title) => ({
+      title,
+      text: "Not provided"
+    }));
+  }
+  TRIAGE_SECTION_TITLES.forEach((title) => {
+    if (!composition.section.find((s) => (s.title || "").toLowerCase() === title.toLowerCase())) {
+      composition.section.push({ title, text: "Not provided" });
+    }
+  });
+  return composition;
+}
+
+function getSectionText(bundle, title) {
+  const composition = getCompositionFromBundle(bundle);
+  if (!composition || !Array.isArray(composition.section)) return "";
+  const section = composition.section.find((s) => (s.title || "").toLowerCase() === title.toLowerCase());
+  const value = section && section.text;
+  return typeof value === "string" ? value : "";
+}
+
+function setSectionText(bundle, title, text) {
+  const composition = ensureComposition(bundle);
+  if (!composition) return;
+  const section = composition.section.find((s) => (s.title || "").toLowerCase() === title.toLowerCase());
+  if (section) section.text = text || "Not provided";
+}
+
+function updateTriageReportUI(report) {
+  const setValue = (id, value, placeholder) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = value || placeholder || "";
+  };
+
+  const statusEl = document.getElementById("aiTriageStatus");
+  const updatedEl = document.getElementById("aiTriageUpdated");
+
+  if (!report || !report.bundle) {
+    setValue("aiTriageChiefComplaint", "", "");
+    setValue("aiTriageSymptoms", "", "");
+    setValue("aiTriageDifferential", "", "");
+    setValue("aiTriageTreatments", "", "");
+    setValue("aiTriageFollowUp", "", "");
+    setValue("aiTriageDoctorNotes", "", "");
+    if (statusEl) statusEl.textContent = "Not generated";
+    if (updatedEl) updatedEl.textContent = "";
+    return;
+  }
+
+  setValue("aiTriageChiefComplaint", getSectionText(report.bundle, "Chief Complaint"), "");
+  setValue("aiTriageSymptoms", getSectionText(report.bundle, "Symptoms"), "");
+  setValue("aiTriageDifferential", getSectionText(report.bundle, "AI Differential Diagnosis"), "");
+  setValue("aiTriageTreatments", getSectionText(report.bundle, "Suggested Treatments"), "");
+  setValue("aiTriageFollowUp", getSectionText(report.bundle, "Recommended Follow-up"), "");
+  setValue("aiTriageDoctorNotes", getSectionText(report.bundle, "Doctor Notes"), "");
+
+  const status = report.status || getCompositionFromBundle(report.bundle)?.status || "preliminary";
+  if (statusEl) statusEl.textContent = status;
+
+  const updatedAt = report.updatedAt || report.sharedAt || report.createdAt;
+  if (updatedEl) {
+    updatedEl.textContent = updatedAt ? `Updated ${new Date(updatedAt).toLocaleString()}` : "";
+  }
+}
+
+function getTriageReportFromCache(threadId) {
+  if (!threadId || !Array.isArray(cachedTriageReports)) return null;
+  return cachedTriageReports.find((r) => r && r.id === threadId) || null;
+}
+
+function setTriageReportInCache(report) {
+  if (!report || !report.id) return;
+  if (!Array.isArray(cachedTriageReports)) cachedTriageReports = [];
+  cachedTriageReports = cachedTriageReports.filter((r) => r && r.id !== report.id);
+  cachedTriageReports.unshift(report);
+}
+
+function refreshTriageReportForActiveThread() {
+  const thread = getActiveThread();
+  const threadId = thread ? thread.id : null;
+  const draft = threadId ? draftTriageReports[threadId] : null;
+  const saved = getTriageReportFromCache(threadId);
+  const report = draft || saved || null;
+  lastGeneratedTriageReport = report;
+  updateTriageReportUI(report);
+}
+
+async function loadStoredTriageReport() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+    const patientAddress = accounts && accounts[0] ? accounts[0].toLowerCase() : null;
+    if (!patientAddress) return;
+
+    const patientAESKey = await getSessionAESKey();
+    const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call();
+    if (!recordHash) return;
+    if (cachedTriageReportsHash && cachedTriageReportsHash === recordHash) {
+      refreshTriageReportForActiveThread();
+      return;
+    }
+
+    const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
+    const encryptedPayload = await resp.json();
+    const decrypted = await window.decryptAES(encryptedPayload, patientAESKey);
+    const record = JSON.parse(decrypted);
+
+    let reports = [];
+    if (Array.isArray(record?.aiTriageReports)) {
+      reports = record.aiTriageReports;
+    } else if (record?.aiTriageReport) {
+      reports = [record.aiTriageReport];
+    }
+
+    cachedTriageReports = reports.filter((r) => r && r.bundle);
+    cachedTriageReportsHash = recordHash;
+    refreshTriageReportForActiveThread();
+  } catch (err) {
+    console.warn("Failed to load triage report:", err.message);
+  }
+}
+
+async function exportActiveConversationToPDF() {
+  const thread = getActiveThread();
+  const exportData = getActiveConversationExport(thread);
+  if (!exportData || !exportData.text) {
+    alert("No conversation to export yet.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) {
+    alert("PDF export is not available.");
+    return;
+  }
+
+  const doc = new jsPDF();
+  const margin = 12;
+  const maxWidth = 180;
+  const filenameSafe = (exportData.title || "conversation")
+    .replace(/[^a-z0-9-_]+/gi, "_")
+    .slice(0, 40);
+
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text(exportData.title, margin, 16);
+
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  const bodyLines = doc.splitTextToSize(exportData.text, maxWidth);
+  doc.text(bodyLines, margin, 26);
+
+  doc.save(`Conversation_${filenameSafe}.pdf`);
+}
+
+async function generateTriageReport() {
+  const generateBtn = document.getElementById("aiGenerateReportBtn");
+  const shareBtn = document.getElementById("aiShareReportBtn");
+  const statusEl = document.getElementById("aiTriageStatus");
+  const updatedEl = document.getElementById("aiTriageUpdated");
+  if (generateBtn) generateBtn.disabled = true;
+  if (shareBtn) shareBtn.disabled = true;
+  if (statusEl) statusEl.textContent = "Generating...";
+  if (updatedEl) updatedEl.textContent = "";
+  updateTriageReportUI({
+    status: "Generating...",
+    bundle: {
+      resourceType: "Bundle",
+      entry: [
+        {
+          resource: {
+            resourceType: "Composition",
+            status: "preliminary",
+            section: [
+              { title: "Chief Complaint", text: "Generating..." },
+              { title: "Symptoms", text: "Generating..." },
+              { title: "AI Differential Diagnosis", text: "Generating..." },
+              { title: "Suggested Treatments", text: "Generating..." },
+              { title: "Recommended Follow-up", text: "Generating..." },
+              { title: "Doctor Notes", text: "Generating..." }
+            ]
+          }
+        }
+      ]
+    }
+  });
+
+  try {
+    const patientContext = await buildPatientLLMContext();
+    const messages = getRecentChatMessages(8);
+    const thread = getActiveThread();
+    if (!thread || !messages.length) {
+      alert("No conversation to summarize yet.");
+      return;
+    }
+
+    const response = await fetch("http://localhost:3000/api/triage-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        age: patientContext.age,
+        gender: patientContext.gender,
+        allergies: patientContext.allergies,
+        allergyDetails: patientContext.allergyDetails,
+        pastDiagnoses: patientContext.pastDiagnoses,
+        diagnosisDetails: patientContext.diagnosisDetails,
+        treatments: patientContext.treatments,
+        treatmentDetails: patientContext.treatmentDetails,
+        messages
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Report generation failed");
+    }
+
+    const bundle = await response.json();
+    const composition = ensureComposition(bundle);
+    if (composition) {
+      composition.status = "preliminary";
+    }
+
+    lastGeneratedTriageReport = {
+      id: thread.id,
+      title: thread.title || "AI Triage Report",
+      createdAt: new Date().toISOString(),
+      status: composition?.status || "preliminary",
+      bundle
+    };
+
+    draftTriageReports[thread.id] = lastGeneratedTriageReport;
+    updateTriageReportUI(lastGeneratedTriageReport);
+  } catch (err) {
+    console.error("Failed to generate triage report:", err);
+    alert("Failed to generate triage report. Please try again.");
+    refreshTriageReportForActiveThread();
+  } finally {
+    if (generateBtn) generateBtn.disabled = false;
+    if (shareBtn) shareBtn.disabled = false;
+  }
+}
+
+async function shareTriageReport() {
+  const warning = document.getElementById("aiShareWarning");
+  if (warning) warning.style.display = "none";
+
+  const thread = getActiveThread();
+  if (!thread) {
+    alert("No conversation selected.");
+    return;
+  }
+
+  const reportToShare = draftTriageReports[thread.id]
+    || getTriageReportFromCache(thread.id)
+    || null;
+
+  if (!reportToShare || !reportToShare.bundle) {
+    alert("Generate the AI triage report first.");
+    return;
+  }
+
+  let accounts;
+  try {
+    accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  } catch (err) {
+    alert("Unable to access your wallet.");
+    return;
+  }
+
+  const patientAddress = accounts[0]?.toLowerCase();
+  if (!patientAddress) {
+    alert("Unable to identify patient address.");
+    return;
+  }
+
+  let doctorAccessList = [];
+  try {
+    doctorAccessList = await accessControl.methods
+      .getAccessedDoctorListForPatient(patientAddress)
+      .call({ gas: 1000000 });
+  } catch (err) {
+    console.error("Failed to load doctor access list:", err);
+  }
+
+  if (!doctorAccessList || doctorAccessList.length === 0) {
+    if (warning) warning.style.display = "block";
+    alert("No doctors currently have access to your records.");
+    return;
+  }
+
+  try {
+    const patientAESKey = await getSessionAESKey();
+    const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call();
+    if (!recordHash) {
+      alert("No medical record found to attach this report.");
+      return;
+    }
+
+    const files = await ipfs.files.get(recordHash);
+    const file = files.find((f) => f.content);
+    if (!file) {
+      alert("Failed to load your medical record.");
+      return;
+    }
+
+    const encryptedJson = new TextDecoder().decode(file.content);
+    const encryptedPayload = JSON.parse(encryptedJson);
+    const decrypted = await window.decryptAES(encryptedPayload, patientAESKey);
+    const record = JSON.parse(decrypted);
+
+    const reportToStore = {
+      id: reportToShare.id,
+      title: reportToShare.title,
+      createdAt: reportToShare.createdAt,
+      sharedAt: new Date().toISOString(),
+      status: "preliminary",
+      bundle: reportToShare.bundle
+    };
+
+    if (!Array.isArray(record.aiTriageReports)) record.aiTriageReports = [];
+    record.aiTriageReports = record.aiTriageReports.filter((r) => r && r.id !== reportToStore.id);
+    record.aiTriageReports.unshift(reportToStore);
+    record.aiTriageReport = reportToStore;
+
+    const updatedEncrypted = await window.encryptAES(JSON.stringify(record), patientAESKey);
+    const buffer = ipfs.Buffer.from(JSON.stringify(updatedEncrypted));
+    const result = await ipfs.files.add(buffer);
+    const newHash = result[0].hash;
+
+    await medicalDataRegistry.methods.setHash(patientAddress, newHash).send({ from: patientAddress });
+    decryptedRecordCache = null;
+
+    cachedTriageReportsHash = newHash;
+    setTriageReportInCache(reportToStore);
+    lastGeneratedTriageReport = reportToStore;
+    delete draftTriageReports[thread.id];
+    updateTriageReportUI(reportToStore);
+    alert("AI triage report shared with your doctors.");
+  } catch (err) {
+    console.error("Share triage report failed:", err);
+    alert("Failed to share report. Please try again.");
+  }
+}
+
+function exportTriageReportToPDF() {
+  const thread = getActiveThread();
+  if (!thread) {
+    alert("No conversation selected.");
+    return;
+  }
+
+  const report = draftTriageReports[thread.id]
+    || getTriageReportFromCache(thread.id)
+    || null;
+
+  if (!report || !report.bundle) {
+    alert("No report available for this conversation.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) {
+    alert("PDF export is not available.");
+    return;
+  }
+
+  const doc = new jsPDF();
+  const margin = 12;
+  const maxWidth = 180;
+  const title = report.title || "AI Triage Report";
+
+  const lines = [
+    title,
+    `Status: ${report.status || "preliminary"}`,
+    report.updatedAt ? `Updated: ${report.updatedAt}` : (report.sharedAt ? `Shared: ${report.sharedAt}` : ""),
+    "",
+    `Chief Complaint: ${getSectionText(report.bundle, "Chief Complaint") || "Not provided"}`,
+    `Symptoms: ${getSectionText(report.bundle, "Symptoms") || "Not provided"}`,
+    `AI Differential Diagnosis: ${getSectionText(report.bundle, "AI Differential Diagnosis") || "Not provided"}`,
+    `Suggested Treatments: ${getSectionText(report.bundle, "Suggested Treatments") || "Not provided"}`,
+    `Recommended Follow-up: ${getSectionText(report.bundle, "Recommended Follow-up") || "Not provided"}`,
+    `Doctor Notes: ${getSectionText(report.bundle, "Doctor Notes") || "Not provided"}`
+  ].filter(Boolean);
+
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text(title, margin, 16);
+
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  const bodyLines = doc.splitTextToSize(lines.slice(1).join("\n"), maxWidth);
+  doc.text(bodyLines, margin, 26);
+
+  const filenameSafe = title.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 40);
+  doc.save(`AI_Triage_Report_${filenameSafe}.pdf`);
+}
+
+async function shareActiveConversation() {
+  const warning = document.getElementById("aiShareWarning");
+  if (warning) warning.style.display = "none";
+
+  const thread = getActiveThread();
+  const exportData = getActiveConversationExport(thread);
+  if (!exportData || !exportData.messages.length) {
+    alert("No conversation to share yet.");
+    return;
+  }
+
+  let accounts;
+  try {
+    accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  } catch (err) {
+    alert("Unable to access your wallet.");
+    return;
+  }
+
+  const patientAddress = accounts[0]?.toLowerCase();
+  if (!patientAddress) {
+    alert("Unable to identify patient address.");
+    return;
+  }
+
+  let doctorAccessList = [];
+  try {
+    doctorAccessList = await accessControl.methods
+      .getAccessedDoctorListForPatient(patientAddress)
+      .call({ gas: 1000000 });
+  } catch (err) {
+    console.error("Failed to load doctor access list:", err);
+  }
+
+  if (!doctorAccessList || doctorAccessList.length === 0) {
+    if (warning) warning.style.display = "block";
+    alert("No doctors currently have access to your records.");
+    return;
+  }
+
+  try {
+    const patientAESKey = await getSessionAESKey();
+    const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call();
+    if (!recordHash) {
+      alert("No medical record found to attach this conversation.");
+      return;
+    }
+
+    const files = await ipfs.files.get(recordHash);
+    const file = files.find((f) => f.content);
+    if (!file) {
+      alert("Failed to load your medical record.");
+      return;
+    }
+
+    const encryptedJson = new TextDecoder().decode(file.content);
+    const encryptedPayload = JSON.parse(encryptedJson);
+    const decrypted = await window.decryptAES(encryptedPayload, patientAESKey);
+    const record = JSON.parse(decrypted);
+
+    if (!Array.isArray(record.sharedConversations)) {
+      record.sharedConversations = [];
+    }
+
+    const sharedEntry = {
+      id: thread.id,
+      title: exportData.title,
+      sharedAt: new Date().toISOString(),
+      messages: exportData.messages.map((m) => ({
+        role: m.role,
+        text: m.text,
+        ts: m.ts
+      }))
+    };
+
+    record.sharedConversations = record.sharedConversations.filter((c) => c.id !== thread.id);
+    record.sharedConversations.unshift(sharedEntry);
+    record.sharedConversations = record.sharedConversations.slice(0, 10);
+
+    const updatedEncrypted = await window.encryptAES(JSON.stringify(record), patientAESKey);
+    const buffer = ipfs.Buffer.from(JSON.stringify(updatedEncrypted));
+    const result = await ipfs.files.add(buffer);
+    const newHash = result[0].hash;
+
+    await medicalDataRegistry.methods.setHash(patientAddress, newHash).send({ from: patientAddress });
+    decryptedRecordCache = null;
+
+    alert("Conversation shared with your doctors.");
+  } catch (err) {
+    console.error("Share conversation failed:", err);
+    alert("Failed to share conversation. Please try again.");
+  }
+}
+
+async function refreshShareAvailability() {
+  const warning = document.getElementById("aiShareWarning");
+  const shareBtn = document.getElementById("aiShareReportBtn");
+  if (warning) warning.style.display = "none";
+  if (shareBtn) shareBtn.disabled = false;
+
+  let accounts;
+  try {
+    accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  } catch (err) {
+    return;
+  }
+
+  const patientAddress = accounts[0]?.toLowerCase();
+  if (!patientAddress) return;
+
+  try {
+    const doctorAccessList = await accessControl.methods
+      .getAccessedDoctorListForPatient(patientAddress)
+      .call({ gas: 1000000 });
+    if (!doctorAccessList || doctorAccessList.length === 0) {
+      if (warning) warning.style.display = "block";
+      if (shareBtn) shareBtn.disabled = true;
+    }
+  } catch (err) {
+    console.warn("Unable to refresh share availability:", err);
+  }
+}
+
+async function generateVisitSummary() {
+  const output = document.getElementById("aiVisitSummaryOutput");
+  const generateBtn = document.getElementById("aiGenerateSummaryBtn");
+  const copyBtn = document.getElementById("aiCopySummaryBtn");
+  if (!output || !generateBtn) return;
+
+  generateBtn.disabled = true;
+  if (copyBtn) copyBtn.disabled = true;
+  output.value = "Generating summary...";
+
+  try {
+    const patientContext = await buildPatientLLMContext();
+    const messages = getRecentChatMessages(16);
+
+    const response = await fetch("http://localhost:3000/api/visit-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        age: patientContext.age,
+        gender: patientContext.gender,
+        allergies: patientContext.allergies,
+        allergyDetails: patientContext.allergyDetails,
+        pastDiagnoses: patientContext.pastDiagnoses,
+        diagnosisDetails: patientContext.diagnosisDetails,
+        treatments: patientContext.treatments,
+        treatmentDetails: patientContext.treatmentDetails,
+        messages
+      })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let summary = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      summary += decoder.decode(value, { stream: true });
+      output.value = summary;
+    }
+
+    output.value = summary.trim();
+    if (copyBtn) copyBtn.disabled = !output.value;
+  } catch (err) {
+    console.error(err);
+    output.value = "Failed to generate summary. Please try again.";
+  } finally {
+    generateBtn.disabled = false;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const chatWindow = document.getElementById("chatWindow");
+  if (chatWindow) {
+    chatWindow.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".ai-copy-btn");
+      if (!btn) return;
+      const bubble = btn.closest(".ai-bubble");
+      const span = bubble ? bubble.querySelector("span") : null;
+      const text = span ? span.textContent.trim() : "";
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const original = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => {
+          btn.textContent = original;
+        }, 1200);
+      } catch (err) {
+        console.warn("Clipboard failed:", err.message);
+      }
+    });
+  }
+
+  const generateBtn = document.getElementById("aiGenerateReportBtn");
+  if (generateBtn) generateBtn.addEventListener("click", generateTriageReport);
+
+  const exportConversationBtn = document.getElementById("aiExportConversationBtn");
+  if (exportConversationBtn) {
+    exportConversationBtn.addEventListener("click", exportActiveConversationToPDF);
+  }
+
+  const exportReportBtn = document.getElementById("aiExportReportBtn");
+  if (exportReportBtn) {
+    exportReportBtn.addEventListener("click", exportTriageReportToPDF);
+  }
+
+  const shareBtn = document.getElementById("aiShareReportBtn");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", shareTriageReport);
+  }
+});

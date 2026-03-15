@@ -468,16 +468,83 @@
                             It does NOT replace professional medical consultation.
                         </div>
 
-                        <!-- Chat Window -->
-                        <div id="chatWindow" class="ai-chat-window"></div>
+                        <div class="ai-chat-layout">
+                            <div class="ai-chat-sidebar">
+                                <div class="ai-chat-sidebar-header">
+                                    <div class="ai-chat-title">Your conversations</div>
+                                    <button id="aiNewChatBtn" class="btn btn-sm btn-primary ai-new-chat">New chat</button>
+                                </div>
+                                <div class="ai-chat-search">
+                                    <input id="aiChatSearch" type="text" class="form-control"
+                                        placeholder="Search conversations" />
+                                </div>
+                                <div id="aiChatList" class="ai-chat-list"></div>
+                            </div>
 
-                        <!-- Input Area -->
-                        <div class="ai-input-row">
-                            <textarea id="symptomInput" class="form-control ai-input" rows="2"
-                                placeholder="Describe your symptoms..."></textarea>
-                            <button class="btn btn-primary ai-send" onclick="sendSymptomMessage()">
-                                Send
-                            </button>
+                            <div class="ai-chat-main">
+                                <!-- Chat Window -->
+                                <div id="chatWindow" class="ai-chat-window"></div>
+
+                                <!-- Input Area -->
+                                <div class="ai-input-row">
+                                    <textarea id="symptomInput" class="form-control ai-input" rows="2"
+                                        placeholder="Describe your symptoms..."></textarea>
+                                    <button class="btn btn-primary ai-send" onclick="sendSymptomMessage()">
+                                        Send
+                                    </button>
+                                </div>
+
+                                <div class="ai-summary-card ai-triage-card">
+                                    <div class="ai-summary-header">
+                                        <div class="ai-summary-title">AI Triage Report</div>
+                                        <div class="ai-summary-actions">
+                                            <button id="aiGenerateReportBtn" class="btn btn-outline-primary btn-sm"
+                                                type="button">Generate</button>
+                                            <button id="aiExportConversationBtn" class="btn btn-outline-secondary btn-sm"
+                                                type="button">Export Conversation</button>
+                                            <button id="aiExportReportBtn" class="btn btn-outline-secondary btn-sm"
+                                                type="button">Export Report</button>
+                                            <button id="aiShareReportBtn" class="btn btn-outline-success btn-sm"
+                                                type="button">Share with Doctor</button>
+                                        </div>
+                                    </div>
+                                    <div id="aiShareWarning" class="alert alert-warning ai-share-warning"
+                                        style="display:none;">
+                                        No doctors currently have access to your records. Share access first to send
+                                        reports.
+                                    </div>
+                                    <div class="ai-triage-meta">
+                                        Status: <span id="aiTriageStatus">Not generated</span>
+                                        <span id="aiTriageUpdated" class="ai-triage-updated"></span>
+                                    </div>
+                                    <div class="ai-triage-fields">
+                                        <label for="aiTriageChiefComplaint">Chief Complaint</label>
+                                        <textarea id="aiTriageChiefComplaint" class="form-control ai-triage-text"
+                                            rows="2" readonly></textarea>
+
+                                        <label for="aiTriageSymptoms">Symptoms</label>
+                                        <textarea id="aiTriageSymptoms" class="form-control ai-triage-text" rows="3"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageDifferential">AI Suggested Diagnoses</label>
+                                        <textarea id="aiTriageDifferential" class="form-control ai-triage-text" rows="3"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageTreatments">Suggested Treatments</label>
+                                        <textarea id="aiTriageTreatments" class="form-control ai-triage-text" rows="3"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageFollowUp">Recommended Follow-up</label>
+                                        <textarea id="aiTriageFollowUp" class="form-control ai-triage-text" rows="2"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageDoctorNotes">Doctor Notes</label>
+                                        <textarea id="aiTriageDoctorNotes" class="form-control ai-triage-text"
+                                            rows="3" readonly
+                                            placeholder="Doctor notes will appear here after review."></textarea>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                     </div>

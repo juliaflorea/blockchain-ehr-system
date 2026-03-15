@@ -105,6 +105,316 @@ window.addEventListener("contractsReady", async () => {
   loadAppointmentRequests();
   loadAppointmentHistory();
 });
+
+function escapeConversationHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderSharedConversations(record) {
+  const shared = Array.isArray(record?.sharedConversations)
+    ? record.sharedConversations
+    : [];
+
+  if (!shared.length) {
+    return `
+      <div class="ai-shared-empty">
+        No conversations shared yet.
+      </div>
+    `;
+  }
+
+  const sorted = [...shared].sort((a, b) => {
+    const aTime = a?.sharedAt ? Date.parse(a.sharedAt) : 0;
+    const bTime = b?.sharedAt ? Date.parse(b.sharedAt) : 0;
+    return bTime - aTime;
+  });
+
+  return sorted.map((conversation) => {
+    const title = escapeConversationHtml(conversation.title || "Conversation");
+    const sharedAt = conversation.sharedAt
+      ? new Date(conversation.sharedAt).toLocaleString()
+      : "Unknown time";
+    const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+
+    const messageHtml = messages.map((msg) => {
+      const roleLabel = msg.role === "assistant" ? "Assistant" : "Patient";
+      const timestamp = msg.ts ? new Date(msg.ts).toLocaleString() : "";
+      const header = timestamp ? `${roleLabel} (${timestamp})` : roleLabel;
+      return `
+        <div class="ai-shared-message">
+          <div class="ai-shared-message-header">${escapeConversationHtml(header)}</div>
+          <div class="ai-shared-message-body">${escapeConversationHtml(msg.text || "")}</div>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="ai-shared-card">
+        <div class="ai-shared-title">${title}</div>
+        <div class="ai-shared-meta">Shared: ${escapeConversationHtml(sharedAt)}</div>
+        <div class="ai-shared-thread">
+          ${messageHtml}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+const TRIAGE_SECTION_TITLES = [
+  "Chief Complaint",
+  "Symptoms",
+  "AI Differential Diagnosis",
+  "Suggested Treatments",
+  "Recommended Follow-up",
+  "Doctor Notes"
+];
+
+function getTriageReportFromRecord(record) {
+  if (record && record.aiTriageReport) return record.aiTriageReport;
+  if (Array.isArray(record?.aiTriageReports) && record.aiTriageReports.length) {
+    return [...record.aiTriageReports].sort((a, b) => {
+      const aTime = Date.parse(a.updatedAt || a.sharedAt || a.createdAt || 0);
+      const bTime = Date.parse(b.updatedAt || b.sharedAt || b.createdAt || 0);
+      return bTime - aTime;
+    })[0];
+  }
+  return null;
+}
+
+function getCompositionFromBundle(bundle) {
+  if (!bundle || bundle.resourceType !== "Bundle") return null;
+  const entry = Array.isArray(bundle.entry) ? bundle.entry : [];
+  const compEntry = entry.find((e) => e && e.resource && e.resource.resourceType === "Composition");
+  return compEntry ? compEntry.resource : null;
+}
+
+function ensureComposition(bundle) {
+  if (!bundle || bundle.resourceType !== "Bundle") return null;
+  if (!Array.isArray(bundle.entry)) bundle.entry = [];
+  let composition = getCompositionFromBundle(bundle);
+  if (!composition) {
+    composition = {
+      resourceType: "Composition",
+      status: "preliminary",
+      type: {
+        coding: [
+          {
+            system: "http://loinc.org",
+            code: "11488-4",
+            display: "Consult note"
+          }
+        ]
+      },
+      title: "AI Triage Report",
+      date: new Date().toISOString(),
+      author: [{ reference: "Device/AI-Triage-System" }],
+      section: TRIAGE_SECTION_TITLES.map((title) => ({
+        title,
+        text: "Not provided"
+      }))
+    };
+    bundle.entry.unshift({ resource: composition });
+  }
+  if (!Array.isArray(composition.section)) {
+    composition.section = TRIAGE_SECTION_TITLES.map((title) => ({
+      title,
+      text: "Not provided"
+    }));
+  }
+  TRIAGE_SECTION_TITLES.forEach((title) => {
+    if (!composition.section.find((s) => (s.title || "").toLowerCase() === title.toLowerCase())) {
+      composition.section.push({ title, text: "Not provided" });
+    }
+  });
+  return composition;
+}
+
+function getSectionText(bundle, title) {
+  const composition = getCompositionFromBundle(bundle);
+  if (!composition || !Array.isArray(composition.section)) return "";
+  const section = composition.section.find((s) => (s.title || "").toLowerCase() === title.toLowerCase());
+  const value = section && section.text;
+  return typeof value === "string" ? value : "";
+}
+
+function setSectionText(bundle, title, text) {
+  const composition = ensureComposition(bundle);
+  if (!composition) return;
+  const section = composition.section.find((s) => (s.title || "").toLowerCase() === title.toLowerCase());
+  if (section) section.text = text || "Not provided";
+}
+
+function renderTriageReport(record, patientAddr, canEdit) {
+  const report = getTriageReportFromRecord(record);
+  if (!report || !report.bundle) {
+    return `
+      <div class="ai-shared-empty">
+        No AI triage report shared yet.
+      </div>
+    `;
+  }
+
+  const bundle = report.bundle;
+  const status = report.status || getCompositionFromBundle(bundle)?.status || "preliminary";
+  const updatedAt = report.updatedAt || report.sharedAt || report.createdAt;
+  const readonlyAttr = canEdit ? "" : "readonly";
+
+  const sectionHtml = TRIAGE_SECTION_TITLES.map((title) => {
+    const idSuffix = `${title.replace(/[^a-z0-9]+/gi, "")}${patientAddr}`;
+    const value = escapeConversationHtml(getSectionText(bundle, title));
+    return `
+      <label for="aiTriage${idSuffix}">${escapeConversationHtml(title)}</label>
+      <textarea id="aiTriage${idSuffix}" class="form-control ai-triage-textarea" rows="3" ${readonlyAttr}>${value}</textarea>
+    `;
+  }).join("");
+
+  const actionHtml = canEdit
+    ? `<div class="ai-triage-actions"><button class="btn btn-primary" onclick="saveTriageReport('${patientAddr}', '${report.id || ""}')">Save Report</button></div>`
+    : "";
+
+  const updatedLabel = updatedAt ? `Updated ${new Date(updatedAt).toLocaleString()}` : "Not updated";
+
+  return `
+    <div class="ai-triage-meta">
+      Status: <span id="aiTriageStatus${patientAddr}">${escapeConversationHtml(status)}</span>
+      <span id="aiTriageUpdated${patientAddr}">${escapeConversationHtml(updatedLabel)}</span>
+    </div>
+    <div class="ai-triage-fields">
+      ${sectionHtml}
+    </div>
+    ${actionHtml}
+  `;
+}
+
+async function canEditTriageReport(patientAddress) {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const doctorAddress = accounts[0];
+    const appointmentIds = await appointmentManager.methods
+      .getDoctorAppointments(doctorAddress)
+      .call({ from: doctorAddress });
+
+    for (let id of appointmentIds) {
+      const appointment = await appointmentManager.methods.appointments(id).call();
+      if (
+        appointment.patientAddress.toLowerCase() === patientAddress.toLowerCase() &&
+        appointment.isAccepted
+      ) {
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to check triage report edit eligibility:", err);
+  }
+  return false;
+}
+
+async function saveTriageReport(patientAddr, reportId) {
+  try {
+    const canEdit = await canEditTriageReport(patientAddr);
+    if (!canEdit) {
+      alert("You need an accepted appointment to edit this report.");
+      return;
+    }
+
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const doctorAddr = accounts[0];
+
+    const recordHash = await medicalDataRegistry.methods
+      .getHash(patientAddr)
+      .call({ from: doctorAddr });
+    if (!recordHash) {
+      alert("No medical record found for this patient.");
+      return;
+    }
+
+    const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
+    const encryptedPayload = await resp.json();
+    const aesKey = await getDoctorAESKeyForPatient(patientAddr);
+    const decryptedRecordStr = await window.decryptAES(encryptedPayload, aesKey);
+    const record = JSON.parse(decryptedRecordStr);
+
+    let reports = [];
+    if (Array.isArray(record?.aiTriageReports)) {
+      reports = record.aiTriageReports;
+    } else if (record?.aiTriageReport) {
+      reports = [record.aiTriageReport];
+    }
+
+    let report = null;
+    if (reportId) {
+      report = reports.find((r) => r && r.id === reportId) || null;
+    }
+    if (!report) {
+      report = getTriageReportFromRecord(record);
+    }
+
+    if (!report || !report.bundle) {
+      alert("No AI triage report found.");
+      return;
+    }
+
+    const bundle = report.bundle;
+    TRIAGE_SECTION_TITLES.forEach((title) => {
+      const idSuffix = `${title.replace(/[^a-z0-9]+/gi, "")}${patientAddr}`;
+      const field = document.getElementById(`aiTriage${idSuffix}`);
+      if (field) setSectionText(bundle, title, field.value || "Not provided");
+    });
+
+    const composition = ensureComposition(bundle);
+    const now = new Date().toISOString();
+    if (composition) {
+      composition.status = "final";
+      composition.date = now;
+      composition.attester = [
+        {
+          mode: "legal",
+          time: now,
+          party: {
+            display: docName || "Unknown Doctor",
+            reference: `Practitioner/${doctorAddr}`
+          }
+        }
+      ];
+    }
+
+    report.status = "final";
+    report.updatedAt = now;
+    report.attestedBy = {
+      name: docName || "Unknown Doctor",
+      address: doctorAddr,
+      time: now
+    };
+    report.bundle = bundle;
+    if (!Array.isArray(record.aiTriageReports)) record.aiTriageReports = [];
+    record.aiTriageReports = record.aiTriageReports.filter((r) => r && r.id !== report.id);
+    record.aiTriageReports.unshift(report);
+    record.aiTriageReport = report;
+
+    const encryptedUpdated = await window.encryptAES(JSON.stringify(record), aesKey);
+    const buffer = Buffer.from(JSON.stringify(encryptedUpdated), "utf-8");
+    const ipfsResult = await ipfs.add(buffer);
+    const ipfsHash = ipfsResult[0]?.hash || ipfsResult.path;
+
+    await medicalDataRegistry.methods.setHash(patientAddr, ipfsHash).send({ from: doctorAddr });
+
+    const statusEl = document.getElementById(`aiTriageStatus${patientAddr}`);
+    const updatedEl = document.getElementById(`aiTriageUpdated${patientAddr}`);
+    if (statusEl) statusEl.textContent = "final";
+    if (updatedEl) updatedEl.textContent = `Updated ${new Date(now).toLocaleString()}`;
+
+    alert("AI triage report saved.");
+  } catch (err) {
+    console.error("Error saving triage report:", err);
+    alert("Failed to save triage report: " + (err.message || err));
+  }
+}
 // Function to display the patients' medical records
 // Keep a cache of decrypted records per patient
 async function showRecords(element) {
@@ -165,6 +475,9 @@ async function showRecords(element) {
 
       // Convert record to formatted HTML
       const formattedHtml = renderResource(decryptedRecord);
+      const sharedConversationsHtml = renderSharedConversations(decryptedRecord);
+      const canEditTriage = await canEditTriageReport(patientAddr);
+      const triageReportHtml = renderTriageReport(decryptedRecord, patientAddr, canEditTriage);
 
       // Create download button
       const downloadButton = $("<button/>", {
@@ -190,6 +503,20 @@ async function showRecords(element) {
                 <div style="margin: 20px 0;" id="records${patientAddr}">
                   ${formattedHtml}
                 </div>
+              </div>
+            </div>
+            <hr>
+            <div class="section ai-triage-report-section">
+              <h5 class="ai-triage-title">AI Triage Report</h5>
+              <div class="ai-triage-content">
+                ${triageReportHtml}
+              </div>
+            </div>
+            <hr>
+            <div class="section shared-conversations-section">
+              <h5 class="shared-conversations-title">Shared Conversations</h5>
+              <div class="shared-conversations-content">
+                ${sharedConversationsHtml}
               </div>
             </div>
             <hr>
@@ -1166,9 +1493,5 @@ async function fetchAndDecryptAppointment(ipfsHash) {
     throw err;
   }
 }
-
-
-
-
 
 
