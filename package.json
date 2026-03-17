@@ -6,16 +6,20 @@
   "scripts": {
     "compile": "truffle compile",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "lite-server"
+    "start": "lite-server",
+    "server": "node server.js",
+    "dev": "concurrently \"node server.js\" \"lite-server\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@openzeppelin/contracts": "^2.5.1",
+    "axios": "^1.13.5",
     "cors": "^2.8.5",
     "eth-crypto": "^3.1.0",
     "eth-rpc-errors": "^4.0.3",
+    "express": "^5.2.1",
     "ipfs": "^0.66.1",
     "ipfs-http-client": "^50.1.2",
     "lite": "^2.0.15",
@@ -26,5 +30,9 @@
     "uws": "^10.148.1",
     "web3": "^4.2.2",
     "web3-providers-http": "^4.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "lite-server": "^2.6.1"
   }
 }

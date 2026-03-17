@@ -43,11 +43,14 @@
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i>Appointment
                     Calendar</a>
+                <hr class="sidebar-divider">
+                <p class="sidebar-category ">AI ASSISTANT</p>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="aiAssistantPanel">
+                    <i class="fas fa-robot"></i> AI Symptom Assistant
+                </a>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
-                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="diagnosisPanel diagnosisHistoryPanel"><i class="fas fa-stethoscope"></i> Quick
-                    Diagnosis Prediction</a>
                 <hr class="sidebar-divider">
                 <p class="sidebar-category ">AVAILABLE DOCTORS</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
@@ -444,38 +447,6 @@
                     </div>
                 </div>
 
-                <div class="panel panel-default" id="diagnosisPanel">
-                    <div class="panel-heading">
-                        <h3 class="text-center">Diagnosis Prediction</h3>
-                    </div>
-                    <div class="panel-body">
-                        <form id="diagnosisForm" class="form-horizontal">
-                            <div id="symptomsContainer">
-                                <h6 class="symptoms-header">Select Your Symptoms:</h6>
-                                <!-- Symptoms will be loaded here dynamically -->
-                            </div>
-                            <div class="text-center">
-                                <button type="submit" class="btn btn-primary">Predict Diagnosis</button>
-                            </div>
-                        </form>
-                        <div id="predictionResult"></div>
-                        <button type="button" id="resetButton" class="btn btn-secondary">Reset Symptoms</button>
-                    </div>
-                </div>
-
-
-                <div class="panel panel-default" id="diagnosisHistoryPanel">
-                    <div class="panel-heading">
-                        <h3 class="text-center">Diagnosis History Prediction</h3>
-                    </div>
-                    <div class="panel-body">
-
-                        <div id="predictionHistory"></div>
-                    </div>
-                </div>
-
-
-
 
                 <div class="panel panel-default" id="appointmentCalendarPanel">
                     <div class="panel-heading">
@@ -483,6 +454,99 @@
                     </div>
                     <div class="panel-body">
                         <div id="calendar"></div>
+                    </div>
+                </div>
+
+                <div class="panel panel-default" id="aiAssistantPanel">
+                    <div class="panel-heading">
+                        <h3 class="text-center">AI Symptom Assistant</h3>
+                    </div>
+                    <div class="panel-body">
+
+                        <div class="alert alert-info ai-assistant-alert">
+                            This AI assistant provides educational clinical insights only.
+                            It does NOT replace professional medical consultation.
+                        </div>
+
+                        <div class="ai-chat-layout">
+                            <div class="ai-chat-sidebar">
+                                <div class="ai-chat-sidebar-header">
+                                    <div class="ai-chat-title">Your conversations</div>
+                                    <button id="aiNewChatBtn" class="btn btn-sm btn-primary ai-new-chat">New chat</button>
+                                </div>
+                                <div class="ai-chat-search">
+                                    <input id="aiChatSearch" type="text" class="form-control"
+                                        placeholder="Search conversations" />
+                                </div>
+                                <div id="aiChatList" class="ai-chat-list"></div>
+                            </div>
+
+                            <div class="ai-chat-main">
+                                <!-- Chat Window -->
+                                <div id="chatWindow" class="ai-chat-window"></div>
+
+                                <!-- Input Area -->
+                                <div class="ai-input-row">
+                                    <textarea id="symptomInput" class="form-control ai-input" rows="2"
+                                        placeholder="Describe your symptoms..."></textarea>
+                                    <button class="btn btn-primary ai-send" onclick="sendSymptomMessage()">
+                                        Send
+                                    </button>
+                                </div>
+
+                                <div class="ai-summary-card ai-triage-card">
+                                    <div class="ai-summary-header">
+                                        <div class="ai-summary-title">AI Triage Report</div>
+                                        <div class="ai-summary-actions">
+                                            <button id="aiGenerateReportBtn" class="btn btn-outline-primary btn-sm"
+                                                type="button">Generate</button>
+                                            <button id="aiExportConversationBtn" class="btn btn-outline-secondary btn-sm"
+                                                type="button">Export Conversation</button>
+                                            <button id="aiExportReportBtn" class="btn btn-outline-secondary btn-sm"
+                                                type="button">Export Report</button>
+                                            <button id="aiShareReportBtn" class="btn btn-outline-success btn-sm"
+                                                type="button">Share with Doctor</button>
+                                        </div>
+                                    </div>
+                                    <div id="aiShareWarning" class="alert alert-warning ai-share-warning"
+                                        style="display:none;">
+                                        No doctors currently have access to your records. Share access first to send
+                                        reports.
+                                    </div>
+                                    <div class="ai-triage-meta">
+                                        Status: <span id="aiTriageStatus">Not generated</span>
+                                        <span id="aiTriageUpdated" class="ai-triage-updated"></span>
+                                    </div>
+                                    <div class="ai-triage-fields">
+                                        <label for="aiTriageChiefComplaint">Chief Complaint</label>
+                                        <textarea id="aiTriageChiefComplaint" class="form-control ai-triage-text"
+                                            rows="2" readonly></textarea>
+
+                                        <label for="aiTriageSymptoms">Symptoms</label>
+                                        <textarea id="aiTriageSymptoms" class="form-control ai-triage-text" rows="3"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageDifferential">AI Suggested Diagnoses</label>
+                                        <textarea id="aiTriageDifferential" class="form-control ai-triage-text" rows="3"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageTreatments">Suggested Treatments</label>
+                                        <textarea id="aiTriageTreatments" class="form-control ai-triage-text" rows="3"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageFollowUp">Recommended Follow-up</label>
+                                        <textarea id="aiTriageFollowUp" class="form-control ai-triage-text" rows="2"
+                                            readonly></textarea>
+
+                                        <label for="aiTriageDoctorNotes">Doctor Notes</label>
+                                        <textarea id="aiTriageDoctorNotes" class="form-control ai-triage-text"
+                                            rows="3" readonly
+                                            placeholder="Doctor notes will appear here after review."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 

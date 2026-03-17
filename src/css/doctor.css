@@ -78,5 +78,108 @@
   width: 100%;
 }
 
+.shared-conversations-section {
+  width: 100%;
+  align-items: stretch;
+}
 
+.shared-conversations-title {
+  margin-bottom: 1rem;
+  align-self: center;
+}
+
+.shared-conversations-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-shared-card {
+  border: 1px solid #d8dbe6;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fbfcff;
+  box-shadow: 0 4px 12px rgba(22, 38, 74, 0.08);
+}
+
+.ai-shared-title {
+  font-weight: 600;
+  color: #27314a;
+  margin-bottom: 4px;
+}
+
+.ai-shared-meta {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 8px;
+}
+
+.ai-shared-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-shared-message {
+  border-left: 3px solid #6c8bd9;
+  padding: 6px 10px;
+  background: #ffffff;
+  border-radius: 6px;
+}
+
+.ai-shared-message-header {
+  font-size: 0.8rem;
+  color: #4b556a;
+  margin-bottom: 4px;
+}
+
+.ai-shared-message-body {
+  white-space: pre-wrap;
+  color: #1f2937;
+}
+
+.ai-triage-report-section {
+  width: 100%;
+  align-items: stretch;
+}
+
+.ai-triage-title {
+  margin-bottom: 0.75rem;
+  align-self: center;
+}
+
+.ai-triage-meta {
+  font-size: 0.9rem;
+  color: #5b6473;
+  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-triage-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-triage-textarea {
+  background: #f8f9ff;
+  border-radius: 10px;
+  resize: vertical;
+}
+
+.ai-triage-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ai-shared-empty {
+  text-align: center;
+  color: #6c757d;
+  padding: 12px;
+  background: #f6f7fb;
+  border-radius: 8px;
+  border: 1px dashed #cfd4e4;
+}
 
