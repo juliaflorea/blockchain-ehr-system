@@ -175,6 +175,33 @@ const TRIAGE_SECTION_TITLES = [
   "Doctor Notes"
 ];
 
+function formatDateTimeLabel(value) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const datePart = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${datePart} \u2013 ${timePart}`;
+}
+
+function triageFieldId(title, patientAddr, reportKey) {
+  const safeTitle = title.replace(/[^a-z0-9]+/gi, "");
+  return `aiTriage${safeTitle}${patientAddr}${reportKey}`;
+}
+
+function triageReportKey(report, index) {
+  if (report && report.id) return report.id.replace(/[^a-z0-9]+/gi, "");
+  return `report${index}`;
+}
+
 function getTriageReportFromRecord(record) {
   if (record && record.aiTriageReport) return record.aiTriageReport;
   if (Array.isArray(record?.aiTriageReports) && record.aiTriageReports.length) {
@@ -251,8 +278,17 @@ function setSectionText(bundle, title, text) {
 }
 
 function renderTriageReport(record, patientAddr, canEdit) {
-  const report = getTriageReportFromRecord(record);
-  if (!report || !report.bundle) {
+  let reports = [];
+  if (Array.isArray(record?.aiTriageReports)) {
+    reports = record.aiTriageReports;
+  } else if (record?.aiTriageReport) {
+    reports = [record.aiTriageReport];
+  } else {
+    const latest = getTriageReportFromRecord(record);
+    if (latest) reports = [latest];
+  }
+
+  if (!reports.length) {
     return `
       <div class="ai-shared-empty">
         No AI triage report shared yet.
@@ -260,36 +296,81 @@ function renderTriageReport(record, patientAddr, canEdit) {
     `;
   }
 
-  const bundle = report.bundle;
-  const status = report.status || getCompositionFromBundle(bundle)?.status || "preliminary";
-  const updatedAt = report.updatedAt || report.sharedAt || report.createdAt;
-  const readonlyAttr = canEdit ? "" : "readonly";
+  return reports.map((report, index) => {
+    if (!report || !report.bundle) return "";
+    const reportKey = triageReportKey(report, index);
+    const bundle = report.bundle;
+    const status = report.status || getCompositionFromBundle(bundle)?.status || "preliminary";
+    const updatedAt = report.updatedAt || report.sharedAt || report.createdAt;
+    const statusClass = status.toLowerCase() === "final"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-amber-200 bg-amber-50 text-amber-700";
 
-  const sectionHtml = TRIAGE_SECTION_TITLES.map((title) => {
-    const idSuffix = `${title.replace(/[^a-z0-9]+/gi, "")}${patientAddr}`;
-    const value = escapeConversationHtml(getSectionText(bundle, title));
+    const sectionHtml = TRIAGE_SECTION_TITLES.map((title) => {
+      const idSuffix = triageFieldId(title, patientAddr, reportKey);
+      const value = escapeConversationHtml(getSectionText(bundle, title));
+      return `
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 min-w-0">
+          <label class="text-[11px] uppercase tracking-widest text-slate-500" for="${idSuffix}">${escapeConversationHtml(title)}</label>
+          <textarea id="${idSuffix}" data-triage-field="1" class="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 p-2 text-sm text-slate-700 break-words" rows="3" readonly>${value}</textarea>
+        </div>
+      `;
+    }).join("");
+
+    const actionHtml = canEdit
+      ? `
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button class="btn btn-outline-secondary" data-triage-edit-btn="1" onclick="toggleTriageEdit('${patientAddr}', '${reportKey}')">Edit</button>
+          <button class="btn btn-primary" onclick="saveTriageReport('${patientAddr}', '${report.id || ""}', '${reportKey}')">Save Report</button>
+        </div>
+      `
+      : "";
+
     return `
-      <label for="aiTriage${idSuffix}">${escapeConversationHtml(title)}</label>
-      <textarea id="aiTriage${idSuffix}" class="form-control ai-triage-textarea" rows="3" ${readonlyAttr}>${value}</textarea>
+      <details class="group rounded-2xl border border-slate-200 bg-white shadow-sm min-w-0" ${index === 0 ? "open" : ""}>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-slate-700 break-words">${escapeConversationHtml(report.title || "AI Triage Report")}</div>
+            <div class="text-xs text-slate-500">${escapeConversationHtml(formatDateTimeLabel(updatedAt))}</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span id="aiTriageStatus${patientAddr}${reportKey}" class="rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass}">
+              ${escapeConversationHtml(status)}
+            </span>
+            <i class="fa-solid fa-chevron-down text-slate-400 transition-transform group-open:rotate-180"></i>
+          </div>
+        </summary>
+        <div class="border-t border-slate-200 p-5 min-w-0" data-triage-container="${patientAddr}-${reportKey}" data-editing="false">
+          <div class="text-xs text-slate-500 mb-3" id="aiTriageUpdated${patientAddr}${reportKey}">
+            ${updatedAt ? `Updated ${escapeConversationHtml(formatDateTimeLabel(updatedAt))}` : "Not updated"}
+          </div>
+          <div class="space-y-3">
+            ${sectionHtml}
+          </div>
+          ${actionHtml}
+        </div>
+      </details>
     `;
   }).join("");
+}
 
-  const actionHtml = canEdit
-    ? `<div class="ai-triage-actions"><button class="btn btn-primary" onclick="saveTriageReport('${patientAddr}', '${report.id || ""}')">Save Report</button></div>`
-    : "";
-
-  const updatedLabel = updatedAt ? `Updated ${new Date(updatedAt).toLocaleString()}` : "Not updated";
-
-  return `
-    <div class="ai-triage-meta">
-      Status: <span id="aiTriageStatus${patientAddr}">${escapeConversationHtml(status)}</span>
-      <span id="aiTriageUpdated${patientAddr}">${escapeConversationHtml(updatedLabel)}</span>
-    </div>
-    <div class="ai-triage-fields">
-      ${sectionHtml}
-    </div>
-    ${actionHtml}
-  `;
+function toggleTriageEdit(patientAddr, reportKey) {
+  const container = document.querySelector(`[data-triage-container="${patientAddr}-${reportKey}"]`);
+  if (!container) return;
+  const isEditing = container.getAttribute("data-editing") === "true";
+  const fields = container.querySelectorAll("textarea[data-triage-field=\"1\"]");
+  fields.forEach((field) => {
+    if (isEditing) {
+      field.setAttribute("readonly", "readonly");
+      field.classList.add("bg-slate-50");
+    } else {
+      field.removeAttribute("readonly");
+      field.classList.remove("bg-slate-50");
+    }
+  });
+  container.setAttribute("data-editing", isEditing ? "false" : "true");
+  const editBtn = container.querySelector("button[data-triage-edit-btn=\"1\"]");
+  if (editBtn) editBtn.textContent = isEditing ? "Edit" : "Stop Editing";
 }
 
 async function canEditTriageReport(patientAddress) {
@@ -315,7 +396,7 @@ async function canEditTriageReport(patientAddress) {
   return false;
 }
 
-async function saveTriageReport(patientAddr, reportId) {
+async function saveTriageReport(patientAddr, reportId, reportKey = "") {
   try {
     const canEdit = await canEditTriageReport(patientAddr);
     if (!canEdit) {
@@ -362,8 +443,8 @@ async function saveTriageReport(patientAddr, reportId) {
 
     const bundle = report.bundle;
     TRIAGE_SECTION_TITLES.forEach((title) => {
-      const idSuffix = `${title.replace(/[^a-z0-9]+/gi, "")}${patientAddr}`;
-      const field = document.getElementById(`aiTriage${idSuffix}`);
+      const fieldId = triageFieldId(title, patientAddr, reportKey);
+      const field = document.getElementById(fieldId);
       if (field) setSectionText(bundle, title, field.value || "Not provided");
     });
 
@@ -404,10 +485,10 @@ async function saveTriageReport(patientAddr, reportId) {
 
     await medicalDataRegistry.methods.setHash(patientAddr, ipfsHash).send({ from: doctorAddr });
 
-    const statusEl = document.getElementById(`aiTriageStatus${patientAddr}`);
-    const updatedEl = document.getElementById(`aiTriageUpdated${patientAddr}`);
+    const statusEl = document.getElementById(`aiTriageStatus${patientAddr}${reportKey}`);
+    const updatedEl = document.getElementById(`aiTriageUpdated${patientAddr}${reportKey}`);
     if (statusEl) statusEl.textContent = "final";
-    if (updatedEl) updatedEl.textContent = `Updated ${new Date(now).toLocaleString()}`;
+    if (updatedEl) updatedEl.textContent = `Updated ${formatDateTimeLabel(now)}`;
 
     alert("AI triage report saved.");
   } catch (err) {
@@ -474,7 +555,7 @@ async function showRecords(element) {
       }
 
       // Convert record to formatted HTML
-      const formattedHtml = renderResource(decryptedRecord);
+      const formattedHtml = renderResource(decryptedRecord, { includeTriage: false });
       const sharedConversationsHtml = renderSharedConversations(decryptedRecord);
       const canEditTriage = await canEditTriageReport(patientAddr);
       const triageReportHtml = renderTriageReport(decryptedRecord, patientAddr, canEditTriage);
@@ -1493,5 +1574,3 @@ async function fetchAndDecryptAppointment(ipfsHash) {
     throw err;
   }
 }
-
-

@@ -11,6 +11,23 @@ const OLLAMA_URL = "http://localhost:11434/api/generate";
 const NUM_PREDICT_DIAGNOSE = Number(process.env.OLLAMA_NUM_PREDICT_DIAGNOSE || 600);
 const NUM_PREDICT_SUMMARY = Number(process.env.OLLAMA_NUM_PREDICT_SUMMARY || 300);
 const NUM_PREDICT_TRIAGE = Number(process.env.OLLAMA_NUM_PREDICT_TRIAGE || 400);
+const NUM_PREDICT_TITLE = Number(process.env.OLLAMA_NUM_PREDICT_TITLE || 30);
+
+function sanitizeChatTitle(rawTitle) {
+  const cleaned = String(rawTitle || "")
+    .replace(/^["'\s]+|["'\s]+$/g, "")
+    .replace(/[•|:;]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "New conversation";
+
+  const words = cleaned.split(" ").slice(0, 7);
+  const normalized = words.join(" ").replace(/[.!?,;:]+$/g, "").trim();
+  if (!normalized) return "New conversation";
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
 
 app.post("/api/diagnose", async (req, res) => {
 
@@ -277,6 +294,61 @@ ${conversation || "none"}
         error: "Visit summary failed to generate."
       });
     }
+  }
+});
+
+app.post("/api/chat-title", async (req, res) => {
+  try {
+    const firstMessage = String(req.body?.message || "").trim();
+
+    if (!firstMessage) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    const prompt = `
+You are generating a short title for a medical conversation.
+Summarize the user's message into a natural, human-readable title.
+
+Rules:
+- Return ONLY the title.
+- Maximum 6 words.
+- Use natural language, not keyword lists.
+- No bullets, dots, separators, quotes, or trailing punctuation.
+- No ALL CAPS.
+- Prefer concise medical-style phrasing when appropriate.
+- Make it sound like a ChatGPT conversation title.
+
+User message:
+${firstMessage}
+`;
+
+    const ollamaResponse = await axios.post(
+      OLLAMA_URL,
+      {
+        model: "qwen2.5:1.5b-instruct",
+        prompt,
+        stream: false,
+        keep_alive: "10m",
+        options: {
+          temperature: 0.2,
+          num_predict: NUM_PREDICT_TITLE
+        }
+      },
+      { timeout: 60000 }
+    );
+
+    const rawTitle = (ollamaResponse.data && ollamaResponse.data.response)
+      ? String(ollamaResponse.data.response).trim()
+      : "";
+
+    res.json({ title: sanitizeChatTitle(rawTitle) });
+  } catch (error) {
+    const status = error.response && error.response.status;
+    const data = error.response && error.response.data;
+    console.error("Chat title error:", error.message, status || "", data || "");
+    res.status(500).json({
+      error: "Chat title failed to generate."
+    });
   }
 });
 

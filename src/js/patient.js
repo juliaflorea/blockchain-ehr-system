@@ -68,9 +68,11 @@ function saveChatThreadsToStorage() {
 
 function createNewThread(title) {
   const id = `t_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  const initialTitle = title || "New conversation";
   const thread = {
     id,
-    title: title || "New conversation",
+    title: initialTitle,
+    titleSource: initialTitle === "New conversation" ? "auto" : "manual",
     updatedAt: Date.now(),
     messages: []
   };
@@ -110,6 +112,7 @@ function renameThreadById(id) {
   const nextTitle = window.prompt("Rename conversation", thread.title || "Conversation");
   if (!nextTitle) return;
   thread.title = nextTitle.trim().slice(0, 60) || thread.title;
+  thread.titleSource = "manual";
   thread.updatedAt = Date.now();
   saveChatThreadsToStorage();
   renderChatThreadsList();
@@ -288,15 +291,87 @@ function removeTypingIndicator(bubble) {
   }
 }
 
+async function requestThreadTitle(threadId, firstMessage) {
+  if (!threadId || !firstMessage) return;
+
+  try {
+    const response = await fetch("http://localhost:3000/api/chat-title", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: firstMessage })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Chat title request failed with ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const thread = chatThreads.find((item) => item.id === threadId);
+    const nextTitle = String(payload?.title || "").trim();
+
+    if (!thread || thread.titleSource === "manual" || !nextTitle || nextTitle === "New conversation") {
+      return;
+    }
+
+    thread.title = nextTitle;
+    thread.titleSource = "auto";
+    thread.updatedAt = Date.now();
+    saveChatThreadsToStorage();
+    renderChatThreadsList();
+  } catch (err) {
+    console.warn("Chat title generation failed:", err.message);
+  }
+}
+
+function buildFallbackChatTitle(message) {
+  const text = String(message || "").toLowerCase();
+  const symptomMap = [
+    { match: /\bnausea|nauseous|throw up|vomit|vomiting\b/, label: "nausea" },
+    { match: /\bdizz(y|iness)\b/, label: "dizziness" },
+    { match: /\bfatigue|fatigued|tired|exhausted\b/, label: "fatigue" },
+    { match: /\bheadache|migraine\b/, label: "headache" },
+    { match: /\bcough|coughing\b/, label: "cough" },
+    { match: /\bfever|temperature|chills\b/, label: "fever" },
+    { match: /\bbloat|bloated|stomach|abdomen|abdominal\b/, label: "digestive discomfort" },
+    { match: /\bpain|ache|hurts|sore\b/, label: "pain" },
+    { match: /\brain|skin irritation|itch|itching\b/, label: "rash" },
+    { match: /\bshortness of breath|breathing|wheez\b/, label: "breathing concerns" }
+  ];
+
+  const matches = symptomMap
+    .filter((entry) => entry.match.test(text))
+    .map((entry) => entry.label)
+    .slice(0, 2);
+
+  if (matches.length === 1) {
+    return `${matches[0].charAt(0).toUpperCase() + matches[0].slice(1)} symptoms`;
+  }
+
+  if (matches.length === 2) {
+    return `${matches[0].charAt(0).toUpperCase() + matches[0].slice(1)} and ${matches[1]}`;
+  }
+
+  const normalized = String(message || "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return "Health question";
+
+  const firstWords = normalized.split(" ").slice(0, 5).join(" ").toLowerCase();
+  return firstWords.charAt(0).toUpperCase() + firstWords.slice(1);
+}
+
 function addMessageToActiveThread(role, text) {
   const thread = getActiveThread();
-  if (!thread) return;
+  if (!thread) return null;
   thread.messages.push({ role, text, ts: Date.now() });
   thread.updatedAt = Date.now();
+  const userMessageCount = thread.messages.filter((msg) => msg.role === "user").length;
 
-  if (role === "user" && (!thread.title || thread.title === "New conversation")) {
-    const trimmed = (text || "").trim();
-    thread.title = trimmed ? trimmed.slice(0, 40) : "Conversation";
+  if (role === "user" && userMessageCount === 1 && thread.titleSource !== "manual") {
+    thread.title = buildFallbackChatTitle(text);
+    thread.titleSource = "auto";
   }
 
   // Keep history bounded to last 200 messages per thread.
@@ -306,6 +381,11 @@ function addMessageToActiveThread(role, text) {
 
   saveChatThreadsToStorage();
   renderChatThreadsList();
+  return {
+    threadId: thread.id,
+    isFirstUserMessage: role === "user" && userMessageCount === 1,
+    titleSource: thread.titleSource || "auto"
+  };
 }
 
 
@@ -548,17 +628,8 @@ async function showRecords(element) {
     console.log("Decrypted record:", record);
 
     // Render HTML
-    let html = '<h5 style="text-align:center;font-weight:bold;">Medical Record</h5><br/>';
-    if (record.resourceType === "Bundle" && Array.isArray(record.entry)) {
-      record.entry.forEach((e) => {
-        if (e.resource) html += renderResource(e.resource);
-      });
-      if (record.aiTriageReports || record.aiTriageReport) {
-        html += renderResource(record);
-      }
-    } else {
-      html += renderResource(record);
-    }
+    let html = '<div class="medical-record-title">Medical Record</div>';
+    html += renderResource(record);
 
     const plainText = recordToPlainText(record);
     const fileName = getPatientName(record);
@@ -709,109 +780,318 @@ function recordToPlainText(record) {
 }
 
 
-// Render a resource to HTML for browser display
+function safeText(value, fallback = "Not provided") {
+  if (value === undefined || value === null || value === "") return fallback;
+  return String(value);
+}
+
+function formatDate(value) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return safeText(value, "Not provided");
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return safeText(value, "Not provided");
+  const datePart = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${datePart} \u2013 ${timePart}`;
+}
+
+function formatName(nameArray) {
+  if (!Array.isArray(nameArray) || nameArray.length === 0) return "Unknown Patient";
+  return nameArray
+    .map((n) => `${(n.given || []).join(" ")} ${n.family || ""}`.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatGender(gender) {
+  if (!gender) return "Unknown";
+  return gender.charAt(0).toUpperCase() + gender.slice(1);
+}
+
+function SectionBlock(title, bodyHtml) {
+  return `
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 min-w-0 w-full">
+      <div class="text-[11px] uppercase tracking-widest text-slate-500">${safeText(title, "")}</div>
+      <div class="mt-1 text-sm text-slate-700 leading-relaxed break-words whitespace-normal max-w-full">${safeText(bodyHtml, "Not provided")}</div>
+    </div>
+  `;
+}
+
+function splitListItems(text) {
+  if (!text) return [];
+  return String(text)
+    .split(/\n|,|;|•/g)
+    .map((item) => item.trim())
+    .map((item) => item.replace(/^\d+[\).\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function renderTagList(text) {
+  const items = splitListItems(text);
+  if (!items.length) return "Not provided";
+  return `
+    <div class="flex flex-wrap gap-2 max-w-full">
+      ${items.map((item) => `<span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 break-words max-w-full">${item}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderNumberedList(text) {
+  const items = splitListItems(text);
+  if (!items.length) return "Not provided";
+  return `
+    <ol class="list-decimal pl-4 text-sm text-slate-700 max-w-full">
+      ${items.map((item) => `<li class="mb-1 break-words">${item}</li>`).join("")}
+    </ol>
+  `;
+}
+
+function PatientCard(patient) {
+  if (!patient) return "";
+  const name = formatName(patient.name);
+  const genderDob = `${formatGender(patient.gender)} \u2022 ${formatDate(patient.birthDate)}`;
+  const phone = patient.telecom?.find((t) => t.system === "phone")?.value || "";
+  const email = patient.telecom?.find((t) => t.system === "email")?.value || "";
+  const address = patient.address?.map((a) => (a.line ? a.line.join(", ") : "")).filter(Boolean).join("; ") || "Not provided";
+  const allergies = Array.isArray(patient.allergies)
+    ? patient.allergies.map((a) => `${a.substance} (${a.reaction}, ${a.criticality})`).join(", ")
+    : "None";
+
+  return `
+    <section class="w-full rounded-2xl border border-slate-200 bg-[#f9fafb] p-5 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-xl font-semibold text-slate-900">${safeText(name, "Unknown Patient")}</div>
+          <div class="mt-1 text-sm text-slate-500">${safeText(genderDob, "Not provided")}</div>
+        </div>
+        <div class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Patient Summary</div>
+      </div>
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div class="mt-1 text-slate-400"><i class="fa-solid fa-phone"></i></div>
+          <div class="min-w-0">
+            <div class="text-[11px] uppercase tracking-widest text-slate-400">Phone</div>
+            <div class="text-sm text-slate-700 break-words">${safeText(phone, "Not provided")}</div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div class="mt-1 text-slate-400"><i class="fa-solid fa-envelope"></i></div>
+          <div class="min-w-0">
+            <div class="text-[11px] uppercase tracking-widest text-slate-400">Email</div>
+            <div class="text-sm text-slate-700 break-words">${safeText(email, "Not provided")}</div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div class="mt-1 text-slate-400"><i class="fa-solid fa-location-dot"></i></div>
+          <div class="min-w-0">
+            <div class="text-[11px] uppercase tracking-widest text-slate-400">Address</div>
+            <div class="text-sm text-slate-700 break-words leading-relaxed">${safeText(address, "Not provided")}</div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div class="mt-1 text-slate-400"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div class="min-w-0">
+            <div class="text-[11px] uppercase tracking-widest text-slate-400">Allergies</div>
+            <div class="text-sm text-slate-700 break-words">${safeText(allergies, "None")}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function TreatmentCard(treatmentPlan) {
+  if (!Array.isArray(treatmentPlan) || treatmentPlan.length === 0) return "";
+  const items = treatmentPlan.map((t) => `
+    <div class="min-w-0">
+      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-w-0">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="text-sm font-semibold text-slate-700 break-words">${safeText(formatDateTime(t.datetime), "Not provided")}</div>
+          <div class="text-xs text-slate-500"><i class="fa-solid fa-user-doctor"></i> ${safeText(t.doctor, "Unknown Doctor")}</div>
+        </div>
+        <div class="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+          <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">
+            <i class="fa-solid fa-pills mr-1"></i>${safeText(t.medicationName, "Medication")}
+          </span>
+          <span class="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Dose: ${safeText(t.dose, "N/A")}</span>
+          <span class="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Route: ${safeText(t.route, "N/A")}</span>
+          <span class="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Frequency: ${safeText(t.frequency, "N/A")}</span>
+        </div>
+        <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 break-words w-full max-w-full">
+          <div class="text-[11px] uppercase tracking-widest text-slate-500">Instructions</div>
+          <div class="mt-1 text-slate-700 break-words whitespace-normal">${safeText(t.instructions, "Not provided")}</div>
+        </div>
+      </div>
+    </div>
+  `).join("");
+
+  return `
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex min-h-[72px] items-center gap-3 border-b border-slate-200 px-5 py-4">
+        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+          <i class="fa-solid fa-clipboard-list"></i>
+        </div>
+        <div>
+          <div class="text-sm font-semibold uppercase tracking-widest text-slate-500">Treatment History</div>
+          <div class="text-xs text-slate-400">Timeline of prescribed care</div>
+        </div>
+      </div>
+      <div class="space-y-4 p-5 pt-3">${items}</div>
+    </section>
+  `;
+}
+
+function DiagnosisCard(diagnosis) {
+  if (!Array.isArray(diagnosis) || diagnosis.length === 0) return "";
+  const items = diagnosis.map((d) => `
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-w-0">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="text-sm font-semibold text-slate-700 break-words">${safeText(formatDateTime(d.datetime), "Not provided")}</div>
+        <div class="text-xs text-slate-500"><i class="fa-solid fa-user-doctor"></i> ${safeText(d.doctor, "Unknown Doctor")}</div>
+      </div>
+      <div class="mt-2 text-sm text-slate-600 break-words">
+        <span class="font-semibold text-slate-700">Condition:</span> ${safeText(d.diagnosed, "Not provided")}
+      </div>
+      <div class="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
+        <span class="rounded-full bg-slate-100 px-2.5 py-1">Status: ${safeText(d.clinicalStatus, "N/A")}</span>
+        <span class="rounded-full bg-slate-100 px-2.5 py-1">Severity: ${safeText(d.severity, "N/A")}</span>
+        <span class="rounded-full bg-slate-100 px-2.5 py-1">Area: ${safeText(d.affectedArea, "N/A")}</span>
+      </div>
+      <div class="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 break-words w-full max-w-full">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500">Details</div>
+        <div class="mt-1 text-slate-700 break-words whitespace-normal">${safeText(d.details, "Not provided")}</div>
+      </div>
+    </div>
+  `).join("");
+
+  return `
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex min-h-[72px] items-center gap-3 border-b border-slate-200 px-5 py-4">
+        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+          <i class="fa-solid fa-notes-medical"></i>
+        </div>
+        <div>
+          <div class="text-sm font-semibold uppercase tracking-widest text-slate-500">Diagnosis History</div>
+          <div class="text-xs text-slate-400">Clinician assessments</div>
+        </div>
+      </div>
+      <div class="space-y-4 p-5 pt-3">${items}</div>
+    </section>
+  `;
+}
+
+function ReportCard(triageReports) {
+  if (!Array.isArray(triageReports) || triageReports.length === 0) return "";
+  const reportHtml = triageReports.map((report, index) => {
+    const title = report.title || "AI Triage Report";
+    const status = report.status || "preliminary";
+    const updated = report.updatedAt || report.sharedAt || report.createdAt;
+    const statusClass = status.toLowerCase() === "final"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-amber-200 bg-amber-50 text-amber-700";
+    const sections = [
+      ["Chief Complaint", safeText(getSectionText(report.bundle, "Chief Complaint"), "Not provided")],
+      ["Symptoms", renderTagList(getSectionText(report.bundle, "Symptoms"))],
+      ["AI Differential Diagnosis", renderNumberedList(getSectionText(report.bundle, "AI Differential Diagnosis"))],
+      ["Suggested Treatments", safeText(getSectionText(report.bundle, "Suggested Treatments"), "Not provided")],
+      ["Recommended Follow-up", safeText(getSectionText(report.bundle, "Recommended Follow-up"), "Not provided")],
+      ["Doctor Notes", safeText(getSectionText(report.bundle, "Doctor Notes"), "Not provided")],
+    ].map(([label, value]) => SectionBlock(label, value)).join("");
+
+    return `
+      <details class="group rounded-xl border border-slate-200 bg-white shadow-sm min-w-0 w-full" ${index === 0 ? "open" : ""}>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-slate-700 break-words">${safeText(title, "AI Triage Report")}</div>
+            <div class="text-xs text-slate-500">${safeText(formatDateTime(updated), "Not provided")}</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass}">${safeText(status, "preliminary")}</span>
+            <i class="fa-solid fa-chevron-down text-slate-400 transition-transform group-open:rotate-180"></i>
+          </div>
+        </summary>
+        <div class="border-t border-slate-200 p-5 space-y-3 min-w-0">
+          ${sections}
+        </div>
+      </details>
+    `;
+  }).join("");
+
+  return `
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-2">
+      <div class="flex min-h-[72px] flex-col items-center justify-center gap-2 border-b border-slate-200 px-5 py-4 text-center">
+        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+          <i class="fa-solid fa-brain"></i>
+        </div>
+        <div>
+          <div class="text-sm font-semibold uppercase tracking-widest text-slate-500">AI Triage Reports</div>
+          <div class="text-xs text-slate-400">Clinical summaries generated by AI</div>
+        </div>
+      </div>
+      <div class="space-y-3 p-5">${reportHtml}</div>
+    </section>
+  `;
+}
+
 // Render a resource to HTML for browser display (patient page)
 function renderResource(r) {
   if (!r) return "";
 
-  let html = '<div class="medical-record" style="border:1px solid #ccc;padding:10px;margin-bottom:10px;">';
+  let record = r;
+  let patient = null;
+  let diagnosis = [];
+  let treatmentPlan = [];
+  let triageReports = [];
 
-  // Basic Patient Info
-  if (r.name && r.name.length > 0) {
-    const name = r.name[0];
-    html += `<strong>Name:</strong> ${name.given.join(" ")} ${name.family}<br/>`;
+  if (record.resourceType === "Bundle" && Array.isArray(record.entry)) {
+    const entries = record.entry.map((e) => e.resource).filter(Boolean);
+    patient = entries.find((res) => res.resourceType === "Patient") || null;
+  } else if (record.resourceType === "Patient") {
+    patient = record;
   }
-  if (r.gender) html += `<strong>Gender:</strong> ${r.gender}<br/>`;
-  if (r.birthDate) html += `<strong>Birth Date:</strong> ${r.birthDate}<br/>`;
-
-  // Contacts
-  if (r.telecom && r.telecom.length > 0) {
-    html += "<strong>Contacts:</strong><ul>";
-    r.telecom.forEach(t => { html += `<li>${t.system}: ${t.value}</li>`; });
-    html += "</ul>";
-  }
-
-  // Addresses
-  if (r.address && r.address.length > 0) {
-    html += "<strong>Addresses:</strong><ul>";
-    r.address.forEach(a => { html += `<li>${a.line ? a.line.join(", ") : ""}</li>`; });
-    html += "</ul>";
+  if (!patient && (record.gender || record.birthDate || record.telecom || record.address || record.allergies)) {
+    patient = record;
   }
 
-  // Allergies
-  if (r.allergies && r.allergies.length > 0) {
-    html += "<strong>Allergies:</strong><ul>";
-    r.allergies.forEach(a => {
-      html += `<li>${a.substance}: ${a.reaction} (Criticality: ${a.criticality}, Recorded: ${a.recordedDate})</li>`;
-    });
-    html += "</ul>";
-  }
+  if (record.diagnosis) diagnosis = record.diagnosis;
+  if (record.treatmentPlan) treatmentPlan = record.treatmentPlan;
 
-  // Diagnosis History
-  if (r.diagnosis && r.diagnosis.length > 0) {
-    html += `<div style="border:1px solid #007bff; padding:10px; margin:5px;">
-               <h5>Diagnosis History</h5>`;
-    r.diagnosis.forEach(d => {
-      html += `
-        <p><strong>Date:</strong> ${d.datetime}</p>
-        <p><strong>Doctor:</strong> ${d.doctor}</p>
-        <p><strong>Condition:</strong> ${d.diagnosed}</p>
-        <p><strong>Clinical Status:</strong> ${d.clinicalStatus}</p>
-        <p><strong>Severity:</strong> ${d.severity}</p>
-        <p><strong>Affected Area:</strong> ${d.affectedArea}</p>
-        <p><strong>Details:</strong> ${d.details}</p>
-        <hr>
-      `;
-    });
-    html += `</div>`;
-  }
+  if (record.aiTriageReports) triageReports = record.aiTriageReports;
+  if (!triageReports.length && record.aiTriageReport) triageReports = [record.aiTriageReport];
 
-  // Treatment Plan History
-  if (r.treatmentPlan && r.treatmentPlan.length > 0) {
-    html += `<div style="border:1px solid #28a745; padding:10px; margin:5px;">
-               <h5>Treatment History</h5>`;
-    r.treatmentPlan.forEach(t => {
-      html += `
-        <p><strong>Date:</strong> ${t.datetime}</p>
-        <p><strong>Doctor:</strong> ${t.doctor}</p>
-        <p><strong>Medication:</strong> ${t.medicationName}</p>
-        <p><strong>Dose:</strong> ${t.dose}</p>
-        <p><strong>Route:</strong> ${t.route}</p>
-        <p><strong>Frequency:</strong> ${t.frequency}</p>
-        <p><strong>Instructions:</strong> ${t.instructions}</p>
-        <hr>
-      `;
-    });
-    html += `</div>`;
-  }
+  const patientCard = PatientCard(patient);
+  const diagnosisCard = DiagnosisCard(diagnosis);
+  const treatmentCard = TreatmentCard(treatmentPlan);
+  const reportCard = ReportCard(triageReports);
 
-  const triageReports = Array.isArray(r.aiTriageReports)
-    ? r.aiTriageReports
-    : (r.aiTriageReport ? [r.aiTriageReport] : []);
+  const mainCards = [treatmentCard, diagnosisCard, reportCard].filter(Boolean).join("");
 
-  if (triageReports.length > 0) {
-    html += `<div style="border:1px solid #f0ad4e; padding:10px; margin:5px;">
-               <h5>AI Triage Reports</h5>`;
-    triageReports.forEach(report => {
-      html += `
-        <p><strong>Title:</strong> ${report.title || "AI Triage Report"}</p>
-        <p><strong>Status:</strong> ${report.status || "preliminary"}</p>
-        ${report.updatedAt ? `<p><strong>Updated:</strong> ${report.updatedAt}</p>` : ""}
-        ${report.sharedAt ? `<p><strong>Shared:</strong> ${report.sharedAt}</p>` : ""}
-        <p><strong>Chief Complaint:</strong> ${getSectionText(report.bundle, "Chief Complaint") || "Not provided"}</p>
-        <p><strong>Symptoms:</strong> ${getSectionText(report.bundle, "Symptoms") || "Not provided"}</p>
-        <p><strong>AI Differential Diagnosis:</strong> ${getSectionText(report.bundle, "AI Differential Diagnosis") || "Not provided"}</p>
-        <p><strong>Suggested Treatments:</strong> ${getSectionText(report.bundle, "Suggested Treatments") || "Not provided"}</p>
-        <p><strong>Recommended Follow-up:</strong> ${getSectionText(report.bundle, "Recommended Follow-up") || "Not provided"}</p>
-        <p><strong>Doctor Notes:</strong> ${getSectionText(report.bundle, "Doctor Notes") || "Not provided"}</p>
-        <hr>
-      `;
-    });
-    html += `</div>`;
-  }
-
-  html += "</div>";
-  return html;
+  return `
+    <div class="ehr-shell space-y-5 mx-auto w-full max-w-none px-0">
+      ${patientCard}
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-2 items-start">
+        ${mainCards}
+      </div>
+    </div>
+  `;
 }
 
 
@@ -2445,7 +2725,11 @@ async function sendSymptomMessage() {
 
   // Display user message
   appendMessageToUI("user", message);
-  addMessageToActiveThread("user", message);
+  const addResult = addMessageToActiveThread("user", message);
+
+  if (addResult && addResult.isFirstUserMessage && addResult.titleSource !== "manual") {
+    requestThreadTitle(addResult.threadId, message);
+  }
 
   input.value = "";
   chatWindow.scrollTop = chatWindow.scrollHeight;
