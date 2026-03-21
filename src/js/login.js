@@ -1,47 +1,35 @@
-connect();
 async function login() {
   $(".alert-warning").hide();
 
+  // Ensure contracts are loaded
+  const connected = await connect(); // <-- call connect here
+  if (!connected) {
+    alert("Unable to connect to Ethereum. Please check your wallet.");
+    return;
+  }
+
   try {
-    // Request user Ethereum accounts
-
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-
-    // Check if  any accounts are available
-
     if (accounts.length === 0) {
-      console.error("No accounts found");
-      alert(
-        "No accounts found. Please make sure you are logged in to your Ethereum wallet."
-      );
+      alert("No accounts found in Metamask!");
       return;
     }
-    // If accounts found, retrieve the public  key of the first account
+
     const publicKey = accounts[0].toLowerCase();
-    console.log(publicKey);
+    console.log("Logging in with account:", publicKey);
 
-    // Check what role the user should be logged in as
-    const isPatient = await isUserInList(publicKey, "get_patient_list");
-    const isDoctor = await isUserInList(publicKey, "get_doctor_list");
-    const isProxy = await isUserInList(publicKey, "get_proxy_list");
+    // Check role
+    const isPatient = await isUserInList(publicKey, "getPatientList");
+    const isDoctor = await isUserInList(publicKey, "getDoctorList");
+    const isProxy = await isUserInList(publicKey, "getProxyList");
 
-    // Redirect user based on role
-
-    if (isPatient) {
-      location.href = `./patient.html?key=${publicKey}`;
-    } else if (isDoctor) {
-      location.href = `./doctor.html?key=${publicKey}`;
-    } else if (isProxy) {
-      location.href = `./proxy.html?key=${publicKey}`; // Redirect proxy users to the proxy dashboard
-    } else {
-      console.log("Invalid User!");
-      alert(
-        "Invalid user. Please make sure you are registered and logged in with the correct account."
-      );
-    }
-  } catch (error) {
-    console.error("Error during login:", error);
-    alert("Error during login. Please try again later.");
+    if (isPatient) location.href = `./patient.html?key=${publicKey}`;
+    else if (isDoctor) location.href = `./doctor.html?key=${publicKey}`;
+    else if (isProxy) location.href = `./proxy.html?key=${publicKey}`;
+    else alert("Invalid user. Please register first.");
+  } catch (err) {
+    console.error("Login error:", err);
+    alert("Error during login. Check console for details.");
   }
 }
 
@@ -49,7 +37,7 @@ async function login() {
 async function isUserInList(publicKey, listMethod) {
   try {
     // Retrieve the users in the list
-    const result = await contractInstance.methods[listMethod]().call();
+    const result = await userRegistry.methods[listMethod]().call();
 
     const userList = result.map((user) => user.toLowerCase());
 
@@ -144,3 +132,7 @@ $(document).ready(function () {
     } // End if
   });
 });
+
+// Make login accessible globally
+window.login = login;
+

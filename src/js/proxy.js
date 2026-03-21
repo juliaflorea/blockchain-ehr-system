@@ -7,16 +7,17 @@ var proxyName = "";
 
 toggleRecordsButton = 0;
 
-$(window).on("load", function () {
-  connect();
+async function loadProxyData() {
+  console.log("loadProxyData() started");
+
   $(".alert-danger").hide();
 
   web3.eth.getAccounts().then((accounts) => {
     key = accounts[0].toLowerCase();
 
     // Get proxy details
-    contractInstance.methods
-      .get_proxy(key)
+    userRegistry.methods
+      .getProxy(key)
       .call({ gas: 1000000 }, function (error, result) {
         if (!error) {
           var firstName = result[0];
@@ -36,16 +37,16 @@ $(window).on("load", function () {
 
           if (isProxyAuthorized) {
             // Proceed to load patient data if the proxy is authorized
-            contractInstance.methods
-              .get_accessed_patientlist_for_proxy(key)
+            accessControl.methods
+              .getAccessedPatientListForProxy(key)
               .call({ gas: 1000000 }, function (error, result) {
                 if (!error) {
                   var patientAddressList = result;
                   console.log("Access List for Proxy:", patientAddressList);
 
                   patientAddressList.forEach(function (patientAddress, index) {
-                    contractInstance.methods
-                      .get_patient(patientAddress)
+                    userRegistry.methods
+                      .getPatient(patientAddress)
                       .call({ gas: 1000000 }, function (error, result) {
                         if (!error) {
                           var patientFirstName = result[0];
@@ -69,16 +70,16 @@ $(window).on("load", function () {
                           // Fetch and display doctors to share EMR
                           var DoctorList = 0;
                           console.log("Getting Doctor List");
-                          contractInstance.methods
-                            .get_doctor_list()
+                          userRegistry.methods
+                            .getDoctorList()
                             .call({ gas: 1000000 }, function (error, result) {
                               if (!error) {
                                 DoctorList = result;
 
                                 for (var i = 0; i < DoctorList.length; i++) {
                                   (function (index) {
-                                    contractInstance.methods
-                                      .get_doctor(DoctorList[index])
+                                    userRegistry.methods
+                                      .getDoctor(DoctorList[index])
                                       .call(
                                         { gas: 1000000 },
                                         function (error, result) {
@@ -107,8 +108,8 @@ $(window).on("load", function () {
                           populateDoctorDropdown("doctorSelect");
                           populateDoctorDropdown("doctorInfoSelect");
                           // Fetch and display doctors who have access
-                          contractInstance.methods
-                            .get_accessed_doctorlist_for_patient(patientAddress)
+                          accessControl.methods
+                            .getAccessedDoctorListForPatient(patientAddress)
                             .call(
                               { gas: 1000000 },
                               function (error, accessedDoctorList) {
@@ -124,8 +125,8 @@ $(window).on("load", function () {
                                     doctorAddress,
                                     docIndex
                                   ) {
-                                    contractInstance.methods
-                                      .get_doctor(doctorAddress)
+                                    userRegistry.methods
+                                      .getDoctor(doctorAddress)
                                       .call(
                                         { gas: 1000000 },
                                         function (error, doctorResult) {
@@ -195,9 +196,20 @@ $(window).on("load", function () {
   });
 
   loadSentAppointmentRequests();
-});
+}
+
 
 // Function to display record of patient
+
+window.addEventListener("contractsReady", async () => {
+  console.log("contractsReady → proxy");
+  await loadProxyData();
+
+  // default panel (prevents white screen)
+  $(".panel").hide();
+  $("#personalInfoPanel").show();
+});
+
 function showRecords(element) {
   var table = document.getElementById("viewPatient");
   var index = element.parentNode.parentNode.rowIndex;
@@ -221,54 +233,77 @@ function showRecords(element) {
       table.deleteRow(index + 1);
     }
 
-    // Get the hash of the record for the patient based on their address
-    contractInstance.methods
-      .get_hash(patientAddress)
-      .call({ gas: 1000000 }, function (error, result) {
-        if (!error) {
-          // Get data from ipfs based on hash
-          $.get("http://localhost:8080/ipfs/" + result, function (data) {
-            if (
-              !data.startsWith(
-                '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>'
-              )
-            ) {
-              data =
-                '<h5 style="text-align:center; font-weight:bold;">Medical Record</h5>\n' +
-                data;
-            }
-            var downloadButton = $("<button/>", {
-              text: "Download Medical Record",
-              class: "btn btn-primary",
-              click: function () {
-                downloadMedicalRecord(data);
-              },
-            });
-            $("#downloadLinkContainer").html(downloadButton);
+    (async () => {
 
-            // Split the data into different sections
-            var sections = data.split("\n\n");
+      const accounts = await web3.eth.getAccounts();
+      const proxyAddress = accounts[0];
+    
+      console.log("💡 Debug: About to fetch encrypted key");
+      console.log("Patient address:", patientAddress);
+      console.log("Proxy address (msg.sender):", proxyAddress);
 
-            var content = sections
-              .map((section) => {
-                return `<div class="medical-record">
-                        <pre>${section}</pre>
-                      </div>`;
-              })
-              .join("");
+      // 1️⃣ Get wrapped RMK
+      const wrappedRMK =
+        await medicalDataRegistry.methods
+          .getEncryptedAESKey(patientAddress)
+          .call({ from: proxyAddress });
+    
+      // 2️⃣ Derive proxy UAK
+      const proxyUAK =
+        await window.deriveUAKForDoctor(proxyAddress);
+    
+      // 3️⃣ Unwrap RMK
+      const rmk =
+        await window.unwrapRMK(wrappedRMK, proxyUAK);
+    
+      // 4️⃣ Get encrypted record hash
+      const recordHash =
+        await medicalDataRegistry.methods
+          .getHash(patientAddress)
+          .call();
+    
+      // 5️⃣ Fetch encrypted data
+      const encryptedPayload =
+        await $.get("http://localhost:8080/ipfs/" + recordHash);
+    
+      // 6️⃣ Decrypt
+      const decryptedData =
+  await window.decryptAES(
+    encryptedPayload,
+    rmk
+  );
 
-            content = `<div class="medical-record-container">${content}</div>`;
+    
+      // If decryptAES returns string → parse it
+const jsonData =
+typeof decryptedData === "string"
+  ? JSON.parse(decryptedData)
+  : decryptedData;
+  const formattedHtml = renderResource(jsonData);
 
-            var row1 = table.insertRow(index + 1);
-            row1.classList.add("recordsRow");
-            var cell1 = row1.insertCell(0);
-            cell1.colSpan = 3;
-            cell1.innerHTML = `<div class="d-flex justify-content-center w-100">${content}</div>`;
-          });
-        } else {
-          console.error("Error retrieving IPFS hash:", error);
-        }
-      });
+  const content = `
+    <div class="tab-content">
+      <div class="row">
+        <div class="col-sm-12">
+          <div style="margin:20px 0;">
+            ${formattedHtml}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+
+    
+      var row1 = table.insertRow(index + 1);
+      row1.classList.add("recordsRow");
+      var cell1 = row1.insertCell(0);
+      cell1.colSpan = 3;
+      cell1.innerHTML =
+        `<div class="d-flex justify-content-center w-100">${content}</div>`;
+    
+    })();
+    
 
     element.value = "Hide Records";
     element.className = "btn btn-danger";
@@ -282,13 +317,13 @@ function populateDoctorDropdown(dropdownId) {
   web3.eth.getAccounts().then((accounts) => {
     key = accounts[0].toLowerCase();
     // Ensure contractInstance is defined
-    if (!contractInstance) {
-      console.error("contractInstance is not defined.");
+    if (!userRegistry) {
+      console.error("userRegistry is not defined.");
       return;
     }
 
-    contractInstance.methods
-      .get_doctor_list()
+    userRegistry.methods
+      .getDoctorList()
       .call({ gas: 1000000 }, function (error, DoctorList) {
         if (error) {
           console.error("Error fetching doctor list:", error);
@@ -306,8 +341,8 @@ function populateDoctorDropdown(dropdownId) {
 
         DoctorList.forEach(function (doctorAddress, index) {
           console.log("Fetching details for doctor at index:", index);
-          contractInstance.methods
-            .get_doctor(doctorAddress)
+          userRegistry.methods
+            .getDoctor(doctorAddress)
             .call({ gas: 1000000 }, function (error, doctorDetails) {
               if (error) {
                 console.error("Error fetching doctor details:", error);
@@ -340,11 +375,11 @@ function viewDoctorInfo() {
     }
 
     // Fetch doctor's info from the smart contract
-    contractInstance.methods
-      .get_doctor(selectedDoctorAddress)
+    userRegistry.methods
+      .getDoctor(selectedDoctorAddress)
       .call({ from: key })
       .then(function (doctorDetails) {
-        var ipfsHash = doctorDetails[3]; // Adjust based on your data structure
+        var ipfsHash = doctorDetails[4]; // Adjust based on your data structure
 
         if (!ipfsHash) {
           document.getElementById("doctorInfoDisplay").innerHTML =
@@ -392,73 +427,67 @@ function viewDoctorInfo() {
 }
 
 // Function for proxy to grant access to doctors for a patient's record
-function giveAccessByProxy() {
-  var list = document.getElementById("permitDoctorList");
-  var index = list.selectedIndex;
+async function giveAccessByProxy() {
+  try {
+    const accounts = await web3.eth.getAccounts();
+    const proxyAddress = accounts[0]; // proxy account
 
-  if (index === -1) {
-    alert("Please select a doctor.");
-    return;
+    const list = document.getElementById("permitDoctorList");
+    const index = list.selectedIndex;
+
+    if (index === -1) {
+      alert("Please select a doctor.");
+      return;
+    }
+    const doctorToBeAdded = list.options[index].value;
+
+    // Get proxy details using proxy's own address
+    const proxyDetails = await userRegistry.methods.getProxy(proxyAddress).call({ gas: 1000000 });
+    const patientAddress = proxyDetails.patientAddress;
+
+    // Check if doctor already has access
+    const accessedDoctors = await accessControl.methods
+      .getAccessedDoctorListForPatient(patientAddress)
+      .call({ gas: 1000000 });
+
+    if (accessedDoctors.includes(doctorToBeAdded)) {
+      alert("The doctor already has access to the patient's records.");
+      return;
+    }
+
+    // Grant access on-chain (from proxy)
+    await accessControl.methods
+      .grantDoctorAccessByProxy(doctorToBeAdded, patientAddress)
+      .send({ from: proxyAddress, gas: 1000000, value: web3.utils.toWei("2", "ether") });
+
+    // 🔐 Crypto steps (all using proxyAddress)
+    const proxyUAK = await window.deriveUAKForDoctor(proxyAddress);
+
+    const wrappedRMKForProxy = await medicalDataRegistry.methods
+      .getEncryptedAESKey(patientAddress)
+      .call({ from: proxyAddress });
+
+    const rmk = await window.unwrapRMK(wrappedRMKForProxy, proxyUAK);
+
+    const doctorUAK = await window.deriveUAKForDoctor(doctorToBeAdded);
+    const wrappedRMKForDoctor = await window.wrapRMK(rmk, doctorUAK);
+    
+
+    // IMPORTANT: must send from proxyAddress
+    await medicalDataRegistry.methods
+      .setEncryptedAESKey(patientAddress, doctorToBeAdded, wrappedRMKForDoctor)
+      .send({ from: proxyAddress, gas: 1000000 });
+
+    console.log("✅ RMK wrapped and stored for doctor");
+    alert("Access granted successfully!");
+  } catch (err) {
+    console.error("❌ Error in giveAccessByProxy:", err);
+    alert("Failed to grant access or encrypt RMK. See console for details.");
   }
-
-  var doctorToBeAdded = list.options[index].value;
-
-  // Get proxy details to find associated patient address
-  contractInstance.methods
-    .get_proxy(key)
-    .call({ gas: 1000000 }, function (error, proxyDetails) {
-      if (!error) {
-        var patientAddress = proxyDetails.patientAddress;
-
-        // Before attempting to add, check if the doctor already has access
-        contractInstance.methods
-          .get_accessed_doctorlist_for_patient(patientAddress)
-          .call({ gas: 1000000 }, function (err, accessedDoctors) {
-            if (!err) {
-              if (accessedDoctors.includes(doctorToBeAdded)) {
-                alert("The doctor already has access to the patient's records.");
-              } else {
-                // Doctor not in the list, proceed to give access
-                contractInstance.methods
-                  .permit_access_by_proxy(doctorToBeAdded, patientAddress)
-                  .send(
-                    {
-                      from: key,
-                      gas: 1000000,
-                      value: web3.utils.toWei("2", "ether"),
-                    },
-                    function (error) {
-                      if (!error) {
-                        var table = document.getElementById("accessDoc");
-                        var noRows = table.rows.length;
-                        var row = table.insertRow(noRows);
-                        var cell1 = row.insertCell(0);
-                        var cell2 = row.insertCell(1);
-                        var cell3 = row.insertCell(2);
-
-                        cell2.className = "publicKeyDoctor";
-                        cell1.innerHTML = list.options[index].text;
-                        cell2.innerHTML = doctorToBeAdded;
-                        cell3.innerHTML =
-                          '<button onclick="revokeAccessByProxy(this)" class="btn btn-danger">Revoke access</button>';
-                        alert("Access granted successfully.");
-                      } else {
-                        console.error("Failed to grant access:", error);
-                        alert("Failed to grant access. Please try again.");
-                      }
-                    }
-                  );
-              }
-            } else {
-              console.error("Failed to retrieve accessed doctors list:", err);
-              alert("Failed to check existing access. Please try again.");
-            }
-          });
-      } else {
-        console.error("Error fetching proxy details:", error);
-      }
-    });
 }
+
+
+
 
 // Function for proxy to revoke access to doctors for a patient's record
 function revokeAccessByProxy(element) {
@@ -473,22 +502,22 @@ function revokeAccessByProxy(element) {
     .then((accounts) => {
       const fromAddress = accounts[0];
 
-      contractInstance.methods
-        .get_doctor_list()
+      userRegistry.methods
+        .getDoctorList()
         .call({ gas: 1000000 }, function (error, result) {
           if (!error) {
             var doctorList = result;
 
             var doctorToBeAdded = doctorList[doctorList.length - 1];
-            contractInstance.methods
-              .get_proxy(key)
+            userRegistry.methods
+              .getProxy(key)
               .call({ gas: 1000000 }, function (error, proxyDetails) {
                 if (!error) {
                   var patientAddress = proxyDetails.patientAddress;
 
                   // Call the contract's revoke_access method
-                  contractInstance.methods
-                    .revoke_access_by_proxy(docKey, patientAddress)
+                  accessControl.methods
+                    .revokeDoctorAccessByProxy(docKey, patientAddress)
                     .send({ from: fromAddress, gas: 1000000 })
                     .on("transactionHash", function (hash) {
                       console.log("Transaction Hash:", hash);
@@ -516,7 +545,9 @@ function revokeAccessByProxy(element) {
 }
 
 // Function to send appointment request on behalf of patient
-function scheduleAppointmentByProxy() {
+// Function to send appointment request on behalf of patient
+// Function to send appointment request on behalf of patient
+async function scheduleAppointmentByProxy() {
   const doctorId = $("#doctorSelect").val();
   const appointmentDate = $("#appointmentDate").val().replace(/-/g, "");
   const [hour, minute] = $("#appointmentHour").val().split(":").map(Number);
@@ -529,276 +560,259 @@ function scheduleAppointmentByProxy() {
     return;
   }
 
-  web3.eth.getAccounts().then((accounts) => {
-    const fromAddress = accounts[0]; // Proxy's address
+  try {
+    const accounts = await web3.eth.getAccounts();
+    const fromAddress = accounts[0];
 
-    // Fetch proxy details to get the patient address
-    contractInstance.methods
-      .get_proxy(fromAddress)
-      .call()
-      .then((proxyDetails) => {
-        const patientAddress = proxyDetails.patientAddress;
+    // Get the proxy's patient
+    const proxyDetails = await userRegistry.methods.getProxy(fromAddress).call();
+    const patientAddress = proxyDetails.patientAddress;
 
-        // Fetch patient details
-        contractInstance.methods
-          .get_patient(patientAddress)
-          .call()
-          .then((patientResult) => {
-            const patientFirstName = patientResult[0];
-            const patientLastName = patientResult[1];
+    const patientResult = await userRegistry.methods.getPatient(patientAddress).call();
+    const [patientFirstName, patientLastName] = patientResult;
 
-            // Fetch doctor details
-            contractInstance.methods
-              .get_doctor(doctorId)
-              .call()
-              .then((doctorResult) => {
-                const doctorFirstName = doctorResult[0];
-                const doctorLastName = doctorResult[1];
+    const doctorResult = await userRegistry.methods.getDoctor(doctorId).call();
+    const [doctorFirstName, doctorLastName] = doctorResult;
 
-                // Check if the selected doctor has access
-                contractInstance.methods
-                  .get_accessed_doctorlist_for_patient(patientAddress)
-                  .call()
-                  .then((doctorList) => {
-                    const doctorHasAccess = doctorList.includes(doctorId);
+    // Check doctor access for patient
+    const doctorList = await accessControl.methods
+      .getAccessedDoctorListForPatient(patientAddress)
+      .call();
+    if (!doctorList.includes(doctorId)) {
+      alert("This doctor does not have access to the patient's records. Please grant access first.");
+      return;
+    }
 
-                    if (!doctorHasAccess) {
-                      alert(
-                        "This doctor does not have access to the patient's records. Please grant access before scheduling an appointment."
-                      );
-                      return;
-                    }
+    // FHIR Appointment resource
+    const fhirAppointmentResource = {
+      resourceType: "Appointment",
+      status: "pending",
+      start: `${appointmentDate}T${paddedHour}:${paddedMinute}:00Z`,
+      participant: [
+        {
+          actor: { reference: `Patient/${patientAddress}`, display: `${patientFirstName} ${patientLastName}` },
+          status: "needs-action",
+        },
+        {
+          actor: { reference: `Practitioner/${doctorId}`, display: `${doctorFirstName} ${doctorLastName}` },
+          status: "needs-action",
+        },
+      ],
+    };
 
-                    // If doctor has access, proceed with IPFS and transaction
-                    const fhirAppointmentResource = {
-                      resourceType: "Appointment",
-                      status: "pending",
-                      start: `${appointmentDate}T${paddedHour}:${paddedMinute}:00Z`,
-                      participant: [
-                        {
-                          actor: {
-                            reference: `Patient/${patientAddress}`,
-                            display: `${patientFirstName} ${patientLastName}`,
-                          },
-                          status: "needs-action",
-                        },
-                        {
-                          actor: {
-                            reference: `Practitioner/${doctorId}`,
-                            display: `${doctorFirstName} ${doctorLastName}`,
-                          },
-                          status: "needs-action",
-                        },
-                      ],
-                    };
+    // 🔐 Proxy keys
+    const proxyUAK = await window.deriveUAKForDoctor(fromAddress);
 
-                    const ipfs = window.IpfsApi("localhost", "5001");
-                    const buffer = ipfs.Buffer.from(
-                      JSON.stringify(fhirAppointmentResource)
-                    );
+    // Fetch patient RMK from registry and unwrap it with proxy UAK
+    const wrappedRMK = await medicalDataRegistry.methods
+      .getEncryptedAESKey(patientAddress)
+      .call({ from: fromAddress });
+    const patientRMK = await window.unwrapRMK(wrappedRMK, proxyUAK);
 
-                    ipfs.files.add(buffer, (error, result) => {
-                      if (error) {
-                        console.error("Error uploading to IPFS:", error);
-                        alert("Failed to store appointment details on IPFS.");
-                        return;
-                      }
+    // 1️⃣ Generate per-appointment AES key
+    const appointmentAESKey = await window.generateAESKey();
 
-                      const ipfsHash = result[0].hash;
+    // 2️⃣ Encrypt appointment
+    const encryptedAppointment = await window.encryptAES(
+      JSON.stringify(fhirAppointmentResource),
+      appointmentAESKey
+    );
 
-                      // Send the IPFS hash and other appointment details to the smart contract
-                      contractInstance.methods
-                        .requestAppointmentByProxy(
-                          doctorId,
-                          patientAddress,
-                          ipfsHash,
-                          dateAsNumber,
-                          parseInt(paddedHour)
-                        )
-                        .send({ from: fromAddress, gas: 1000000 })
-                        .then((res) => {
-                          console.log(
-                            "Appointment request sent. Transaction:",
-                            res
-                          );
-                          alert("Appointment request sent successfully!");
-                        })
-                        .catch((err) => {
-                          console.error(
-                            "Error sending to blockchain:",
-                            err.message || err
-                          );
-                          alert("Failed to schedule appointment.");
-                        });
-                    });
-                  })
-                  .catch((err) => {
-                    console.error(
-                      "Error checking doctor's access:",
-                      err.message || err
-                    );
-                  });
-              })
-              .catch((err) => {
-                console.error(
-                  "Error retrieving doctor details:",
-                  err.message || err
-                );
-              });
-          })
-          .catch((err) => {
-            console.error(
-              "Error retrieving patient details:",
-              err.message || err
+    // 3️⃣ Wrap AES key for doctor
+    const doctorUAK = await window.deriveUAKForDoctor(doctorId);
+    const wrappedKeyForDoctor = await window.wrapRMK(appointmentAESKey, doctorUAK);
+
+    // 4️⃣ Wrap AES key for patient (so patient can decrypt later)
+    const wrappedKeyForPatient = await window.wrapRMK(appointmentAESKey, patientRMK);
+
+    // 5️⃣ Wrap AES key for proxy itself
+    const wrappedKeyForProxy = await window.wrapRMK(appointmentAESKey, proxyUAK);
+
+    // 6️⃣ Store complete payload in IPFS
+    const ipfsPayload = {
+      iv: encryptedAppointment.iv,
+      data: encryptedAppointment.data,
+      aesKeyWrappedForDoctor: wrappedKeyForDoctor,
+      aesKeyWrappedForPatient: wrappedKeyForPatient,
+      aesKeyWrappedForProxy: wrappedKeyForProxy
+    };
+
+    const buffer = ipfs.Buffer.from(JSON.stringify(ipfsPayload));
+    const ipfsResult = await ipfs.files.add(buffer);
+    const ipfsHash = ipfsResult[0].hash;
+
+    // 7️⃣ Store appointment reference on-chain
+    await appointmentManager.methods
+      .requestAppointmentByProxy(doctorId, patientAddress, ipfsHash, dateAsNumber, parseInt(paddedHour))
+      .send({ from: fromAddress, gas: 1000000 });
+
+    alert("Appointment request sent successfully!");
+    console.log("✅ Appointment encrypted, uploaded, and scheduled:", ipfsHash);
+
+    // Reload appointments immediately
+    loadSentAppointmentRequests();
+  } catch (err) {
+    console.error("❌ Error scheduling appointment:", err);
+    alert("Failed to schedule appointment. See console for details.");
+  }
+}
+
+
+
+
+
+// Function to load all sent appointments for proxy (for all accessible patients)
+async function loadSentAppointmentRequests() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const proxyAddress = accounts[0].toLowerCase();
+
+    // Derive proxy session key (UAK)
+    const proxySessionKey = await window.deriveUAKForDoctor(proxyAddress);
+
+    // Get list of patients the proxy can access
+    const patientAddresses = await accessControl.methods
+      .getAccessedPatientListForProxy(proxyAddress)
+      .call();
+
+    for (const patientAddress of patientAddresses) {
+      // Get patient RMK for fallback decryption
+      const wrappedRMK = await medicalDataRegistry.methods
+        .getEncryptedAESKey(patientAddress)
+        .call({ from: proxyAddress });
+      const patientRMK = await window.unwrapRMK(wrappedRMK, proxySessionKey);
+
+      // Get all appointment IDs for this patient
+      const appointmentIds = await appointmentManager.methods
+        .getPatientAppointments(patientAddress)
+        .call({ from: proxyAddress });
+
+      for (const id of appointmentIds) {
+        const appointmentOnChain = await appointmentManager.methods
+          .appointments(id)
+          .call({ from: proxyAddress });
+
+        if (!appointmentOnChain.ipfsHash || appointmentOnChain.ipfsHash === "0x") continue;
+
+        // Fetch encrypted appointment from IPFS
+        let encryptedPayload;
+        try {
+          const files = await ipfs.files.get(appointmentOnChain.ipfsHash);
+          const file = files.find(f => f.content);
+          if (!file) continue;
+          encryptedPayload = JSON.parse(new TextDecoder().decode(file.content));
+        } catch (e) {
+          console.warn("⚠️ Failed to fetch IPFS data, skipping", e);
+          continue;
+        }
+
+        // Determine which AES key to use
+        let appointmentAESKey = null;
+        if (encryptedPayload.aesKeyWrappedForProxy) {
+          try {
+            appointmentAESKey = await window.unwrapRMK(
+              encryptedPayload.aesKeyWrappedForProxy,
+              proxySessionKey
             );
-          });
-      })
-      .catch((err) => {
-        console.error("Error retrieving proxy details:", err.message || err);
-      });
-  });
+          } catch (e) {
+            console.warn("⚠️ Failed to unwrap AES key for proxy, skipping", e);
+            continue;
+          }
+        } else if (encryptedPayload.aesKeyWrappedForPatient) {
+          try {
+            appointmentAESKey = await window.unwrapRMK(
+              encryptedPayload.aesKeyWrappedForPatient,
+              patientRMK
+            );
+          } catch (e) {
+            console.warn("⚠️ Failed to unwrap AES key via patient RMK, skipping", e);
+            continue;
+          }
+        } else {
+          console.warn("⚠️ No AES key available for appointment, skipping");
+          continue;
+        }
+
+        // Decrypt appointment
+        let appointmentData;
+        try {
+          const decrypted = await window.decryptAES(
+            { iv: encryptedPayload.iv, data: encryptedPayload.data },
+            appointmentAESKey
+          );
+          appointmentData = JSON.parse(decrypted);
+        } catch (e) {
+          console.warn("⚠️ Failed to decrypt appointment, skipping", e);
+          continue;
+        }
+
+        // Resolve status
+        let status = "Pending";
+        if (appointmentOnChain.isAccepted) status = "Accepted";
+        else if (appointmentOnChain.isRejected) status = "Rejected";
+
+        // Resolve doctor name
+        let doctorName = "Unknown Doctor";
+        try {
+          const practitionerParticipant = appointmentData.participant.find(p =>
+            p.actor.reference.startsWith("Practitioner/")
+          );
+          if (practitionerParticipant) {
+            doctorName = practitionerParticipant.actor.display || "Unknown Doctor";
+          }
+        } catch (e) {
+          console.warn("⚠️ Failed to extract doctor name from appointment data", e);
+        }
+
+        // Display appointment
+        displaySentAppointmentRequest(id, appointmentData, status, doctorName);
+      }
+    }
+  } catch (err) {
+    console.error("loadSentAppointmentRequests failed:", err);
+    alert(err.message || "Failed to load sent appointment requests.");
+  }
 }
 
-//     const proxyAddress = accounts[0]; // Using proxy's address
-//     contractInstance.methods
-//       .get_accessed_patientlist_for_proxy(proxyAddress)
-//       .call()
-//       .then(function (patientAddresses) {
-//         patientAddresses.forEach(function (patientAddress) {
-//           contractInstance.methods
-//             .getPatientAppointments(patientAddress)
-//             .call({ from: proxyAddress })
-//             .then(function (appointmentIds) {
-//               appointmentIds.forEach(function (id) {
-//                 contractInstance.methods
-//                   .appointments(id)
-//                   .call()
-//                   .then(function (appointment) {
-//                     if (!appointment.ipfsHash || appointment.ipfsHash === "0x") {
-//                       console.error(
-//                         "Invalid or empty IPFS hash for appointment ID:",
-//                         id
-//                       );
-//                       return;
-//                     }
-//                     fetchFromIPFS(appointment.ipfsHash, function (appointmentData) {
-//                       var status = appointment.isAccepted
-//                         ? "Accepted"
-//                         : appointment.isRejected
-//                         ? "Rejected"
-//                         : "Pending";
-//                       contractInstance.methods
-//                         .get_doctor(appointment.doctorAddress)
-//                         .call()
-//                         .then(function (doctorDetails) {
-//                           var doctorName =
-//                             doctorDetails[0] + " " + doctorDetails[1];
-//                           displaySentAppointmentRequest(
-//                             id,
-//                             appointmentData,
-//                             status,
-//                             doctorName
-//                           );
-//                         })
-//                         .catch(function (error) {
-//                           console.error("Error fetching doctor details:", error);
-//                           displaySentAppointmentRequest(
-//                             id,
-//                             appointmentData,
-//                             status,
-//                             "Unknown Doctor"
-//                           );
-//                         });
-//                     });
-//                   });
-//               });
-//             })
-//             .catch(function (error) {
-//               console.error("Error loading sent appointment requests:", error);
-//             });
-//         });
-//       })
-//       .catch(function (error) {
-//         console.error("Error fetching patient list for proxy:", error);
-//       });
-//   });
 
-// Function to load requests
-function loadSentAppointmentRequests() {
-  web3.eth.getAccounts().then(function (accounts) {
-    const proxyAddress = accounts[0]; // Using proxy's address
-    contractInstance.methods
-      .get_accessed_patientlist_for_proxy(proxyAddress)
-      .call()
-      .then(function (patientAddresses) {
-        patientAddresses.forEach(function (patientAddress) {
-          contractInstance.methods
-            .getPatientAppointments(patientAddress)
-            .call({ from: proxyAddress })
-            .then(function (appointmentIds) {
-              appointmentIds.forEach(function (id) {
-                contractInstance.methods
-                  .appointments(id)
-                  .call()
-                  .then(function (appointment) {
-                    if (
-                      !appointment.ipfsHash ||
-                      appointment.ipfsHash === "0x"
-                    ) {
-                      console.error(
-                        "Invalid or empty IPFS hash for appointment ID:",
-                        id
-                      );
-                      return;
-                    }
-                    fetchFromIPFS(
-                      appointment.ipfsHash,
-                      function (appointmentData) {
-                        var status = appointment.isAccepted
-                          ? "Accepted"
-                          : appointment.isRejected
-                          ? "Rejected"
-                          : "Pending";
-                        contractInstance.methods
-                          .get_doctor(appointment.doctorAddress)
-                          .call()
-                          .then(function (doctorDetails) {
-                            var doctorName =
-                              doctorDetails[0] + " " + doctorDetails[1];
-                            displaySentAppointmentRequest(
-                              id,
-                              appointmentData,
-                              status,
-                              doctorName
-                            );
-                          })
-                          .catch(function (error) {
-                            console.error(
-                              "Error fetching doctor details:",
-                              error
-                            );
-                            displaySentAppointmentRequest(
-                              id,
-                              appointmentData,
-                              status,
-                              "Unknown Doctor"
-                            );
-                          });
-                      }
-                    );
-                  });
-              });
-            })
-            .catch(function (error) {
-              console.error("Error loading sent appointment requests:", error);
-            });
-        });
-      })
-      .catch(function (error) {
-        console.error("Error fetching patient list for proxy:", error);
-      });
-  });
+
+// Display function stays the same as patient one
+function displaySentAppointmentRequest(id, appointment, status, doctorName) {
+  console.log(`Full Appointment ${id} Data:`, appointment);
+
+  var match = appointment.start.match(
+    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
+  );
+  var appointmentDate = "Invalid Date";
+  var appointmentTime = "Invalid Time";
+  if (match) {
+    var date = new Date(
+      Date.UTC(
+        parseInt(match[1], 10),
+        parseInt(match[2], 10) - 1,
+        parseInt(match[3], 10),
+        parseInt(match[4], 10),
+        parseInt(match[5], 10),
+        parseInt(match[6], 10)
+      )
+    );
+    appointmentDate = date.toISOString().substring(0, 10);
+    appointmentTime = date.toISOString().substring(11, 16);
+  }
+
+  var row = $("<tr>");
+  $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
+  $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
+  $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
+  var statusCell = $("<td>").text(status).appendTo(row);
+  if (status === "Accepted") statusCell.addClass("accepted-status");
+  else if (status === "Rejected") statusCell.addClass("rejected-status");
+  else if (status === "Pending") statusCell.addClass("pending-status");
+  else statusCell.addClass("unknown-status");
+
+  $("#sentAppointmentRequests tbody").append(row);
 }
+
 
 document.addEventListener("DOMContentLoaded", function () {
   $(".list-group-item").click(function (e) {
@@ -846,46 +860,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
-// Function to display requests
-function displaySentAppointmentRequest(id, appointment, status, doctorName) {
-  console.log(`Full Appointment ${id} Data:`, appointment);
 
-  var match = appointment.start.match(
-    /^(\d{4})(\d{2})(\d{2})T(\d{1,2}):(\d{2}):(\d{2})Z$/
-  );
-  var appointmentDate = "Invalid Date";
-  var appointmentTime = "Invalid Time";
-  if (match) {
-    var date = new Date(
-      Date.UTC(
-        parseInt(match[1], 10),
-        parseInt(match[2], 10) - 1,
-        parseInt(match[3], 10),
-        parseInt(match[4], 10),
-        parseInt(match[5], 10),
-        parseInt(match[6], 10)
-      )
-    );
-    appointmentDate = date.toISOString().substring(0, 10);
-    appointmentTime = date.toISOString().substring(11, 16);
-  }
-
-  var row = $("<tr>");
-  $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
-  $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
-  $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
-  var statusCell = $("<td>").text(status).appendTo(row);
-  if (status === "Accepted") {
-    statusCell.addClass("accepted-status");
-  } else if (status === "Rejected") {
-    statusCell.addClass("rejected-status");
-  } else if (status === "Pending") {
-    statusCell.addClass("pending-status");
-  } else {
-    statusCell.addClass("unknown-status");
-  }
-  $("#sentAppointmentRequests tbody").append(row);
-}
 
 // Function to populate available hours for a selected appointment date
 function populateHoursDropdown() {
@@ -906,7 +881,7 @@ function populateHoursDropdown() {
 
   for (let hour = startHour; hour <= endHour; hour++) {
     // Push each availability check promise to the array
-    let promise = contractInstance.methods
+    let promise = appointmentManager.methods
       .isTimeSlotAvailable(doctorId, formattedDate, hour)
       .call()
       .then((isAvailable) => ({ hour, isAvailable }));
