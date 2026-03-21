@@ -601,88 +601,105 @@ async function showRecords(element) {
               </div>
             </div>
             <hr>
-            <div class="section diagnosis-section">
-              <h5 class="diagnosis-title">Diagnosis Submission</h5>
-              <div class="form-group">
-                <label for="ailmentsList${patientAddr}" class="form-label">Diagnosis:</label>
-                <select class="form-control" id="ailmentsList${patientAddr}" required>
-                  <option selected disabled>-- Please Select --</option>
-                  <option value="0">Common Flu</option>
-                  <option value="1">Viral Infection</option>
-                  <option value="2">Cancer</option>
-                  <option value="3">Tumor</option>
-                  <option value="4">Covid-19</option>
-                  <option value="5">Heart Disorder</option>
-                  <option value="6">Other</option>
-                </select>
+            <div class="form-container clinical-form-container">
+              <div class="section diagnosis-section clinical-form-card">
+                <div class="clinical-card-header">
+                  <h5 class="clinical-card-title">Diagnosis</h5>
+                  <p class="clinical-card-subtitle">Enter diagnosis details for this patient.</p>
+                </div>
+                <div class="form-row clinical-form-row">
+                  <div class="form-field">
+                    <label for="ailmentsList${patientAddr}" class="form-label">Diagnosis Name</label>
+                    <select class="form-control clinical-input" id="ailmentsList${patientAddr}" required>
+                      <option selected disabled>Choose diagnosis...</option>
+                      <option value="0">Common Flu</option>
+                      <option value="1">Viral Infection</option>
+                      <option value="2">Cancer</option>
+                      <option value="3">Tumor</option>
+                      <option value="4">Covid-19</option>
+                      <option value="5">Heart Disorder</option>
+                      <option value="6">Other</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="severity${patientAddr}" class="form-label">Severity</label>
+                    <select class="form-control clinical-input" id="severity${patientAddr}" required>
+                      <option selected disabled>Select severity...</option>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-row clinical-form-row">
+                  <div class="form-field">
+                    <label for="clinicalStatus${patientAddr}" class="form-label">Clinical Status</label>
+                    <select class="form-control clinical-input" id="clinicalStatus${patientAddr}" required>
+                      <option selected disabled>Select status...</option>
+                      <option value="active">Active</option>
+                      <option value="remission">Remission</option>
+                      <option value="resolved">Resolved</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="affectedArea${patientAddr}" class="form-label">Affected Area</label>
+                    <input type="text" class="form-control clinical-input" id="affectedArea${patientAddr}" placeholder="e.g. upper respiratory tract" required>
+                  </div>
+                </div>
+                <div class="form-field form-field-full">
+                  <label for="details${patientAddr}" class="form-label">Details</label>
+                  <textarea class="form-control clinical-input clinical-textarea" rows="5" id="details${patientAddr}" placeholder="Enter diagnosis details, symptoms, and relevant findings..." name="Details" required autofocus></textarea>
+                </div>
+                <div class="clinical-form-actions">
+                  <button class="btn btn-primary clinical-submit-btn" onclick="submitDiagnosis(this, ${index})">Save Diagnosis</button>
+                </div>
               </div>
-              <div class="form-group">
-                <label for="clinicalStatus${patientAddr}" class="form-label">Clinical Status:</label>
-                <select class="form-control" id="clinicalStatus${patientAddr}" required>
-                  <option selected disabled>-- Please Select --</option>
-                  <option value="active">Active</option>
-                  <option value="remission">Remission</option>
-                  <option value="resolved">Resolved</option>
-                </select>
+              <div class="section treatment-plan-section clinical-form-card">
+                <div class="clinical-card-header">
+                  <h5 class="clinical-card-title">Treatment</h5>
+                  <p class="clinical-card-subtitle">Document the prescribed treatment plan and administration guidance.</p>
+                </div>
+                <div class="form-row clinical-form-row">
+                  <div class="form-field">
+                    <label for="medicationName${patientAddr}" class="form-label">Medication Name</label>
+                    <input type="text" class="form-control clinical-input" id="medicationName${patientAddr}" placeholder="Enter medication name">
+                  </div>
+                  <div class="form-field">
+                    <label for="dose${patientAddr}" class="form-label">Dosage</label>
+                    <input type="text" class="form-control clinical-input" id="dose${patientAddr}" placeholder="e.g. 500mg twice daily">
+                  </div>
+                </div>
+                <div class="form-row clinical-form-row">
+                  <div class="form-field">
+                    <label for="frequency${patientAddr}" class="form-label">Frequency</label>
+                    <input type="text" class="form-control clinical-input" id="frequency${patientAddr}" placeholder="e.g. Twice daily for 7 days">
+                  </div>
+                  <div class="form-field">
+                    <label for="route${patientAddr}" class="form-label">Route of Administration</label>
+                    <select id="route${patientAddr}" class="form-control clinical-input">
+                      <option value="">Select route...</option>
+                      <option value="oral">Oral</option>
+                      <option value="intravenous">Intravenous</option>
+                      <option value="inhalation">Inhalation</option>
+                      <option value="subcutaneous">Subcutaneous</option>
+                      <option value="intramuscular">Intramuscular</option>
+                      <option value="topical">Topical</option>
+                      <option value="rectal">Rectal</option>
+                      <option value="sublingual">Sublingual</option>
+                      <option value="nasal">Nasal</option>
+                      <option value="ophthalmic">Ophthalmic</option>
+                      <option value="otic">Otic</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-field form-field-full">
+                  <label for="instructions${patientAddr}" class="form-label">Notes</label>
+                  <textarea class="form-control clinical-input clinical-textarea" id="instructions${patientAddr}" rows="4" placeholder="Add monitoring instructions, precautions, or follow-up notes..."></textarea>
+                </div>
+                <div class="clinical-form-actions">
+                  <button class="btn btn-primary clinical-submit-btn" onclick="submitTreatmentPlan(this, ${index})">Save Treatment</button>
+                </div>
               </div>
-              <div class="form-group">
-                <label for="severity${patientAddr}" class="form-label">Severity:</label>
-                <select class="form-control" id="severity${patientAddr}" required>
-                  <option selected disabled>-- Please Select --</option>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="affectedArea${patientAddr}" class="form-label">Affected Area:</label>
-                <input type="text" class="form-control" id="affectedArea${patientAddr}" placeholder="Enter affected body area" required>
-              </div>
-              <div class="form-group">
-                <label for="details${patientAddr}" class="form-label">Details:</label>
-                <textarea class="form-control" rows="5" id="details${patientAddr}" placeholder="Enter details to be added" name="Details" required autofocus></textarea>
-              </div>
-              <div class="form-group">
-                <button class="btn btn-primary" onclick="submitDiagnosis(this, ${index})">Submit</button>
-              </div>
-            </div>
-            <hr>
-            <div class="section treatment-plan-section">
-              <h5>Treatment Plan</h5>
-              <div class="form-group">
-                <label>Medication Name:</label>
-                <input type="text" class="form-control" id="medicationName${patientAddr}">
-              </div>
-              <div class="form-group">
-                <label>Dose:</label>
-                <input type="text" class="form-control" id="dose${patientAddr}">
-              </div>
-              <div class="form-group">
-                <label>Route of Administration:</label>
-                <select id="route${patientAddr}" class="form-control">
-                  <option value="">Select</option>
-                  <option value="oral">Oral</option>
-                  <option value="intravenous">Intravenous</option>
-                  <option value="inhalation">Inhalation</option>
-                  <option value="subcutaneous">Subcutaneous</option>
-                  <option value="intramuscular">Intramuscular</option>
-                  <option value="topical">Topical</option>
-                  <option value="rectal">Rectal</option>
-                  <option value="sublingual">Sublingual</option>
-                  <option value="nasal">Nasal</option>
-                  <option value="ophthalmic">Ophthalmic</option>
-                  <option value="otic">Otic</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Frequency:</label>
-                <input type="text" class="form-control" id="frequency${patientAddr}">
-              </div>
-              <div class="form-group">
-                <label>Additional Instructions:</label>
-                <textarea class="form-control" id="instructions${patientAddr}"></textarea>
-              </div>
-              <button class="btn btn-primary" onclick="submitTreatmentPlan(this, ${index})">Submit</button>
             </div>
           </div>
         </div>

@@ -70,21 +70,53 @@ Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSO
 Current symptoms:
 ${symptomText}
 
-Respond in natural, conversational plain text.
-Include likely causes, follow-up questions, and safety advice, but do NOT use headings, bullet points, or numbered lists.
-Provide fuller explanations for the likely causes, but keep each cause to 1–2 sentences max.
-Include at most 3 likely causes.
-Include follow-up questions and safety advice within the same 6–8 sentences total.
-Keep the response between 6 and 8 sentences total.
-Avoid repetition.
-Do not restate the user's symptoms verbatim in the first sentence; start with a likely-cause oriented sentence.
+Respond in clean, structured text using simple formatting rules:
+
+FORMAT RULES:
+- Use short paragraphs separated by a blank line
+- Use simple bullet points ONLY for likely causes
+- Use '**bold**' for emphasis (section labels only)
+- Do NOT use numbered lists
+- Do NOT use markdown headings (#)
+- Keep formatting minimal and consistent
+
+STRUCTURE:
+
+First paragraph:
+- 1-2 sentences explaining the most likely overall situation
+
+Then:
+
+**Possible causes:**
+- Cause 1 (1-2 sentences)
+- Cause 2 (1-2 sentences)
+- Cause 3 (optional, max 3)
+
+(if applicable)
+
+**Safety Alert:**
+- One short warning sentence
+
+Then:
+
+**Risk level: LOW|MODERATE|HIGH - short explanation**
+
+Then:
+
+Two follow-up questions:
+- Each on its own line
+- No bullets
+- Just plain questions ending in "?"
+
+Keep the full response concise and avoid repetition.
+Do not restate the user's symptoms verbatim in the first sentence; start with the likely overall situation.
 Do not repeat the same point or sentence.
 Ask exactly 2 follow-up questions.
-Each question must be its own sentence and must end with a "?".
+Each question must be on its own line and must end with a "?".
 Do not preface the questions with any lead-in like "Here are questions" or similar.
 Do not include a "Follow-up Questions" header or any header-like label.
 Do not number, bullet, or label the questions in any way.
-Place the two questions as the final two sentences of the response.
+Place the two questions as the final two lines of the response.
 
 Personalized diagnosis requirement:
 Consider the user's past diagnoses, treatments, and allergies when forming the differential.
@@ -92,13 +124,13 @@ If their history changes your reasoning, explicitly say so in the response (e.g.
 
 Medication / allergy safety requirement:
 If you suggest treatments or medications, check them against the user's allergies and current treatments.
-If a conflict exists, include a clear warning sentence starting with "Safety Alert:" and state what to avoid.
+If a conflict exists, include a short warning under the exact label "**Safety Alert:**" and state what to avoid.
 If there is no conflict, do not add a safety alert.
 Include at most one Safety Alert sentence and never repeat it.
 
 Risk level requirement:
 Classify the situation as LOW, MODERATE, or HIGH urgency and include one short explanation.
-Include a sentence in this exact format: "Risk level: <LOW|MODERATE|HIGH> - <short explanation>."
+Include a line in this exact format: "**Risk level: <LOW|MODERATE|HIGH> - <short explanation>**"
 `;
 
     const ollamaResponse = await axios.post(

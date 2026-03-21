@@ -225,8 +225,13 @@ function appendMessageToUI(role, text) {
   const bubble = document.createElement("div");
   bubble.className = role === "assistant" ? "ai-bubble ai-assistant" : "ai-bubble ai-user";
   bubble.dataset.role = role;
-  const span = document.createElement("span");
-  span.textContent = text || "";
+  const span = document.createElement("div");
+  span.className = "ai-message-content";
+  if (role === "assistant") {
+    span.innerHTML = renderAssistantMessage(text || "");
+  } else {
+    span.textContent = text || "";
+  }
   bubble.appendChild(span);
 
   const copyBtn = document.createElement("button");
@@ -239,32 +244,100 @@ function appendMessageToUI(role, text) {
   return span;
 }
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function formatRiskLevelMarkup(escapedText) {
   return escapedText
-    .replace(/Risk level:\s*LOW/gi, 'Risk level: <span class="risk-low">LOW</span>')
-    .replace(/Risk level:\s*MODERATE/gi, 'Risk level: <span class="risk-moderate">MODERATE</span>')
-    .replace(/Risk level:\s*HIGH/gi, 'Risk level: <span class="risk-high">HIGH</span>');
+    .replace(/Risk level:\s*(LOW|MODERATE|HIGH)/gi, (_match, level) => {
+      const normalizedLevel = String(level || "").toUpperCase();
+      const className = normalizedLevel === "LOW"
+        ? "risk-low"
+        : normalizedLevel === "MODERATE"
+          ? "risk-moderate"
+          : "risk-high";
+      return `Risk level: <span class="${className}">${normalizedLevel}</span>`;
+    });
 }
 
 function dedupeConsecutiveSentences(text) {
-  const parts = text.split(/(?<=[.!?])\s+/);
-  const out = [];
-  let last = "";
-  for (const part of parts) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const normalized = trimmed.toLowerCase();
-    if (normalized === last) continue;
-    out.push(trimmed);
-    last = normalized;
-  }
-  return out.join(" ");
+  const blocks = String(text || "").replace(/\r\n/g, "\n").split(/\n{2,}/);
+  const dedupedBlocks = blocks.map((block) => {
+    const lines = block.split("\n");
+    const out = [];
+    let last = "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const normalized = trimmed.toLowerCase();
+      if (normalized === last) continue;
+      out.push(trimmed);
+      last = normalized;
+    }
+
+    return out.join("\n");
+  }).filter(Boolean);
+
+  return dedupedBlocks.join("\n\n");
 }
 
 function addSectionSpacing(text) {
   return text
-    .replace(/\s*(Safety Alert:)/g, "\n\n$1")
-    .replace(/\s*(Risk level:)/g, "\n\n$1");
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s*(\*\*Possible causes:\*\*)/gi, "\n\n$1")
+    .replace(/\s*(\*\*Safety Alert:\*\*)/gi, "\n\n$1")
+    .replace(/\s*(\*\*Risk level:[^\n]*\*\*)/gi, "\n\n$1")
+    .replace(/\s*(Possible causes:)/gi, "\n\n$1")
+    .replace(/\s*(Safety Alert:)/gi, "\n\n$1")
+    .replace(/\s*(Risk level:\s*(?:LOW|MODERATE|HIGH))/gi, "\n\n$1")
+    .replace(/^\n+/, "");
+}
+
+function renderAssistantMessage(text) {
+  const formattedText = addSectionSpacing(dedupeConsecutiveSentences(text || "")).trim();
+  const escaped = escapeHtml(formattedText);
+  const lines = escaped.split("\n");
+  const htmlParts = [];
+  let bulletItems = [];
+
+  const flushBullets = () => {
+    if (!bulletItems.length) return;
+    htmlParts.push(`<ul>${bulletItems.join("")}</ul>`);
+    bulletItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushBullets();
+      if (htmlParts[htmlParts.length - 1] !== "<br><br>") {
+        htmlParts.push("<br><br>");
+      }
+      continue;
+    }
+
+    if (line.startsWith("- ")) {
+      bulletItems.push(`<li>${line.slice(2).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}</li>`);
+      continue;
+    }
+
+    flushBullets();
+    htmlParts.push(line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>"));
+  }
+
+  flushBullets();
+
+  let html = htmlParts.join("<br>");
+  html = html.replace(/(<br>){3,}/g, "<br><br>");
+  return formatRiskLevelMarkup(html);
 }
 
 function appendTypingIndicator() {
@@ -2528,6 +2601,7 @@ async function openRecoveryFlow() {
 
     // This now resolves only when the recovery key is correct
     const recoveredRMK = await requestRecoveryKey(patientAddress, wrappedRecoveryRMK);
+    if (!recoveredRMK) return;
 
     // Ask for new password
     const newPassword = await requestNewPassword();
@@ -2584,10 +2658,27 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
     $("#recoveryError").hide();
 
     const modalEl = document.getElementById("recoveryModal");
-    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+    const modal = new bootstrap.Modal(modalEl, { backdrop: true, keyboard: true });
     modal.show();
 
     const btn = document.getElementById("submitRecoveryButton");
+    let settled = false;
+
+    function cleanup() {
+      btn.removeEventListener("click", handle);
+      modalEl.removeEventListener("hidden.bs.modal", handleDismiss);
+    }
+
+    function finish(value) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    }
+
+    function handleDismiss() {
+      finish(null);
+    }
 
     async function handle() {
       const recoveryKey = $("#recoveryKeyInput").val();
@@ -2597,9 +2688,8 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
         const recoveryUAK = await window.deriveRecoveryUAK(recoveryKey, patientAddress);
         const recoveredRMK = await window.unwrapRMK(wrappedRecoveryRMK, recoveryUAK);
 
-        modal.hide(); // hide only on success
-        btn.removeEventListener("click", handle);
-        resolve(recoveredRMK); // return the recovered RMK
+        finish(recoveredRMK);
+        modal.hide();
 
       } catch (err) {
         $("#recoveryError").text("Invalid recovery key. Please try again.").show();
@@ -2608,6 +2698,7 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
     }
 
     btn.addEventListener("click", handle);
+    modalEl.addEventListener("hidden.bs.modal", handleDismiss, { once: true });
   });
 }
 
@@ -2714,11 +2805,6 @@ async function buildPatientLLMContext() {
 async function sendSymptomMessage() {
   const input = document.getElementById("symptomInput");
   const chatWindow = document.getElementById("chatWindow");
-  const escapeHtml = (text) =>
-    text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
 
   const message = input.value.trim();
   if (!message) return;
@@ -2773,11 +2859,9 @@ async function sendSymptomMessage() {
         typingRemoved = true;
         span = appendMessageToUI("assistant", "");
       }
-      aiReply += chunk.replace(/\*\*/g, "");
-      const displayReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply));
-      let safe = escapeHtml(displayReply);
-      safe = formatRiskLevelMarkup(safe);
-      if (span) span.innerHTML = safe.replace(/\n/g, "<br>");
+
+      aiReply += chunk;
+      if (span) span.innerHTML = renderAssistantMessage(aiReply);
       chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
@@ -2790,10 +2874,7 @@ async function sendSymptomMessage() {
       removeTypingIndicator(typingBubble);
       typingRemoved = true;
       span = appendMessageToUI("assistant", "");
-      const displayReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply));
-      let safe = escapeHtml(displayReply);
-      safe = formatRiskLevelMarkup(safe);
-      if (span) span.innerHTML = safe.replace(/\n/g, "<br>");
+      if (span) span.innerHTML = renderAssistantMessage(aiReply);
     }
 
     const finalReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply)).trim();
@@ -3465,7 +3546,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const btn = e.target.closest(".ai-copy-btn");
       if (!btn) return;
       const bubble = btn.closest(".ai-bubble");
-      const span = bubble ? bubble.querySelector("span") : null;
+      const span = bubble ? bubble.querySelector(".ai-message-content") : null;
       const text = span ? span.textContent.trim() : "";
       if (!text) return;
       try {

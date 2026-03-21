@@ -385,6 +385,28 @@ button.btn-view-records:focus-visible,
   color: #ffffff;
 }
 
+#recoveryModal .modal-content {
+  position: relative;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+  z-index: 2;
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus {
+  color: #111827;
+}
+
 #records {
   /* Treat the injected medical-record HTML like normal layout content, not <pre> text. */
   width: 100%;
@@ -817,7 +839,7 @@ button.btn-view-records:focus-visible,
   position: relative;
 }
 
-.ai-bubble > span {
+.ai-bubble > .ai-message-content {
   max-width: 64%;
   padding: 8px 12px;
   border-radius: 16px;
@@ -847,7 +869,7 @@ button.btn-view-records:focus-visible,
   justify-content: flex-end;
 }
 
-.ai-user > span {
+.ai-user > .ai-message-content {
   background: linear-gradient(135deg, var(--chat-accent) 0%, var(--chat-accent-2) 100%);
   color: #ffffff;
   box-shadow: 0 10px 18px rgba(47, 111, 237, 0.25);
@@ -857,7 +879,7 @@ button.btn-view-records:focus-visible,
   justify-content: flex-start;
 }
 
-.ai-assistant > span {
+.ai-assistant > .ai-message-content {
   background: #ffffff;
   color: var(--chat-text);
   border: 1px solid var(--chat-border);
