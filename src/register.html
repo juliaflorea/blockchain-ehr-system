@@ -184,6 +184,24 @@
                             </div>
                         </div>
 
+                        <div class="form-group row" id="patientFhirImportGroup" style="display:none;">
+                            <label class="col-sm-2 col-form-label" for="fhirImportFile">
+                                FHIR Import:
+                            </label>
+                            <div class="col-sm-8">
+                                <div class="custom-file">
+                                    <input type="file" class="custom-file-input" id="fhirImportFile" accept=".json,application/json">
+                                    <label class="custom-file-label" for="fhirImportFile">Import existing medical record (FHIR)</label>
+                                </div>
+                                <small class="form-text text-muted mt-2">
+                                    Optional. If you upload a FHIR Bundle JSON file, we will import the record and use it for patient registration.
+                                </small>
+                                <small id="fhirImportModeHint" class="form-text text-info mt-2" style="display:none;">
+                                    FHIR import mode is active. Manual patient details are disabled and will be taken from the uploaded bundle. Only the access password is still required.
+                                </small>
+                            </div>
+                        </div>
+
                     </div>
 
                     <div id="doctorFields" style="display:none;">

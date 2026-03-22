@@ -1,6 +1,14 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
+const { webcrypto } = require("crypto");
+const { TextEncoder, TextDecoder } = require("util");
+const { Web3 } = require("web3");
+const FormData = require("form-data");
+
+const medicalDataRegistryArtifact = require("./build/contracts/MedicalDataRegistry.json");
+const { parseFHIRBundle } = require("./services/fhirImportService");
+const { generateFHIRBundle } = require("./services/fhirExportService");
 
 const app = express();
 
@@ -11,6 +19,220 @@ const OLLAMA_URL = "http://localhost:11434/api/generate";
 const NUM_PREDICT_DIAGNOSE = Number(process.env.OLLAMA_NUM_PREDICT_DIAGNOSE || 600);
 const NUM_PREDICT_SUMMARY = Number(process.env.OLLAMA_NUM_PREDICT_SUMMARY || 300);
 const NUM_PREDICT_TRIAGE = Number(process.env.OLLAMA_NUM_PREDICT_TRIAGE || 400);
+const IPFS_HOST = process.env.IPFS_HOST || "127.0.0.1";
+const IPFS_PORT = Number(process.env.IPFS_PORT || 5001);
+const IPFS_PROTOCOL = process.env.IPFS_PROTOCOL || "http";
+const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "http://localhost:8080/ipfs";
+const WEB3_HTTP_URL = process.env.WEB3_HTTP_URL || "http://127.0.0.1:8546";
+
+const subtle = webcrypto.subtle;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const web3 = new Web3(WEB3_HTTP_URL);
+
+function b64encode(buf) {
+  return Buffer.from(new Uint8Array(buf)).toString("base64");
+}
+
+function b64decode(str) {
+  return Uint8Array.from(Buffer.from(str, "base64"));
+}
+
+function ensureLowercaseAddress(address) {
+  return String(address || "").trim().toLowerCase();
+}
+
+async function getMedicalDataRegistryContract() {
+  const networkId = String(await web3.eth.net.getId());
+  const deployedNetwork =
+    medicalDataRegistryArtifact.networks[networkId] ||
+    medicalDataRegistryArtifact.networks[Object.keys(medicalDataRegistryArtifact.networks)[0]];
+
+  if (!deployedNetwork || !deployedNetwork.address) {
+    throw new Error("MedicalDataRegistry contract is not deployed for the configured network.");
+  }
+
+  return new web3.eth.Contract(
+    medicalDataRegistryArtifact.abi,
+    deployedNetwork.address
+  );
+}
+
+async function generateAESKey() {
+  return subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptAES(plaintext, aesKey) {
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const encoded = encoder.encode(plaintext);
+
+  const ciphertext = await subtle.encrypt(
+    { name: "AES-GCM", iv },
+    aesKey,
+    encoded
+  );
+
+  return {
+    iv: b64encode(iv),
+    data: b64encode(ciphertext),
+  };
+}
+
+async function decryptAES(payload, aesKey) {
+  const plaintext = await subtle.decrypt(
+    { name: "AES-GCM", iv: b64decode(payload.iv) },
+    aesKey,
+    b64decode(payload.data)
+  );
+
+  return decoder.decode(plaintext);
+}
+
+async function deriveUAK(password, ethAddress) {
+  const keyMaterial = await subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(ensureLowercaseAddress(ethAddress)),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function deriveRecoveryUAK(recoveryKey, ethAddress) {
+  const keyMaterial = await subtle.importKey(
+    "raw",
+    encoder.encode(recoveryKey),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(`recovery-${ensureLowercaseAddress(ethAddress)}`),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function wrapRMK(rmk, uak) {
+  const rawRMK = new Uint8Array(await subtle.exportKey("raw", rmk));
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const wrapped = await subtle.encrypt(
+    { name: "AES-GCM", iv },
+    uak,
+    rawRMK
+  );
+
+  return JSON.stringify({
+    iv: b64encode(iv),
+    data: b64encode(wrapped),
+  });
+}
+
+async function unwrapRMK(payload, uak) {
+  const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+  const rawRMK = await subtle.decrypt(
+    { name: "AES-GCM", iv: b64decode(parsed.iv) },
+    uak,
+    b64decode(parsed.data)
+  );
+
+  return subtle.importKey(
+    "raw",
+    rawRMK,
+    "AES-GCM",
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+function generateRecoveryKey() {
+  const bytes = webcrypto.getRandomValues(new Uint8Array(32));
+  return b64encode(bytes);
+}
+
+async function uploadEncryptedPayloadToIPFS(payload) {
+  const form = new FormData();
+  form.append("file", Buffer.from(JSON.stringify(payload), "utf8"), {
+    filename: "medical-record.json",
+    contentType: "application/json",
+  });
+
+  const response = await axios.post(
+    `${IPFS_PROTOCOL}://${IPFS_HOST}:${IPFS_PORT}/api/v0/add?pin=true`,
+    form,
+    {
+      headers: form.getHeaders(),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 60000,
+    }
+  );
+
+  const data = response.data;
+  if (typeof data === "string") {
+    const lastLine = data.trim().split("\n").filter(Boolean).pop();
+    const parsed = JSON.parse(lastLine);
+    return parsed.Hash;
+  }
+
+  return data.Hash || data.Cid?.["/"];
+}
+
+async function readEncryptedPayloadFromIPFS(ipfsHash) {
+  const response = await axios.get(`${IPFS_GATEWAY_URL}/${ipfsHash}`, { timeout: 30000 });
+  return typeof response.data === "string"
+    ? JSON.parse(response.data)
+    : response.data;
+}
+
+async function getPatientRecordHash(patientAddress) {
+  const contract = await getMedicalDataRegistryContract();
+  return contract.methods.getHash(patientAddress).call({ from: patientAddress });
+}
+
+async function getWrappedRMKForPatient(patientAddress) {
+  const contract = await getMedicalDataRegistryContract();
+  return contract.methods.getEncryptedAESKey(patientAddress).call({ from: patientAddress });
+}
+
+async function tryStoreHashOnChain(patientAddress, ipfsHash) {
+  try {
+    const contract = await getMedicalDataRegistryContract();
+    await contract.methods.setHash(patientAddress, ipfsHash).send({
+      from: patientAddress,
+      gas: 500000,
+    });
+    return true;
+  } catch (error) {
+    console.warn("FHIR hash persistence skipped:", error.message);
+    return false;
+  }
+}
 
 app.post("/api/diagnose", async (req, res) => {
 
@@ -444,6 +666,86 @@ ${conversationTrimmed || "none"}
     console.error("Triage report error:", error.message, status || "", data || "");
     res.status(500).json({
       error: "AI triage report failed to generate."
+    });
+  }
+});
+
+app.post("/api/fhir/import", async (req, res) => {
+  try {
+    const {
+      bundleJson,
+      patientAddress,
+      password,
+      persistOnChain = false,
+    } = req.body || {};
+
+    if (!bundleJson) {
+      return res.status(400).json({ error: "FHIR import requires a bundleJson payload." });
+    }
+
+    if (!patientAddress || !password) {
+      return res.status(400).json({ error: "FHIR import requires patientAddress and password." });
+    }
+
+    const normalizedRecord = parseFHIRBundle(bundleJson);
+    const normalizedPatientAddress = ensureLowercaseAddress(patientAddress);
+    const rmk = await generateAESKey();
+    const encryptedPayload = await encryptAES(JSON.stringify(normalizedRecord), rmk);
+    const ipfsHash = await uploadEncryptedPayloadToIPFS(encryptedPayload);
+
+    const uak = await deriveUAK(password, normalizedPatientAddress);
+    const wrappedRMK = await wrapRMK(rmk, uak);
+    const recoveryKey = generateRecoveryKey();
+    const recoveryUAK = await deriveRecoveryUAK(recoveryKey, normalizedPatientAddress);
+    const wrappedRMKRecovery = await wrapRMK(rmk, recoveryUAK);
+    const storedOnChain = persistOnChain
+      ? await tryStoreHashOnChain(normalizedPatientAddress, ipfsHash)
+      : false;
+
+    return res.json({
+      success: true,
+      ipfsHash,
+      storedOnChain,
+      wrappedRMK,
+      wrappedRMKRecovery,
+      recoveryKey,
+      normalizedRecord,
+    });
+  } catch (error) {
+    console.error("FHIR import failed:", error.message);
+    return res.status(500).json({
+      error: error.message || "FHIR import failed.",
+    });
+  }
+});
+
+app.get("/api/fhir/export/:patientAddress", async (req, res) => {
+  try {
+    const patientAddress = ensureLowercaseAddress(req.params.patientAddress);
+    const password = req.get("x-record-password") || req.query.password;
+
+    if (!patientAddress || !password) {
+      return res.status(400).json({ error: "FHIR export requires patientAddress and password." });
+    }
+
+    const recordHash = await getPatientRecordHash(patientAddress);
+    if (!recordHash) {
+      return res.status(404).json({ error: "No medical record found for this patient." });
+    }
+
+    const wrappedRMK = await getWrappedRMKForPatient(patientAddress);
+    const uak = await deriveUAK(password, patientAddress);
+    const rmk = await unwrapRMK(wrappedRMK, uak);
+    const encryptedPayload = await readEncryptedPayloadFromIPFS(recordHash);
+    const decryptedRecord = JSON.parse(await decryptAES(encryptedPayload, rmk));
+    const bundle = generateFHIRBundle(decryptedRecord);
+
+    res.setHeader("Content-Type", "application/fhir+json; charset=utf-8");
+    return res.json(bundle);
+  } catch (error) {
+    console.error("FHIR export failed:", error.message);
+    return res.status(500).json({
+      error: error.message || "FHIR export failed.",
     });
   }
 });

@@ -1,31 +1,35 @@
 // ================= Main User Registration =================
 async function addUser() {
-  const ipfs = window.IpfsApi("localhost", "5001");
-  const Buffer = window.IpfsApi().Buffer;
+  try {
+    const ipfs = window.IpfsApi("localhost", "5001");
+    const Buffer = window.IpfsApi().Buffer;
 
-  const firstName = $("#firstName").val();
-  const lastName = $("#lastName").val();
-  const age = $("#age").val();
-  const designation = parseInt($("#designation").val()); // 0-patient, 1-doctor, 2-proxy
-  const address = $("#address").val();
-  const phoneNumber = $("#phone").val();
-  const email = $("#email").val();
-  const gender = $("#gender").val();
-  const birthDate = $("#dob").val();
+    const firstName = $("#firstName").val();
+    const lastName = $("#lastName").val();
+    const age = $("#age").val();
+    const designation = parseInt($("#designation").val()); // 0-patient, 1-doctor, 2-proxy
+    const address = $("#address").val();
+    const phoneNumber = $("#phone").val();
+    const email = $("#email").val();
+    const gender = $("#gender").val();
+    const birthDate = $("#dob").val();
 
-  const yearsOfExperience = $("#yearsOfExperience").val();
-  const specialty = $("#specialty").val();
-  const licenseNumber = $("#licenseNumber").val();
-  const medicalCertificate = document.getElementById("medicalCertificate")
-    ? document.getElementById("medicalCertificate").files[0]
-    : null;
+    const yearsOfExperience = $("#yearsOfExperience").val();
+    const specialty = $("#specialty").val();
+    const licenseNumber = $("#licenseNumber").val();
+    const medicalCertificate = document.getElementById("medicalCertificate")
+      ? document.getElementById("medicalCertificate").files[0]
+      : null;
 
-  const proxyOption = $("#proxyOption").val();
-  const token = $("#token").val();
-  const patientEthereumAddress = $("#patientEthereumAddress").val();
-  const poaDocument = document.getElementById("poaDoc")
-    ? document.getElementById("poaDoc").files[0]
-    : null;
+    const proxyOption = $("#proxyOption").val();
+    const token = $("#token").val();
+    const patientEthereumAddress = $("#patientEthereumAddress").val();
+    const poaDocument = document.getElementById("poaDoc")
+      ? document.getElementById("poaDoc").files[0]
+      : null;
+    const fhirImportFile = document.getElementById("fhirImportFile")
+      ? document.getElementById("fhirImportFile").files[0]
+      : null;
 
     const accounts = await ethereum.request({ method: "eth_accounts" });
 
@@ -33,45 +37,66 @@ async function addUser() {
       alert("Please connect MetaMask first.");
       return;
     }
-    
-   
-    
 
-  const publicKey = accounts[0].toLowerCase();
-  console.log("Public Key:", publicKey);
+    const publicKey = accounts[0].toLowerCase();
+    console.log("Public Key:", publicKey);
 
-  // Check if already registered
-  const existingPatient = await userRegistry.methods.getPatient(publicKey).call();
-  const existingDoctor = await userRegistry.methods.getDoctor(publicKey).call();
+    // Check if already registered
+    const existingPatient = await userRegistry.methods.getPatient(publicKey).call();
+    const existingDoctor = await userRegistry.methods.getDoctor(publicKey).call();
 
-  if (existingPatient.firstName !== "") {
-    $(".alert-info").show();
+    if (existingPatient.firstName !== "") {
+      $(".alert-info").show();
+      $(".alert-warning").hide();
+      return;
+    } else if (existingDoctor.firstName !== "") {
+      $(".alert-info").show();
+      $(".alert-warning").hide();
+      return;
+    }
+
+    $(".alert-info").hide();
     $(".alert-warning").hide();
-    return;
-  } else if (existingDoctor.firstName !== "") {
-    $(".alert-info").show();
-    $(".alert-warning").hide();
-    return;
-  }
 
-  $(".alert-info").hide();
-  $(".alert-warning").hide();
+    // Handle registration based on designation
+    if (designation === 0) {
+      if (fhirImportFile) {
+        const password = getPatientPasswordValue();
+        if (!validatePatientPassword(password)) {
+          return;
+        }
 
-  // Handle registration based on designation
-  if (designation === 0) {
-    await registerPatient(ipfs, Buffer, publicKey, {
-      firstName, lastName, age, address, phoneNumber, email, gender, birthDate
-    });
-  } else if (designation === 1) {
-    await registerDoctor(ipfs, Buffer, publicKey, {
-      firstName, lastName, age, address, phoneNumber, email, gender, birthDate,
-      yearsOfExperience, specialty, licenseNumber, medicalCertificate
-    });
-  } else if (designation === 2) {
-    await registerProxy(ipfs, Buffer, publicKey, {
-      firstName, lastName, age, address, phoneNumber, email, gender, birthDate,
-      proxyOption, token, patientEthereumAddress, poaDocument
-    });
+        const bundleJson = await readJsonFile(fhirImportFile);
+        const fhirImportResult = await importFHIRMedicalRecord(bundleJson, publicKey, password);
+        const importedPatientData = buildPatientRegistrationData(fhirImportResult.normalizedRecord);
+
+        await registerPatient(ipfs, Buffer, publicKey, {
+          ...importedPatientData,
+          fhirImportResult,
+          password,
+        });
+        return;
+      }
+
+      await registerPatient(ipfs, Buffer, publicKey, {
+        firstName, lastName, age, address, phoneNumber, email, gender, birthDate
+      });
+    } else if (designation === 1) {
+      await registerDoctor(ipfs, Buffer, publicKey, {
+        firstName, lastName, age, address, phoneNumber, email, gender, birthDate,
+        yearsOfExperience, specialty, licenseNumber, medicalCertificate
+      });
+    } else if (designation === 2) {
+      await registerProxy(ipfs, Buffer, publicKey, {
+        firstName, lastName, age, address, phoneNumber, email, gender, birthDate,
+        proxyOption, token, patientEthereumAddress, poaDocument
+      });
+    }
+  } catch (err) {
+    console.error("Registration flow failed:", err);
+    if (err && err.message && err.message !== "Weak or missing password") {
+      alert(err.message);
+    }
   }
 }
 
@@ -83,76 +108,82 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
     const ethAddress = publicKey.toLowerCase();
 
     // ---------- PASSWORD VALIDATION ----------
-    const passwordInput = document.getElementById("patientPassword");
-    const passwordError = document.getElementById("passwordError");
-    const password = passwordInput.value;
-
-    if (!password || !isStrongPassword(password)) {
-      passwordError.style.display = "block";
+    const password = data.password || getPatientPasswordValue();
+    if (!validatePatientPassword(password)) {
       throw new Error("Weak or missing password");
     }
 
-    passwordError.style.display = "none";
+    let ipfsHash;
+    let wrappedRMK;
+    let recoveryKey;
+    let wrappedRMKRecovery;
 
-    // ---------- Build FHIR Patient ----------
-    const fhirPatient = {
-      resourceType: "Patient",
-      name: [{
-        family: data.lastName,
-        given: [data.firstName]
-      }],
-      gender: data.gender,
-      birthDate: data.birthDate,
-      telecom: [
-        { system: "phone", value: data.phoneNumber },
-        { system: "email", value: data.email }
-      ],
-      address: [{
-        use: "home",
-        line: [data.address]
-      }]
-    };
+    if (data.fhirImportResult) {
+      ipfsHash = data.fhirImportResult.ipfsHash;
+      wrappedRMK = data.fhirImportResult.wrappedRMK;
+      recoveryKey = data.fhirImportResult.recoveryKey;
+      wrappedRMKRecovery = data.fhirImportResult.wrappedRMKRecovery;
+    } else {
+      // ---------- Build FHIR Patient ----------
+      const fhirPatient = {
+        resourceType: "Patient",
+        name: [{
+          family: data.lastName,
+          given: [data.firstName]
+        }],
+        gender: data.gender,
+        birthDate: data.birthDate,
+        telecom: [
+          { system: "phone", value: data.phoneNumber },
+          { system: "email", value: data.email }
+        ],
+        address: [{
+          use: "home",
+          line: [data.address]
+        }]
+      };
 
-    const plaintext = JSON.stringify(fhirPatient);
+      const plaintext = JSON.stringify(fhirPatient);
 
-    // ---------- Generate RMK ----------
-    const rmk = await window.generateAESKey();
+      // ---------- Generate RMK ----------
+      const rmk = await window.generateAESKey();
 
-    // ---------- Encrypt patient record ----------
-    const encryptedPayload = await window.encryptAES(
-      plaintext,
-      rmk
-    );
-
-    const ipfsBuffer = Buffer.from(
-      JSON.stringify(encryptedPayload)
-    );
-
-    const ipfsHash = (
-      await ipfs.files.add(ipfsBuffer)
-    )[0].hash;
-
-    // ---------- Derive password UAK ----------
-    const uak = await window.deriveUAK(password, ethAddress);
-
-    // ---------- Wrap RMK with password ----------
-    const wrappedRMK =
-      await window.wrapRMK(rmk, uak);
-
-    // ---------- Generate Recovery Key ----------
-    const recoveryKey =
-      window.generateRecoveryKey();
-
-    // ---------- Derive Recovery UAK ----------
-    const recoveryUAK =
-      await window.deriveRecoveryUAK(
-        recoveryKey,
-        ethAddress
+      // ---------- Encrypt patient record ----------
+      const encryptedPayload = await window.encryptAES(
+        plaintext,
+        rmk
       );
 
-    // ---------- Wrap RMK with recovery key ----------
-    const wrappedRMKRecovery =
-      await window.wrapRMK(rmk, recoveryUAK);
+      const ipfsBuffer = Buffer.from(
+        JSON.stringify(encryptedPayload)
+      );
+
+      ipfsHash = (
+        await ipfs.files.add(ipfsBuffer)
+      )[0].hash;
+
+      // ---------- Derive password UAK ----------
+      const uak = await window.deriveUAK(password, ethAddress);
+
+      // ---------- Wrap RMK with password ----------
+      wrappedRMK =
+        await window.wrapRMK(rmk, uak);
+
+      // ---------- Generate Recovery Key ----------
+      recoveryKey =
+        window.generateRecoveryKey();
+
+      // ---------- Derive Recovery UAK ----------
+      const recoveryUAK =
+        await window.deriveRecoveryUAK(
+          recoveryKey,
+          ethAddress
+        );
+
+      // ---------- Wrap RMK with recovery key ----------
+      wrappedRMKRecovery =
+        await window.wrapRMK(rmk, recoveryUAK);
+    }
 
     // ---------- Register patient ----------
     await userRegistry.methods
@@ -412,9 +443,160 @@ function toggleFields() {
   $("#doctorFields").css("display", designation === "1" ? "block" : "none");
   $("#proxyFields").css("display", designation === "2" ? "block" : "none");
   $("#patientPasswordGroup").css("display", designation === "0" ? "block" : "none");
+  $("#patientFhirImportGroup").css("display", designation === "0" ? "flex" : "none");
+
+  togglePatientImportMode();
 
   if (designation === "2") toggleProxyOptionFields();
 }
+
+function getPatientPasswordValue() {
+  const passwordInput = document.getElementById("patientPassword");
+  return passwordInput ? passwordInput.value.trim() : "";
+}
+
+function validatePatientPassword(password) {
+  const passwordError = document.getElementById("passwordError");
+  const isValid = Boolean(password) && isStrongPassword(password);
+  if (passwordError) {
+    passwordError.style.display = isValid ? "none" : "block";
+  }
+  return isValid;
+}
+
+function togglePatientImportMode() {
+  const designation = $("#designation").val();
+  const isPatient = designation === "0";
+  const hasImportFile = Boolean(document.getElementById("fhirImportFile")?.files?.length);
+  const isImportMode = isPatient && hasImportFile;
+  const manualFieldIds = ["firstName", "lastName", "dob", "age", "gender", "email", "phone", "address"];
+  const importHint = document.getElementById("fhirImportModeHint");
+
+  manualFieldIds.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+
+    if (!field.dataset.wasRequired) {
+      field.dataset.wasRequired = field.required ? "true" : "false";
+    }
+
+    field.disabled = isImportMode;
+    field.required = isImportMode ? false : field.dataset.wasRequired === "true";
+
+    if (isImportMode && field.tagName === "INPUT" && fieldId !== "age") {
+      field.value = "";
+    }
+
+    if (isImportMode && field.tagName === "SELECT") {
+      field.value = "";
+    }
+  });
+
+  if (importHint) {
+    importHint.style.display = isImportMode ? "block" : "none";
+  }
+}
+
+async function readJsonFile(file) {
+  const text = await file.text();
+  return JSON.parse(text);
+}
+
+function getApiBaseUrl() {
+  return window.__API_BASE_URL__ || "http://localhost:3000";
+}
+
+async function readApiJson(response, fallbackMessage) {
+  const rawText = await response.text();
+
+  try {
+    return rawText ? JSON.parse(rawText) : {};
+  } catch (err) {
+    const looksLikeHtml = rawText.trim().startsWith("<!DOCTYPE") || rawText.trim().startsWith("<html");
+    if (looksLikeHtml) {
+      throw new Error(`${fallbackMessage} The API returned an HTML page instead of JSON. Make sure the Node server is running on ${getApiBaseUrl()} and has been restarted after the FHIR endpoint changes.`);
+    }
+    throw new Error(`${fallbackMessage} The API returned an invalid JSON response.`);
+  }
+}
+
+async function importFHIRMedicalRecord(bundleJson, patientAddress, password) {
+  const response = await fetch(`${getApiBaseUrl()}/api/fhir/import`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      bundleJson,
+      patientAddress,
+      password,
+      persistOnChain: false,
+    }),
+  });
+
+  const payload = await readApiJson(response, "FHIR import failed.");
+  if (!response.ok) {
+    throw new Error(payload.error || "FHIR import failed.");
+  }
+
+  return payload;
+}
+
+function calculateAgeFromBirthDate(birthDate) {
+  if (!birthDate) return "";
+  const dob = new Date(birthDate);
+  if (Number.isNaN(dob.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDelta = today.getMonth() - dob.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 ? age : "";
+}
+
+function buildPatientRegistrationData(record) {
+  const personalInfo = record.personalInfo || {};
+  return {
+    firstName: personalInfo.firstName || record.name?.[0]?.given?.[0] || "",
+    lastName: personalInfo.lastName || record.name?.[0]?.family || "",
+    age: calculateAgeFromBirthDate(personalInfo.birthDate || record.birthDate),
+    address: personalInfo.address || record.address?.[0]?.line?.join(", ") || "",
+    phoneNumber: personalInfo.phoneNumber || "",
+    email: personalInfo.email || "",
+    gender: personalInfo.gender || record.gender || "",
+    birthDate: personalInfo.birthDate || record.birthDate || "",
+  };
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fhirImportFileInput = document.getElementById("fhirImportFile");
+  if (fhirImportFileInput) {
+    fhirImportFileInput.addEventListener("change", (event) => {
+      const fileName = event.target.files && event.target.files[0]
+        ? event.target.files[0].name
+        : "Import existing medical record (FHIR)";
+      const label = document.querySelector('label[for="fhirImportFile"].custom-file-label');
+      if (label) label.textContent = fileName;
+      togglePatientImportMode();
+    });
+  }
+
+  const patientPasswordInput = document.getElementById("patientPassword");
+  if (patientPasswordInput) {
+    patientPasswordInput.addEventListener("input", () => {
+      if (patientPasswordInput.value.trim()) {
+        validatePatientPassword(patientPasswordInput.value.trim());
+      } else {
+        const passwordError = document.getElementById("passwordError");
+        if (passwordError) passwordError.style.display = "none";
+      }
+    });
+  }
+
+  togglePatientImportMode();
+});
 
 function toggleProxyOptionFields() {
   var proxyOption = $("#proxyOption").val();
@@ -609,4 +791,3 @@ function copyRecoveryKey() {
     navigator.clipboard.writeText(key);
     alert("Recovery key copied to clipboard");
 }
-

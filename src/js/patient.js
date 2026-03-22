@@ -585,6 +585,66 @@ async function showRecords(element) {
   }
 }
 
+function downloadJsonFile(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/fhir+json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getApiBaseUrl() {
+  return window.__API_BASE_URL__ || "http://localhost:3000";
+}
+
+async function readApiJson(response, fallbackMessage) {
+  const rawText = await response.text();
+
+  try {
+    return rawText ? JSON.parse(rawText) : {};
+  } catch (err) {
+    const looksLikeHtml = rawText.trim().startsWith("<!DOCTYPE") || rawText.trim().startsWith("<html");
+    if (looksLikeHtml) {
+      throw new Error(`${fallbackMessage} The API returned an HTML page instead of JSON. Make sure the Node server is running on ${getApiBaseUrl()} and has been restarted after the FHIR endpoint changes.`);
+    }
+    throw new Error(`${fallbackMessage} The API returned an invalid JSON response.`);
+  }
+}
+
+async function exportFHIRMedicalRecord() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
+    const password = window.prompt("Enter your access password to export this medical record as FHIR JSON:");
+
+    if (!password) {
+      return;
+    }
+
+    const response = await fetch(`${getApiBaseUrl()}/api/fhir/export/${patientAddress}`, {
+      method: "GET",
+      headers: {
+        "x-record-password": password,
+      },
+    });
+
+    const payload = await readApiJson(response, "FHIR export failed.");
+    if (!response.ok) {
+      throw new Error(payload.error || "FHIR export failed.");
+    }
+
+    const patientName = getPatientName(payload).replace(/\s+/g, "_");
+    downloadJsonFile(`${patientName || "medical_record"}_fhir_bundle.json`, payload);
+  } catch (err) {
+    console.error("FHIR export failed:", err);
+    alert(err.message || "FHIR export failed.");
+  }
+}
+
 
 // Get the patient name for the filename
 // Recursively find the first name in the record or its nested resources
