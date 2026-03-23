@@ -12,6 +12,7 @@
     <title>Electronical Medical Records</title>
 
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2023.3.1114/styles/kendo.default-v2.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
@@ -86,43 +87,30 @@
                         <h3 class="text-center">Personal Information</h3>
                     </div>
                     <div class="panel-body">
-                        <div class="row">
-                            <div class="col-sm-offset-1 col-sm-10">
-                                <table class="table">
-                                    <tr>
-                                        <th>Name:</th>
-                                        <td id="name"></td>
-                                    </tr>
-                                    <tr>
-                                        <th>Age:</th>
-                                        <td id="age"></td>
-                                    </tr>
-                                    <!-- <tr>
-                                        <input id="ageInput" type="number" placeholder="Enter new age">
-                                        <button onclick="changeAge()">Set New Age</button>
-                                        <div id="ageDisplay">Patient Age: </div>
-                                    </tr> -->
-
-                                </table>
-
-                                <div class="text-center">
-                                    <h5>Your records are stored here: http://localhost:8080/ipfs/<span
-                                            id="recordsHash"></span>
-                                    </h5>
-                                    <button type="submit" class="btn btn-info btn-lg" onclick="showRecords(this)">View
-                                        medical
-                                        records</button>
-
+                        <div class="patient-summary-wrap">
+                            <div class="patient-summary-card">
+                                <div class="patient-summary-eyebrow">Patient Summary</div>
+                                <div id="name" class="patient-summary-name"></div>
+                                <div class="patient-summary-age-row">
+                                    <span class="patient-summary-age-label">Age</span>
+                                    <span id="age" class="patient-summary-age-value"></span>
                                 </div>
-                                <pre id="records" style="margin-top: 20px;">
+                                <div class="patient-record-location">
+                                    <div class="patient-record-location-label">Records location</div>
+                                    <div class="patient-record-location-value">
+                                        http://localhost:8080/ipfs/<span id="recordsHash"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-info btn-lg patient-records-toggle"
+                                onclick="showRecords(this)">View medical records</button>
+                        </div>
+
+                        <pre id="records" style="margin-top: 20px;">
 
                                     </pre>
-                                <div id="downloadLinkContainer" class="text-center" style="margin-top: 20px;"></div>
-
-
-
-                            </div>
-                        </div>
+                        <div id="downloadLinkContainer" class="text-center" style="margin-top: 20px;"></div>
 
                     </div>
                 </div>
@@ -621,7 +609,10 @@
             <div class="modal-content">
 
                 <div class="modal-header bg-warning">
-                    <h5 class="modal-title">Enter Recovery Key</h5>
+                    <h5 class="modal-title">Recover Account</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
 
                 <div class="modal-body">

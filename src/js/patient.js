@@ -222,8 +222,13 @@ function appendMessageToUI(role, text) {
   const bubble = document.createElement("div");
   bubble.className = role === "assistant" ? "ai-bubble ai-assistant" : "ai-bubble ai-user";
   bubble.dataset.role = role;
-  const span = document.createElement("span");
-  span.textContent = text || "";
+  const span = document.createElement("div");
+  span.className = "ai-message-content";
+  if (role === "assistant") {
+    span.innerHTML = renderAssistantMessage(text || "");
+  } else {
+    span.textContent = text || "";
+  }
   bubble.appendChild(span);
 
   const copyBtn = document.createElement("button");
@@ -236,32 +241,100 @@ function appendMessageToUI(role, text) {
   return span;
 }
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function formatRiskLevelMarkup(escapedText) {
   return escapedText
-    .replace(/Risk level:\s*LOW/gi, 'Risk level: <span class="risk-low">LOW</span>')
-    .replace(/Risk level:\s*MODERATE/gi, 'Risk level: <span class="risk-moderate">MODERATE</span>')
-    .replace(/Risk level:\s*HIGH/gi, 'Risk level: <span class="risk-high">HIGH</span>');
+    .replace(/Risk level:\s*(LOW|MODERATE|HIGH)/gi, (_match, level) => {
+      const normalizedLevel = String(level || "").toUpperCase();
+      const className = normalizedLevel === "LOW"
+        ? "risk-low"
+        : normalizedLevel === "MODERATE"
+          ? "risk-moderate"
+          : "risk-high";
+      return `Risk level: <span class="${className}">${normalizedLevel}</span>`;
+    });
 }
 
 function dedupeConsecutiveSentences(text) {
-  const parts = text.split(/(?<=[.!?])\s+/);
-  const out = [];
-  let last = "";
-  for (const part of parts) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const normalized = trimmed.toLowerCase();
-    if (normalized === last) continue;
-    out.push(trimmed);
-    last = normalized;
-  }
-  return out.join(" ");
+  const blocks = String(text || "").replace(/\r\n/g, "\n").split(/\n{2,}/);
+  const dedupedBlocks = blocks.map((block) => {
+    const lines = block.split("\n");
+    const out = [];
+    let last = "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const normalized = trimmed.toLowerCase();
+      if (normalized === last) continue;
+      out.push(trimmed);
+      last = normalized;
+    }
+
+    return out.join("\n");
+  }).filter(Boolean);
+
+  return dedupedBlocks.join("\n\n");
 }
 
 function addSectionSpacing(text) {
   return text
-    .replace(/\s*(Safety Alert:)/g, "\n\n$1")
-    .replace(/\s*(Risk level:)/g, "\n\n$1");
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s*(\*\*Possible causes:\*\*)/gi, "\n\n$1")
+    .replace(/\s*(\*\*Safety Alert:\*\*)/gi, "\n\n$1")
+    .replace(/\s*(\*\*Risk level:[^\n]*\*\*)/gi, "\n\n$1")
+    .replace(/\s*(Possible causes:)/gi, "\n\n$1")
+    .replace(/\s*(Safety Alert:)/gi, "\n\n$1")
+    .replace(/\s*(Risk level:\s*(?:LOW|MODERATE|HIGH))/gi, "\n\n$1")
+    .replace(/^\n+/, "");
+}
+
+function renderAssistantMessage(text) {
+  const formattedText = addSectionSpacing(dedupeConsecutiveSentences(text || "")).trim();
+  const escaped = escapeHtml(formattedText);
+  const lines = escaped.split("\n");
+  const htmlParts = [];
+  let bulletItems = [];
+
+  const flushBullets = () => {
+    if (!bulletItems.length) return;
+    htmlParts.push(`<ul>${bulletItems.join("")}</ul>`);
+    bulletItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushBullets();
+      if (htmlParts[htmlParts.length - 1] !== "<br><br>") {
+        htmlParts.push("<br><br>");
+      }
+      continue;
+    }
+
+    if (line.startsWith("- ")) {
+      bulletItems.push(`<li>${line.slice(2).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}</li>`);
+      continue;
+    }
+
+    flushBullets();
+    htmlParts.push(line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>"));
+  }
+
+  flushBullets();
+
+  let html = htmlParts.join("<br>");
+  html = html.replace(/(<br>){3,}/g, "<br><br>");
+  return formatRiskLevelMarkup(html);
 }
 
 function appendTypingIndicator() {
@@ -548,17 +621,8 @@ async function showRecords(element) {
     console.log("Decrypted record:", record);
 
     // Render HTML
-    let html = '<h5 style="text-align:center;font-weight:bold;">Medical Record</h5><br/>';
-    if (record.resourceType === "Bundle" && Array.isArray(record.entry)) {
-      record.entry.forEach((e) => {
-        if (e.resource) html += renderResource(e.resource);
-      });
-      if (record.aiTriageReports || record.aiTriageReport) {
-        html += renderResource(record);
-      }
-    } else {
-      html += renderResource(record);
-    }
+    let html = '<div class="medical-record-title">Medical Record</div>';
+    html += renderResource(record);
 
     const plainText = recordToPlainText(record);
     const fileName = getPatientName(record);
@@ -612,206 +676,19 @@ function getPatientName(record) {
 // Convert a record to plain text for PDF download
 // Convert a record to plain text for download
 function recordToPlainText(record) {
-  let text = "Medical Record\n\n";
-
-  let resources = record.resourceType === "Bundle" && Array.isArray(record.entry)
-    ? record.entry.map(e => e.resource)
-    : [record];
-
-  if (record.resourceType === "Bundle" && (record.aiTriageReports || record.aiTriageReport)) {
-    resources = resources.concat([record]);
+  if (typeof window.medicalRecordToPlainText === "function") {
+    return window.medicalRecordToPlainText(record);
   }
-
-  resources.forEach(r => {
-    // Patient Info
-    if (r.name && r.name.length > 0) {
-      const n = r.name[0];
-      text += `Patient Name: ${n.given.join(" ")} ${n.family}\n`;
-    }
-    if (r.gender) text += `Gender: ${r.gender}\n`;
-    if (r.birthDate) text += `Birth Date: ${r.birthDate}\n`;
-
-    // Contacts
-    if (r.telecom && r.telecom.length > 0) {
-      text += "Contacts:\n";
-      r.telecom.forEach(t => text += `  ${t.system}: ${t.value}\n`);
-    }
-
-    // Addresses
-    if (r.address && r.address.length > 0) {
-      text += "Addresses:\n";
-      r.address.forEach(a => text += `  ${a.line ? a.line.join(", ") : ""}\n`);
-    }
-
-    // Allergies
-    if (r.allergies && r.allergies.length > 0) {
-      text += "Allergies:\n";
-      r.allergies.forEach(a => {
-        text += `  ${a.substance}: ${a.reaction} (Criticality: ${a.criticality}, Recorded: ${a.recordedDate})\n`;
-      });
-    }
-
-    // Diagnosis History
-    if (r.diagnosis && r.diagnosis.length > 0) {
-      text += "Diagnosis History:\n";
-      r.diagnosis.forEach(d => {
-        text += `  Date: ${d.datetime}\n`;
-        text += `  Doctor: ${d.doctor}\n`;
-        text += `  Condition: ${d.diagnosed}\n`;
-        text += `  Clinical Status: ${d.clinicalStatus}\n`;
-        text += `  Severity: ${d.severity}\n`;
-        text += `  Affected Area: ${d.affectedArea}\n`;
-        text += `  Details: ${d.details}\n`;
-        text += "  ------------------\n";
-      });
-    }
-
-  // Treatment Plan History
-  if (r.treatmentPlan && r.treatmentPlan.length > 0) {
-    text += "Treatment History:\n";
-      r.treatmentPlan.forEach(t => {
-        text += `  Date: ${t.datetime}\n`;
-        text += `  Doctor: ${t.doctor}\n`;
-        text += `  Medication: ${t.medicationName}\n`;
-        text += `  Dose: ${t.dose}\n`;
-        text += `  Route: ${t.route}\n`;
-        text += `  Frequency: ${t.frequency}\n`;
-        text += `  Instructions: ${t.instructions}\n`;
-        text += "  ------------------\n";
-    });
-  }
-
-  const triageReports = Array.isArray(r.aiTriageReports)
-    ? r.aiTriageReports
-    : (r.aiTriageReport ? [r.aiTriageReport] : []);
-
-  if (triageReports.length > 0) {
-    text += "AI Triage Reports:\n";
-    triageReports.forEach(report => {
-      text += `  Title: ${report.title || "AI Triage Report"}\n`;
-      text += `  Status: ${report.status || "preliminary"}\n`;
-      if (report.updatedAt) text += `  Updated: ${report.updatedAt}\n`;
-      if (report.sharedAt) text += `  Shared: ${report.sharedAt}\n`;
-      text += `  Chief Complaint: ${getSectionText(report.bundle, "Chief Complaint") || "Not provided"}\n`;
-      text += `  Symptoms: ${getSectionText(report.bundle, "Symptoms") || "Not provided"}\n`;
-      text += `  AI Differential Diagnosis: ${getSectionText(report.bundle, "AI Differential Diagnosis") || "Not provided"}\n`;
-      text += `  Suggested Treatments: ${getSectionText(report.bundle, "Suggested Treatments") || "Not provided"}\n`;
-      text += `  Recommended Follow-up: ${getSectionText(report.bundle, "Recommended Follow-up") || "Not provided"}\n`;
-      text += `  Doctor Notes: ${getSectionText(report.bundle, "Doctor Notes") || "Not provided"}\n`;
-      text += "  ------------------\n";
-    });
-  }
-
-  text += "\n====================\n\n";
-  });
-
-  return text;
+  return "Medical Record\n\n";
 }
-
 
 // Render a resource to HTML for browser display
 // Render a resource to HTML for browser display (patient page)
 function renderResource(r) {
-  if (!r) return "";
-
-  let html = '<div class="medical-record" style="border:1px solid #ccc;padding:10px;margin-bottom:10px;">';
-
-  // Basic Patient Info
-  if (r.name && r.name.length > 0) {
-    const name = r.name[0];
-    html += `<strong>Name:</strong> ${name.given.join(" ")} ${name.family}<br/>`;
+  if (typeof window.renderMedicalRecord === "function") {
+    return window.renderMedicalRecord(r);
   }
-  if (r.gender) html += `<strong>Gender:</strong> ${r.gender}<br/>`;
-  if (r.birthDate) html += `<strong>Birth Date:</strong> ${r.birthDate}<br/>`;
-
-  // Contacts
-  if (r.telecom && r.telecom.length > 0) {
-    html += "<strong>Contacts:</strong><ul>";
-    r.telecom.forEach(t => { html += `<li>${t.system}: ${t.value}</li>`; });
-    html += "</ul>";
-  }
-
-  // Addresses
-  if (r.address && r.address.length > 0) {
-    html += "<strong>Addresses:</strong><ul>";
-    r.address.forEach(a => { html += `<li>${a.line ? a.line.join(", ") : ""}</li>`; });
-    html += "</ul>";
-  }
-
-  // Allergies
-  if (r.allergies && r.allergies.length > 0) {
-    html += "<strong>Allergies:</strong><ul>";
-    r.allergies.forEach(a => {
-      html += `<li>${a.substance}: ${a.reaction} (Criticality: ${a.criticality}, Recorded: ${a.recordedDate})</li>`;
-    });
-    html += "</ul>";
-  }
-
-  // Diagnosis History
-  if (r.diagnosis && r.diagnosis.length > 0) {
-    html += `<div style="border:1px solid #007bff; padding:10px; margin:5px;">
-               <h5>Diagnosis History</h5>`;
-    r.diagnosis.forEach(d => {
-      html += `
-        <p><strong>Date:</strong> ${d.datetime}</p>
-        <p><strong>Doctor:</strong> ${d.doctor}</p>
-        <p><strong>Condition:</strong> ${d.diagnosed}</p>
-        <p><strong>Clinical Status:</strong> ${d.clinicalStatus}</p>
-        <p><strong>Severity:</strong> ${d.severity}</p>
-        <p><strong>Affected Area:</strong> ${d.affectedArea}</p>
-        <p><strong>Details:</strong> ${d.details}</p>
-        <hr>
-      `;
-    });
-    html += `</div>`;
-  }
-
-  // Treatment Plan History
-  if (r.treatmentPlan && r.treatmentPlan.length > 0) {
-    html += `<div style="border:1px solid #28a745; padding:10px; margin:5px;">
-               <h5>Treatment History</h5>`;
-    r.treatmentPlan.forEach(t => {
-      html += `
-        <p><strong>Date:</strong> ${t.datetime}</p>
-        <p><strong>Doctor:</strong> ${t.doctor}</p>
-        <p><strong>Medication:</strong> ${t.medicationName}</p>
-        <p><strong>Dose:</strong> ${t.dose}</p>
-        <p><strong>Route:</strong> ${t.route}</p>
-        <p><strong>Frequency:</strong> ${t.frequency}</p>
-        <p><strong>Instructions:</strong> ${t.instructions}</p>
-        <hr>
-      `;
-    });
-    html += `</div>`;
-  }
-
-  const triageReports = Array.isArray(r.aiTriageReports)
-    ? r.aiTriageReports
-    : (r.aiTriageReport ? [r.aiTriageReport] : []);
-
-  if (triageReports.length > 0) {
-    html += `<div style="border:1px solid #f0ad4e; padding:10px; margin:5px;">
-               <h5>AI Triage Reports</h5>`;
-    triageReports.forEach(report => {
-      html += `
-        <p><strong>Title:</strong> ${report.title || "AI Triage Report"}</p>
-        <p><strong>Status:</strong> ${report.status || "preliminary"}</p>
-        ${report.updatedAt ? `<p><strong>Updated:</strong> ${report.updatedAt}</p>` : ""}
-        ${report.sharedAt ? `<p><strong>Shared:</strong> ${report.sharedAt}</p>` : ""}
-        <p><strong>Chief Complaint:</strong> ${getSectionText(report.bundle, "Chief Complaint") || "Not provided"}</p>
-        <p><strong>Symptoms:</strong> ${getSectionText(report.bundle, "Symptoms") || "Not provided"}</p>
-        <p><strong>AI Differential Diagnosis:</strong> ${getSectionText(report.bundle, "AI Differential Diagnosis") || "Not provided"}</p>
-        <p><strong>Suggested Treatments:</strong> ${getSectionText(report.bundle, "Suggested Treatments") || "Not provided"}</p>
-        <p><strong>Recommended Follow-up:</strong> ${getSectionText(report.bundle, "Recommended Follow-up") || "Not provided"}</p>
-        <p><strong>Doctor Notes:</strong> ${getSectionText(report.bundle, "Doctor Notes") || "Not provided"}</p>
-        <hr>
-      `;
-    });
-    html += `</div>`;
-  }
-
-  html += "</div>";
-  return html;
+  return "";
 }
 
 
@@ -2246,8 +2123,9 @@ async function openRecoveryFlow() {
       return;
     }
 
-    // This now resolves only when the recovery key is correct
+    // Stop the flow cleanly if the modal is dismissed.
     const recoveredRMK = await requestRecoveryKey(patientAddress, wrappedRecoveryRMK);
+    if (!recoveredRMK) return;
 
     // Ask for new password
     const newPassword = await requestNewPassword();
@@ -2304,10 +2182,27 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
     $("#recoveryError").hide();
 
     const modalEl = document.getElementById("recoveryModal");
-    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+    const modal = new bootstrap.Modal(modalEl, { backdrop: true, keyboard: true });
     modal.show();
 
     const btn = document.getElementById("submitRecoveryButton");
+    let settled = false;
+
+    function cleanup() {
+      btn.removeEventListener("click", handle);
+      modalEl.removeEventListener("hidden.bs.modal", handleDismiss);
+    }
+
+    function finish(value) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    }
+
+    function handleDismiss() {
+      finish(null);
+    }
 
     async function handle() {
       const recoveryKey = $("#recoveryKeyInput").val();
@@ -2317,17 +2212,16 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
         const recoveryUAK = await window.deriveRecoveryUAK(recoveryKey, patientAddress);
         const recoveredRMK = await window.unwrapRMK(wrappedRecoveryRMK, recoveryUAK);
 
-        modal.hide(); // hide only on success
-        btn.removeEventListener("click", handle);
-        resolve(recoveredRMK); // return the recovered RMK
+        finish(recoveredRMK);
+        modal.hide();
 
       } catch (err) {
         $("#recoveryError").text("Invalid recovery key. Please try again.").show();
-        // keep modal open
       }
     }
 
     btn.addEventListener("click", handle);
+    modalEl.addEventListener("hidden.bs.modal", handleDismiss, { once: true });
   });
 }
 
@@ -2434,11 +2328,6 @@ async function buildPatientLLMContext() {
 async function sendSymptomMessage() {
   const input = document.getElementById("symptomInput");
   const chatWindow = document.getElementById("chatWindow");
-  const escapeHtml = (text) =>
-    text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
 
   const message = input.value.trim();
   if (!message) return;
@@ -2489,11 +2378,8 @@ async function sendSymptomMessage() {
         typingRemoved = true;
         span = appendMessageToUI("assistant", "");
       }
-      aiReply += chunk.replace(/\*\*/g, "");
-      const displayReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply));
-      let safe = escapeHtml(displayReply);
-      safe = formatRiskLevelMarkup(safe);
-      if (span) span.innerHTML = safe.replace(/\n/g, "<br>");
+      aiReply += chunk;
+      if (span) span.innerHTML = renderAssistantMessage(aiReply);
       chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
@@ -2506,10 +2392,7 @@ async function sendSymptomMessage() {
       removeTypingIndicator(typingBubble);
       typingRemoved = true;
       span = appendMessageToUI("assistant", "");
-      const displayReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply));
-      let safe = escapeHtml(displayReply);
-      safe = formatRiskLevelMarkup(safe);
-      if (span) span.innerHTML = safe.replace(/\n/g, "<br>");
+      if (span) span.innerHTML = renderAssistantMessage(aiReply);
     }
 
     const finalReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply)).trim();
@@ -3181,7 +3064,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const btn = e.target.closest(".ai-copy-btn");
       if (!btn) return;
       const bubble = btn.closest(".ai-bubble");
-      const span = bubble ? bubble.querySelector("span") : null;
+      const span = bubble ? bubble.querySelector(".ai-message-content") : null;
       const text = span ? span.textContent.trim() : "";
       if (!text) return;
       try {
