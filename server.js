@@ -22,7 +22,7 @@ const NUM_PREDICT_TRIAGE = Number(process.env.OLLAMA_NUM_PREDICT_TRIAGE || 400);
 const IPFS_HOST = process.env.IPFS_HOST || "127.0.0.1";
 const IPFS_PORT = Number(process.env.IPFS_PORT || 5001);
 const IPFS_PROTOCOL = process.env.IPFS_PROTOCOL || "http";
-const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "http://localhost:8080/ipfs";
+const IPFS_GATEWAY_URL = "http://127.0.0.1:8080/ipfs";
 const WEB3_HTTP_URL = process.env.WEB3_HTTP_URL || "http://127.0.0.1:8546";
 
 const subtle = webcrypto.subtle;
@@ -204,7 +204,11 @@ async function uploadEncryptedPayloadToIPFS(payload) {
 }
 
 async function readEncryptedPayloadFromIPFS(ipfsHash) {
-  const response = await axios.get(`${IPFS_GATEWAY_URL}/${ipfsHash}`, { timeout: 30000 });
+  const url = `${IPFS_GATEWAY_URL}/${ipfsHash}`;
+  console.log("Fetching from IPFS:", url);
+
+  const response = await axios.get(url, { timeout: 30000 });
+
   return typeof response.data === "string"
     ? JSON.parse(response.data)
     : response.data;
@@ -692,6 +696,7 @@ app.post("/api/fhir/import", async (req, res) => {
     const rmk = await generateAESKey();
     const encryptedPayload = await encryptAES(JSON.stringify(normalizedRecord), rmk);
     const ipfsHash = await uploadEncryptedPayloadToIPFS(encryptedPayload);
+    console.log("IPFS hash returned from upload:", ipfsHash);
 
     const uak = await deriveUAK(password, normalizedPatientAddress);
     const wrappedRMK = await wrapRMK(rmk, uak);
@@ -728,7 +733,11 @@ app.get("/api/fhir/export/:patientAddress", async (req, res) => {
       return res.status(400).json({ error: "FHIR export requires patientAddress and password." });
     }
 
-    const recordHash = await getPatientRecordHash(patientAddress);
+    const recordHashRaw = await getPatientRecordHash(patientAddress);
+console.log("RAW recordHash from blockchain:", recordHashRaw);
+
+const recordHash = normalizeIPFSHash(recordHashRaw);
+console.log("Normalized recordHash:", recordHash);
     if (!recordHash) {
       return res.status(404).json({ error: "No medical record found for this patient." });
     }
@@ -753,3 +762,19 @@ app.get("/api/fhir/export/:patientAddress", async (req, res) => {
 app.listen(3000, () => {
   console.log("Server running on port 3000");
 });
+
+function normalizeIPFSHash(hash) {
+  if (!hash) return hash;
+
+  // remove subdomain-style: bafy...ipfs.localhost
+  if (hash.includes(".ipfs.")) {
+    return hash.split(".ipfs.")[0];
+  }
+
+  // remove full URL if stored accidentally
+  if (hash.includes("/ipfs/")) {
+    return hash.split("/ipfs/")[1];
+  }
+
+  return hash;
+}
