@@ -476,7 +476,11 @@ async function showRecords(element) {
       // Convert record to formatted HTML
       const formattedHtml = `
         <div class="medical-record-title">Medical Record</div>
-        ${renderMedicalRecord(decryptedRecord)}
+        ${renderMedicalRecord(decryptedRecord, {
+          includeDiagnosis: false,
+          includeTreatment: false,
+          includeTriage: false,
+        })}
       `;
       const sharedConversationsHtml = renderSharedConversations(decryptedRecord);
       const canEditTriage = await canEditTriageReport(patientAddr);

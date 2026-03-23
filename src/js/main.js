@@ -604,27 +604,34 @@ function buildTriageReportCard(triageReports) {
   `;
 }
 
-function renderMedicalRecord(record) {
+function renderMedicalRecord(record, options = {}) {
   if (!record) return "";
 
   const patient = getPrimaryPatientRecord(record);
   const diagnosis = getRecordDiagnoses(record);
   const treatmentPlan = getRecordTreatments(record);
   const triageReports = getRecordTriageReports(record);
+  const {
+    includeDiagnosis = true,
+    includeTreatment = true,
+    includeTriage = true,
+  } = options;
 
   const patientCard = buildPatientRecordCard(record, patient);
-  const diagnosisCard = buildDiagnosisRecordCard(diagnosis);
-  const treatmentCard = buildTreatmentRecordCard(treatmentPlan);
-  const reportCard = buildTriageReportCard(triageReports);
+  const diagnosisCard = includeDiagnosis ? buildDiagnosisRecordCard(diagnosis) : "";
+  const treatmentCard = includeTreatment ? buildTreatmentRecordCard(treatmentPlan) : "";
+  const reportCard = includeTriage ? buildTriageReportCard(triageReports) : "";
 
   const mainCards = [treatmentCard, diagnosisCard, reportCard].filter(Boolean).join("");
 
   return `
     <div class="ehr-shell space-y-5 mx-auto w-full max-w-none px-0">
       ${patientCard}
+      ${mainCards ? `
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-2 items-start">
         ${mainCards}
       </div>
+      ` : ""}
     </div>
   `;
 }
