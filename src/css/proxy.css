@@ -35,6 +35,85 @@ body {
   color: #5a5c69;
 }
 
+.medical-record-surface {
+  margin: 20px 0;
+}
+
+.medical-record-title {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0 0 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.medical-record-surface .ehr-shell {
+  max-width: 1080px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 16px 8px;
+}
+
+.medical-record-surface .ehr-shell > .grid {
+  align-items: start;
+}
+
+.medical-record-surface .ehr-shell > .grid > section.rounded-2xl.border.border-slate-200.bg-white.shadow-sm {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  height: 100%;
+}
+
+.medical-record-surface .ehr-shell > .grid > section.rounded-2xl.border.border-slate-200.bg-white.shadow-sm > div:last-child {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  flex: 1;
+}
+
+.medical-record-surface .rounded-xl.border.border-slate-200.bg-white.p-4.shadow-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  height: 100%;
+  min-width: 0;
+}
+
+.medical-record-surface .rounded-xl.border.border-slate-200.bg-white.p-4.shadow-sm > .mt-2 {
+  margin-top: 0 !important;
+}
+
+.medical-record-surface .rounded-xl .rounded-full,
+.medical-record-surface .rounded-xl .inline-flex.rounded-full {
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.85rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  line-height: 1.35;
+}
+
+.medical-record-surface .rounded-xl .inline-flex.rounded-full {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.medical-record-surface .rounded-xl .break-words,
+.medical-record-surface .rounded-xl .whitespace-normal,
+.medical-record-surface .rounded-xl .leading-relaxed {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
 #personalInfoPanel {
   display: block;
 }
@@ -141,4 +220,16 @@ body {
 #records::-webkit-scrollbar-thumb {
   background: #5e72e4;
   border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+  .medical-record-surface .ehr-shell {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .medical-record-surface .rounded-xl .rounded-full,
+  .medical-record-surface .rounded-xl .inline-flex.rounded-full {
+    width: 100%;
+  }
 }

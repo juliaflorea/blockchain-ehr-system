@@ -279,13 +279,16 @@ const jsonData =
 typeof decryptedData === "string"
   ? JSON.parse(decryptedData)
   : decryptedData;
-  const formattedHtml = renderResource(jsonData);
+  const formattedHtml = `
+    <div class="medical-record-title">Medical Record</div>
+    ${renderMedicalRecord(jsonData)}
+  `;
 
   const content = `
     <div class="tab-content">
       <div class="row">
         <div class="col-sm-12">
-          <div style="margin:20px 0;">
+          <div class="medical-record-surface">
             ${formattedHtml}
           </div>
         </div>
