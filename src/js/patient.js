@@ -683,16 +683,26 @@ async function exportFHIRMedicalRecord() {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
-    const password = window.prompt("Enter your access password to export this medical record as FHIR JSON:");
 
-    if (!password) {
+    // Ensure session key exists
+    if (!sessionAESKey) {
+      alert("Session expired. Please log in again.");
       return;
     }
 
+    // Export raw AES key from session
+    const rawKey = await window.crypto.subtle.exportKey("raw", sessionAESKey);
+
+    // Convert to base64
+    const rawKeyBase64 = btoa(
+      String.fromCharCode(...new Uint8Array(rawKey))
+    );
+
+    // Call backend with session key instead of password
     const response = await fetch(`${getApiBaseUrl()}/api/fhir/export/${patientAddress}`, {
       method: "GET",
       headers: {
-        "x-record-password": password,
+        "x-session-key": rawKeyBase64,
       },
     });
 
@@ -701,8 +711,15 @@ async function exportFHIRMedicalRecord() {
       throw new Error(payload.error || "FHIR export failed.");
     }
 
+    // Generate filename
     const patientName = getPatientName(payload).replace(/\s+/g, "_");
-    downloadJsonFile(`${patientName || "medical_record"}_fhir_bundle.json`, payload);
+
+    // Download file
+    downloadJsonFile(
+      `${patientName || "medical_record"}_fhir_bundle.json`,
+      payload
+    );
+
   } catch (err) {
     console.error("FHIR export failed:", err);
     alert(err.message || "FHIR export failed.");

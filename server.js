@@ -727,12 +727,7 @@ app.post("/api/fhir/import", async (req, res) => {
 app.get("/api/fhir/export/:patientAddress", async (req, res) => {
   try {
     const patientAddress = ensureLowercaseAddress(req.params.patientAddress);
-    const password = req.get("x-record-password") || req.query.password;
-
-    if (!patientAddress || !password) {
-      return res.status(400).json({ error: "FHIR export requires patientAddress and password." });
-    }
-
+    
     const recordHashRaw = await getPatientRecordHash(patientAddress);
 console.log("RAW recordHash from blockchain:", recordHashRaw);
 
@@ -742,9 +737,22 @@ console.log("Normalized recordHash:", recordHash);
       return res.status(404).json({ error: "No medical record found for this patient." });
     }
 
-    const wrappedRMK = await getWrappedRMKForPatient(patientAddress);
-    const uak = await deriveUAK(password, patientAddress);
-    const rmk = await unwrapRMK(wrappedRMK, uak);
+    const rawKeyBase64 = req.get("x-session-key");
+
+if (!rawKeyBase64) {
+  return res.status(400).json({ error: "Missing session key." });
+}
+
+// reconstruct AES key
+const rawKey = b64decode(rawKeyBase64);
+
+const rmk = await subtle.importKey(
+  "raw",
+  rawKey,
+  "AES-GCM",
+  true,
+  ["decrypt"]
+);
     const encryptedPayload = await readEncryptedPayloadFromIPFS(recordHash);
     const decryptedRecord = JSON.parse(await decryptAES(encryptedPayload, rmk));
     const bundle = generateFHIRBundle(decryptedRecord);
