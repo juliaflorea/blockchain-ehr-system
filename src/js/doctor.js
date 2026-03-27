@@ -572,9 +572,9 @@ async function showRecords(element) {
                     <label for="severity${patientAddr}" class="form-label">Severity</label>
                     <select class="form-control clinical-input" id="severity${patientAddr}" required>
                       <option selected disabled>Select severity...</option>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
+                      <option value="low">Mild</option>
+                      <option value="medium">Moderate</option>
+                      <option value="high">Severe</option>
                     </select>
                   </div>
                 </div>
@@ -709,11 +709,11 @@ async function submitDiagnosis(element, index) {
     // Get form details
     const diagnosisIndex = document.getElementById(`ailmentsList${patientAddress}`).value;
     const clinicalStatus = document.getElementById(`clinicalStatus${patientAddress}`).value;
-    const severity = document.getElementById(`severity${patientAddress}`).value;
+    let severityInput = document.getElementById(`severity${patientAddress}`).value;
     const affectedArea = document.getElementById(`affectedArea${patientAddress}`).value;
     const otherDetails = document.getElementById(`details${patientAddress}`).value;
 
-    if (!diagnosisIndex || !clinicalStatus || !severity || !affectedArea) {
+    if (!diagnosisIndex || !clinicalStatus || !severityInput || !affectedArea) {
       alert("Please fill in all fields.");
       return;
     }
@@ -747,6 +747,21 @@ async function submitDiagnosis(element, index) {
 
     const datetime = new Date().toISOString();
     const docNameStored = docName || "Unknown Doctor";
+    const severityMap = {
+      low: "mild",
+      medium: "moderate",
+      high: "severe",
+      mild: "mild",
+      moderate: "moderate",
+      severe: "severe",
+    };
+    const severity = severityMap[severityInput];
+
+    if (!severity) {
+      alert("Please select a valid severity.");
+      return;
+    }
+
     let diagnosed;
     if (diagnosisIndex === "other") {
       diagnosed = document.getElementById(`customDiagnosis${patientAddress}`).value;
@@ -780,6 +795,7 @@ async function submitDiagnosis(element, index) {
           {
             system: "http://terminology.hl7.org/CodeSystem/condition-severity",
             code: severity,
+            display: severity,
           },
         ],
       },

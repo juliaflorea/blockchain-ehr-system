@@ -88,13 +88,15 @@ function mapPatientResource(patientResource) {
 
 function mapConditionResource(resource, fhirVersion) {
   let clinicalStatus = "";
+  let severity = "";
 
 if (fhirVersion === "STU3") {
   clinicalStatus = resource.clinicalStatus || "";
+  severity = resource.severity || "";
 } else {
   clinicalStatus = firstCodingCode(resource.clinicalStatus) || firstCodingDisplay(resource.clinicalStatus) || "";
+  severity = firstCodingCode(resource.severity) || firstCodingDisplay(resource.severity) || "";
 }
-  const severity = firstCodingCode(resource.severity) || firstCodingDisplay(resource.severity) || "";
   const details = asArray(resource.note).map((note) => note && note.text).filter(Boolean).join("\n");
 
   return {

@@ -1,5 +1,6 @@
 "use strict";
 const { mapToSNOMED } = require("./semanticMappingService");
+const { formatCondition } = require("../utils/fhirFormatter");
 
 function cloneResource(resource) {
   return resource ? JSON.parse(JSON.stringify(resource)) : resource;
@@ -16,6 +17,23 @@ function firstCodingValue(concept) {
 
 function cloneIfPresent(value) {
   return value == null ? value : cloneResource(value);
+}
+
+function sanitizeIdSegment(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/(^|-)stu3(?=-|$)/g, "$1")
+    .replace(/(^|-)r4(?=-|$)/g, "$1")
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
+    .replace(/[^a-z0-9]+/g, "-");
+}
+
+function normalizeResourceId(prefix, value, fallback) {
+  const normalized = sanitizeIdSegment(value);
+  if (!normalized) return `${prefix}-${fallback}`;
+  if (normalized.startsWith(`${prefix}-`)) return normalized;
+  return `${prefix}-${normalized}`;
 }
 
 function normalizeConditionCode(resourceCode, diagnosedText) {
@@ -58,69 +76,69 @@ function buildCanonicalCondition(diagnosis, index) {
 
   return {
     resourceType: "Condition",
-    id: diagnosis?.id || source.id || `condition-${index + 1}`,
-    clinicalStatus:
-      diagnosis?.clinicalStatus ||
-      (typeof source.clinicalStatus === "string"
-        ? source.clinicalStatus
-        : firstCodingValue(source.clinicalStatus)) ||
-      "unknown",
-    severity:
-      diagnosis?.severity ||
-      (typeof source.severity === "string"
-        ? source.severity
-        : firstCodingValue(source.severity)) ||
-      "unknown",
-    code: normalizeConditionCode(source.code, diagnosedText),
-    bodySite: cloneIfPresent(bodySite) || [],
-    recordedDate: diagnosis?.datetime || source.recordedDate || source.onsetDateTime,
-    note: cloneIfPresent(note) || [],
-  };
-}
-
-function formatConditionByVersion(condition, version) {
-  if (version === "STU3") {
-    return {
-      resourceType: "Condition",
-      id: condition.id,
-      clinicalStatus: condition.clinicalStatus || "unknown",
-      severity: condition.severity || "unknown",
-      code: condition.code,
-      bodySite: condition.bodySite,
-      recordedDate: condition.recordedDate,
-      note: condition.note,
-    };
-  }
-
-  return {
-    resourceType: "Condition",
-    id: condition.id,
-    clinicalStatus: condition.clinicalStatus
+    id: normalizeResourceId("condition", diagnosis?.id || source.id, index + 1),
+    clinicalStatus: diagnosis?.clinicalStatus
       ? {
           coding: [
             {
               system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
-              code: condition.clinicalStatus,
-              display: condition.clinicalStatus,
+              code: diagnosis.clinicalStatus,
+              display: diagnosis.clinicalStatus,
             },
           ],
         }
-      : undefined,
-    severity: condition.severity
+      : typeof source.clinicalStatus === "string"
+        ? {
+            coding: [
+              {
+                system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                code: source.clinicalStatus,
+                display: source.clinicalStatus,
+              },
+            ],
+          }
+        : cloneIfPresent(source.clinicalStatus) || {
+            coding: [
+              {
+                system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
+                code: "unknown",
+                display: "unknown",
+              },
+            ],
+          },
+    severity: diagnosis?.severity
       ? {
           coding: [
             {
               system: "http://terminology.hl7.org/CodeSystem/condition-severity",
-              code: condition.severity,
-              display: condition.severity,
+              code: diagnosis.severity,
+              display: diagnosis.severity,
             },
           ],
         }
-      : undefined,
-    code: condition.code,
-    bodySite: condition.bodySite,
-    recordedDate: condition.recordedDate,
-    note: condition.note,
+      : typeof source.severity === "string"
+        ? {
+            coding: [
+              {
+                system: "http://terminology.hl7.org/CodeSystem/condition-severity",
+                code: source.severity,
+                display: source.severity,
+              },
+            ],
+          }
+        : cloneIfPresent(source.severity) || {
+            coding: [
+              {
+                system: "http://terminology.hl7.org/CodeSystem/condition-severity",
+                code: "unknown",
+                display: "unknown",
+              },
+            ],
+          },
+    code: normalizeConditionCode(source.code, diagnosedText),
+    bodySite: cloneIfPresent(bodySite) || [],
+    recordedDate: diagnosis?.datetime || source.recordedDate || source.onsetDateTime,
+    note: cloneIfPresent(note) || [],
   };
 }
 
@@ -158,14 +176,11 @@ function buildDurationQuantity(durationText) {
 }
 
 function buildPatientResource(record) {
-  if (record.fhirPatientResource) {
-    return cloneResource(record.fhirPatientResource);
-  }
-
   const personalInfo = normalizePersonalInfo(record);
-  return {
+  const patientResource = record.fhirPatientResource
+    ? cloneResource(record.fhirPatientResource)
+    : {
     resourceType: "Patient",
-    id: record.id || undefined,
     name: [
       {
         family: personalInfo.lastName || undefined,
@@ -187,10 +202,14 @@ function buildPatientResource(record) {
         ]
       : [],
   };
+
+  patientResource.id = normalizeResourceId("patient", record.id || patientResource.id, "record");
+
+  return patientResource;
 }
 
 function buildConditionResource(diagnosis, index, version) {
-  return formatConditionByVersion(buildCanonicalCondition(diagnosis, index), version);
+  return formatCondition(buildCanonicalCondition(diagnosis, index), version);
 }
 
 function buildMedicationRequestResource(treatment, index) {
@@ -290,9 +309,6 @@ function generateFHIRBundle(record, version = "R4") {
 
   return {
     resourceType: "Bundle",
-    meta: {
-      fhirVersion: normalizedVersion === "STU3" ? "3.0.2" : "4.0.1",
-    },
     type: "collection",
     entry: entries.filter((entry) => entry && entry.resource),
   };
@@ -300,5 +316,5 @@ function generateFHIRBundle(record, version = "R4") {
 
 module.exports = {
   generateFHIRBundle,
-  formatConditionByVersion,
+  formatConditionByVersion: formatCondition,
 };

@@ -1,6 +1,11 @@
 "use strict";
 
 const SNOMED_MAP = {
+  enterocolitis: {
+    system: "http://snomed.info/sct",
+    code: "111854005",
+    display: "Enterocolitis",
+  },
   "streptococcal pharyngitis": {
     system: "http://snomed.info/sct",
     code: "195662009",
