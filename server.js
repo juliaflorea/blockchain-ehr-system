@@ -746,6 +746,8 @@ const normalizedRecord = removeNaN(parseFHIRBundle(bundleObj));
 app.get("/api/fhir/export/:patientAddress", async (req, res) => {
   try {
     const patientAddress = ensureLowercaseAddress(req.params.patientAddress);
+    const requestedVersion = String(req.query.version || "R4").toUpperCase();
+    const exportVersion = requestedVersion === "STU3" ? "STU3" : "R4";
     
     const recordHashRaw = await getPatientRecordHash(patientAddress);
 console.log("RAW recordHash from blockchain:", recordHashRaw);
@@ -774,7 +776,7 @@ const rmk = await subtle.importKey(
 );
     const encryptedPayload = await readEncryptedPayloadFromIPFS(recordHash);
     const decryptedRecord = JSON.parse(await decryptAES(encryptedPayload, rmk));
-    const bundle = generateFHIRBundle(decryptedRecord);
+    const bundle = generateFHIRBundle(decryptedRecord, exportVersion);
 
 // ✅ VALIDATE BEFORE RETURN
 const validation = validateFHIRBundle(bundle);
@@ -787,11 +789,9 @@ res.setHeader("Content-Type", "application/fhir+json; charset=utf-8");
 
 return res.json({
   bundle,
-  validation
+  validation,
+  version: exportVersion,
 });
-
-    res.setHeader("Content-Type", "application/fhir+json; charset=utf-8");
-    return res.json(bundle);
   } catch (error) {
     console.error("FHIR export failed:", error.message);
     return res.status(500).json({

@@ -683,6 +683,7 @@ async function exportFHIRMedicalRecord() {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
+    const selectedVersion = document.getElementById("fhirExportVersion")?.value || "R4";
 
     // Ensure session key exists
     if (!sessionAESKey) {
@@ -699,7 +700,7 @@ async function exportFHIRMedicalRecord() {
     );
 
     // Call backend with session key instead of password
-    const response = await fetch(`${getApiBaseUrl()}/api/fhir/export/${patientAddress}`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/fhir/export/${patientAddress}?version=${encodeURIComponent(selectedVersion)}`, {
       method: "GET",
       headers: {
         "x-session-key": rawKeyBase64,
@@ -711,13 +712,15 @@ async function exportFHIRMedicalRecord() {
       throw new Error(payload.error || "FHIR export failed.");
     }
 
+    const bundle = payload?.bundle || payload;
+
     // Generate filename
-    const patientName = getPatientName(payload).replace(/\s+/g, "_");
+    const patientName = getPatientName(bundle).replace(/\s+/g, "_");
 
     // Download file
     downloadJsonFile(
       `${patientName || "medical_record"}_fhir_bundle.json`,
-      payload
+      bundle
     );
 
   } catch (err) {
@@ -3192,4 +3195,3 @@ document.addEventListener("DOMContentLoaded", () => {
     shareBtn.addEventListener("click", shareTriageReport);
   }
 });
-

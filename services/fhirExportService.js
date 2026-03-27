@@ -9,6 +9,121 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function firstCodingValue(concept) {
+  const coding = asArray(concept && concept.coding);
+  return coding[0] && (coding[0].code || coding[0].display) ? (coding[0].code || coding[0].display) : "";
+}
+
+function cloneIfPresent(value) {
+  return value == null ? value : cloneResource(value);
+}
+
+function normalizeConditionCode(resourceCode, diagnosedText) {
+  const mappedCoding = mapToSNOMED(diagnosedText);
+
+  if (mappedCoding.length > 0) {
+    return {
+      text: diagnosedText,
+      coding: mappedCoding,
+    };
+  }
+
+  if (resourceCode && typeof resourceCode === "object") {
+    return {
+      ...cloneResource(resourceCode),
+      text: resourceCode.text || diagnosedText || resourceCode.text,
+    };
+  }
+
+  return {
+    text: diagnosedText || "Unspecified condition",
+    coding: [],
+  };
+}
+
+function buildCanonicalCondition(diagnosis, index) {
+  const source = diagnosis && diagnosis.fhirConditionResource ? diagnosis.fhirConditionResource : {};
+  const diagnosedText =
+    diagnosis?.diagnosed ||
+    source.code?.text ||
+    firstCodingValue(source.code) ||
+    "Unspecified condition";
+
+  const bodySite = diagnosis?.affectedArea
+    ? [{ text: diagnosis.affectedArea }]
+    : asArray(source.bodySite);
+  const note = diagnosis?.details
+    ? [{ text: diagnosis.details }]
+    : asArray(source.note);
+
+  return {
+    resourceType: "Condition",
+    id: diagnosis?.id || source.id || `condition-${index + 1}`,
+    clinicalStatus:
+      diagnosis?.clinicalStatus ||
+      (typeof source.clinicalStatus === "string"
+        ? source.clinicalStatus
+        : firstCodingValue(source.clinicalStatus)) ||
+      "unknown",
+    severity:
+      diagnosis?.severity ||
+      (typeof source.severity === "string"
+        ? source.severity
+        : firstCodingValue(source.severity)) ||
+      "unknown",
+    code: normalizeConditionCode(source.code, diagnosedText),
+    bodySite: cloneIfPresent(bodySite) || [],
+    recordedDate: diagnosis?.datetime || source.recordedDate || source.onsetDateTime,
+    note: cloneIfPresent(note) || [],
+  };
+}
+
+function formatConditionByVersion(condition, version) {
+  if (version === "STU3") {
+    return {
+      resourceType: "Condition",
+      id: condition.id,
+      clinicalStatus: condition.clinicalStatus || "unknown",
+      severity: condition.severity || "unknown",
+      code: condition.code,
+      bodySite: condition.bodySite,
+      recordedDate: condition.recordedDate,
+      note: condition.note,
+    };
+  }
+
+  return {
+    resourceType: "Condition",
+    id: condition.id,
+    clinicalStatus: condition.clinicalStatus
+      ? {
+          coding: [
+            {
+              system: "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              code: condition.clinicalStatus,
+              display: condition.clinicalStatus,
+            },
+          ],
+        }
+      : undefined,
+    severity: condition.severity
+      ? {
+          coding: [
+            {
+              system: "http://terminology.hl7.org/CodeSystem/condition-severity",
+              code: condition.severity,
+              display: condition.severity,
+            },
+          ],
+        }
+      : undefined,
+    code: condition.code,
+    bodySite: condition.bodySite,
+    recordedDate: condition.recordedDate,
+    note: condition.note,
+  };
+}
+
 function normalizePersonalInfo(record) {
   const personalInfo = record.personalInfo || {};
   const fallbackName = asArray(record.name)[0] || {};
@@ -74,37 +189,8 @@ function buildPatientResource(record) {
   };
 }
 
-function buildConditionResource(diagnosis, index) {
-  if (diagnosis && diagnosis.fhirConditionResource) {
-    return cloneResource(diagnosis.fhirConditionResource);
-  }
-
-  const note = diagnosis && diagnosis.details ? [{ text: diagnosis.details }] : [];
-  const bodySite = diagnosis && diagnosis.affectedArea ? [{ text: diagnosis.affectedArea }] : [];
-  const mapped = mapToSNOMED(diagnosis.diagnosed);
-
-
-  return {
-    resourceType: "Condition",
-    id: diagnosis.id || `condition-${index + 1}`,
-    clinicalStatus: diagnosis.clinicalStatus
-      ? { coding: [{ code: diagnosis.clinicalStatus, display: diagnosis.clinicalStatus }] }
-      : undefined,
-    severity: diagnosis.severity
-      ? { coding: [{ code: diagnosis.severity, display: diagnosis.severity }] }
-      : undefined,
-    code: mapped
-  ? {
-      coding: [mapped],
-      text: mapped.display
-    }
-  : {
-      text: diagnosis.diagnosed || "Unspecified condition"
-    },
-    bodySite,
-    recordedDate: diagnosis.datetime || undefined,
-    note,
-  };
+function buildConditionResource(diagnosis, index, version) {
+  return formatConditionByVersion(buildCanonicalCondition(diagnosis, index), version);
 }
 
 function buildMedicationRequestResource(treatment, index) {
@@ -179,15 +265,17 @@ function buildEncounterResource(encounter, index) {
   };
 }
 
-function generateFHIRBundle(record) {
+function generateFHIRBundle(record, version = "R4") {
   if (!record || typeof record !== "object") {
     throw new Error("A decrypted patient record object is required for FHIR export.");
   }
 
+  const normalizedVersion = version === "STU3" ? "STU3" : "R4";
+
   const entries = [
     { resource: buildPatientResource(record) },
     ...asArray(record.diagnosis).map((diagnosis, index) => ({
-      resource: buildConditionResource(diagnosis, index),
+      resource: buildConditionResource(diagnosis, index, normalizedVersion),
     })),
     ...asArray(record.treatmentPlan).map((treatment, index) => ({
       resource: buildMedicationRequestResource(treatment, index),
@@ -202,6 +290,9 @@ function generateFHIRBundle(record) {
 
   return {
     resourceType: "Bundle",
+    meta: {
+      fhirVersion: normalizedVersion === "STU3" ? "3.0.2" : "4.0.1",
+    },
     type: "collection",
     entry: entries.filter((entry) => entry && entry.resource),
   };
@@ -209,4 +300,5 @@ function generateFHIRBundle(record) {
 
 module.exports = {
   generateFHIRBundle,
+  formatConditionByVersion,
 };

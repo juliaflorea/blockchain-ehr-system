@@ -9,7 +9,6 @@ ailmentsDict[2] = "Cancer";
 ailmentsDict[3] = "Tumor";
 ailmentsDict[4] = "Covid-19";
 ailmentsDict[5] = "Heart-Disorder";
-ailmentsDict[6] = "Other";
 var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
@@ -21,6 +20,24 @@ let recordsToggled = {};
 
 
 console.log("doctor.js loaded");
+
+function toggleCustomDiagnosisInput(patientAddress) {
+  const diagnosisSelect = document.getElementById(`ailmentsList${patientAddress}`);
+  const customDiagnosisWrapper = document.getElementById(`customDiagnosisWrapper${patientAddress}`);
+  const customDiagnosisInput = document.getElementById(`customDiagnosis${patientAddress}`);
+  const isOtherSelected = diagnosisSelect && diagnosisSelect.value === "other";
+
+  if (customDiagnosisWrapper) {
+    customDiagnosisWrapper.style.display = isOtherSelected ? "block" : "none";
+  }
+
+  if (customDiagnosisInput) {
+    customDiagnosisInput.required = isOtherSelected;
+    if (!isOtherSelected) {
+      customDiagnosisInput.value = "";
+    }
+  }
+}
 
 async function getDoctorAESKeyForPatient(patientAddress) {
   if (doctorSessionKeys[patientAddress]) return doctorSessionKeys[patientAddress];
@@ -536,7 +553,7 @@ async function showRecords(element) {
                 <div class="form-row clinical-form-row">
                   <div class="form-field">
                     <label for="ailmentsList${patientAddr}" class="form-label">Diagnosis Name</label>
-                    <select class="form-control clinical-input" id="ailmentsList${patientAddr}" required>
+                    <select class="form-control clinical-input" id="ailmentsList${patientAddr}" required onchange="toggleCustomDiagnosisInput('${patientAddr}')">
                       <option selected disabled>Choose diagnosis...</option>
                       <option value="0">Common Flu</option>
                       <option value="1">Viral Infection</option>
@@ -544,8 +561,12 @@ async function showRecords(element) {
                       <option value="3">Tumor</option>
                       <option value="4">Covid-19</option>
                       <option value="5">Heart Disorder</option>
-                      <option value="6">Other</option>
+                      <option value="other">Other</option>
                     </select>
+                    <div id="customDiagnosisWrapper${patientAddr}" class="mt-3" style="display:none;">
+                      <label for="customDiagnosis${patientAddr}" class="form-label">Custom Diagnosis</label>
+                      <input type="text" class="form-control clinical-input" id="customDiagnosis${patientAddr}" placeholder="Enter diagnosis">
+                    </div>
                   </div>
                   <div class="form-field">
                     <label for="severity${patientAddr}" class="form-label">Severity</label>
@@ -726,8 +747,23 @@ async function submitDiagnosis(element, index) {
 
     const datetime = new Date().toISOString();
     const docNameStored = docName || "Unknown Doctor";
-    const diagnosis = parseInt(diagnosisIndex);
-    const diagnosed = ailmentsDict[diagnosis];
+    let diagnosed;
+    if (diagnosisIndex === "other") {
+      diagnosed = document.getElementById(`customDiagnosis${patientAddress}`).value;
+
+      if (!diagnosed || diagnosed.trim() === "") {
+        alert("Please enter a diagnosis.");
+        return;
+      }
+
+      diagnosed = diagnosed.trim();
+    } else {
+      diagnosed = ailmentsDict[parseInt(diagnosisIndex, 10)];
+    }
+
+    const coding = typeof window.mapToSNOMED === "function"
+      ? window.mapToSNOMED(diagnosed)
+      : [];
 
     const fhirConditionResource = {
       resourceType: "Condition",
@@ -747,7 +783,10 @@ async function submitDiagnosis(element, index) {
           },
         ],
       },
-      code: { text: diagnosed },
+      code: {
+        text: diagnosed,
+        coding,
+      },
       bodySite: [{ text: affectedArea }],
       onsetDateTime: datetime,
       note: [{ text: otherDetails }],
