@@ -1,3 +1,5 @@
+const { validateFHIRBundle } = require("./services/fhirValidationService");
+
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
@@ -687,11 +689,28 @@ app.post("/api/fhir/import", async (req, res) => {
       return res.status(400).json({ error: "FHIR import requires a bundleJson payload." });
     }
 
-    if (!patientAddress || !password) {
-      return res.status(400).json({ error: "FHIR import requires patientAddress and password." });
-    }
+    if (!bundleJson) {
+  return res.status(400).json({ error: "FHIR import requires a bundleJson payload." });
+}
 
-    const normalizedRecord = parseFHIRBundle(bundleJson);
+    const bundleObjRaw = typeof bundleJson === "string" ? JSON.parse(bundleJson) : bundleJson;
+    const bundleObj =
+      bundleObjRaw.bundle ||
+      bundleObjRaw.bundleJson ||
+      bundleObjRaw;
+
+// ✅ VALIDATE FIRST
+const validation = validateFHIRBundle(bundleObj);
+
+if (!validation.valid) {
+  return res.status(400).json({
+    error: "Invalid FHIR Bundle",
+    validation
+  });
+}
+
+const normalizedRecord = removeNaN(parseFHIRBundle(bundleObj));
+
     const normalizedPatientAddress = ensureLowercaseAddress(patientAddress);
     const rmk = await generateAESKey();
     const encryptedPayload = await encryptAES(JSON.stringify(normalizedRecord), rmk);
@@ -757,6 +776,20 @@ const rmk = await subtle.importKey(
     const decryptedRecord = JSON.parse(await decryptAES(encryptedPayload, rmk));
     const bundle = generateFHIRBundle(decryptedRecord);
 
+// ✅ VALIDATE BEFORE RETURN
+const validation = validateFHIRBundle(bundle);
+
+if (!validation.valid) {
+  console.warn("FHIR Export validation issues:", validation.issues);
+}
+
+res.setHeader("Content-Type", "application/fhir+json; charset=utf-8");
+
+return res.json({
+  bundle,
+  validation
+});
+
     res.setHeader("Content-Type", "application/fhir+json; charset=utf-8");
     return res.json(bundle);
   } catch (error) {
@@ -785,4 +818,30 @@ function normalizeIPFSHash(hash) {
   }
 
   return hash;
+}
+
+function removeNaN(obj) {
+  if (Array.isArray(obj)) {
+    return obj.map(removeNaN);
+  } else if (obj && typeof obj === "object") {
+    const cleaned = {};
+    for (const key in obj) {
+      let value = obj[key];
+
+      // ❌ Remove NaN
+      if (typeof value === "number" && isNaN(value)) continue;
+
+      // ❌ Remove undefined
+      if (value === undefined) continue;
+
+      // ✅ Fix null numeric fields
+      if (key === "frequency" && (value === null || value === "")) {
+        value = 1; // default safe value
+      }
+
+      cleaned[key] = removeNaN(value);
+    }
+    return cleaned;
+  }
+  return obj;
 }

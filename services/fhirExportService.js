@@ -1,4 +1,5 @@
 "use strict";
+const { mapToSNOMED } = require("./semanticMappingService");
 
 function cloneResource(resource) {
   return resource ? JSON.parse(JSON.stringify(resource)) : resource;
@@ -80,6 +81,8 @@ function buildConditionResource(diagnosis, index) {
 
   const note = diagnosis && diagnosis.details ? [{ text: diagnosis.details }] : [];
   const bodySite = diagnosis && diagnosis.affectedArea ? [{ text: diagnosis.affectedArea }] : [];
+  const mapped = mapToSNOMED(diagnosis.diagnosed);
+
 
   return {
     resourceType: "Condition",
@@ -90,8 +93,13 @@ function buildConditionResource(diagnosis, index) {
     severity: diagnosis.severity
       ? { coding: [{ code: diagnosis.severity, display: diagnosis.severity }] }
       : undefined,
-    code: {
-      text: diagnosis.diagnosed || "Unspecified condition",
+    code: mapped
+  ? {
+      coding: [mapped],
+      text: mapped.display
+    }
+  : {
+      text: diagnosis.diagnosed || "Unspecified condition"
     },
     bodySite,
     recordedDate: diagnosis.datetime || undefined,

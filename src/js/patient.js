@@ -727,24 +727,41 @@ async function exportFHIRMedicalRecord() {
 }
 
 
-// Get the patient name for the filename
 // Recursively find the first name in the record or its nested resources
 function getPatientName(record) {
-  // Case 1: Direct Patient resource
-  if (record?.resourceType === "Patient" && record.name?.length) {
-    const n = record.name[0];
-    return `${n.given.join("_")}_${n.family}`;
+  // Case 0: FHIR payload wrapped under .bundle
+  if (record?.bundle) {
+    return getPatientName(record.bundle);
   }
 
-  // Case 2: FHIR Bundle (CORRECT STRUCTURE)
-  if (record?.resourceType === "Bundle" && Array.isArray(record.entry)) {
+  let patient;
+
+  // Case 1: Direct Patient resource
+  if (record?.resourceType === "Patient") {
+    patient = record;
+  }
+  // Case 2: FHIR Bundle
+  else if (record?.resourceType === "Bundle" && Array.isArray(record.entry)) {
     for (const e of record.entry) {
       const res = e.resource;
-      if (res?.resourceType === "Patient" && res.name?.length) {
-        const n = res.name[0];
-        return `${n.given.join("_")}_${n.family}`;
+      if (res?.resourceType === "Patient") {
+        patient = res;
+        break;
       }
     }
+  }
+
+  if (!patient || !patient.name?.length) return "Unknown_Unknown";
+
+  const n = patient.name[0];
+
+  // Prefer 'given' + 'family' if available
+  if (Array.isArray(n.given) && n.family) {
+    return `${n.given.join("_")}_${n.family}`;
+  }
+  // Fallback to 'text' field
+  if (n.text) {
+    return n.text.replace(/\s+/g, "_");
   }
 
   return "Unknown_Unknown";
@@ -3175,3 +3192,4 @@ document.addEventListener("DOMContentLoaded", () => {
     shareBtn.addEventListener("click", shareTriageReport);
   }
 });
+

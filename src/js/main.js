@@ -232,8 +232,13 @@ function medicalRecordFormatDateTime(value) {
 
 function medicalRecordFormatName(nameArray) {
   if (!Array.isArray(nameArray) || nameArray.length === 0) return "Unknown Patient";
+
   return nameArray
-    .map((n) => `${(n.given || []).join(" ")} ${n.family || ""}`.trim())
+    .map((n) => {
+      const given = Array.isArray(n.given) ? n.given.join(" ") : (n.given || "");
+      const family = n.family || "";
+      return `${given} ${family}`.trim();
+    })
     .filter(Boolean)
     .join(", ");
 }
@@ -339,9 +344,15 @@ function getRecordTreatments(record) {
       const noteText = Array.isArray(resource.note)
         ? resource.note.map((item) => item.text).filter(Boolean).join(" ")
         : "";
-      const dosageFrequency = dosage?.timing?.code?.text
-        || (dosage?.timing?.repeat?.frequency ? String(dosage.timing.repeat.frequency) : "")
-        || "";
+      let freq = dosage?.timing?.repeat?.frequency;
+
+if (freq === null || freq === undefined || isNaN(freq)) {
+  freq = "N/A";
+}
+
+const dosageFrequency =
+  dosage?.timing?.code?.text ||
+  String(freq);
       treatments.push({
         datetime: resource.authoredOn || resource.effectiveDateTime || resource.dateAsserted || resource.meta?.lastUpdated || "Not provided",
         doctor: resource.requester?.display || resource.informationSource?.display || "Unknown Doctor",
@@ -647,7 +658,17 @@ function medicalRecordToPlainText(record) {
 
   if (patient?.name?.length) {
     const n = patient.name[0];
-    text += `Patient Name: ${n.given.join(" ")} ${n.family}\n`;
+    if (patient?.name?.length) {
+  const n = patient.name[0];
+
+  const given = Array.isArray(n.given)
+    ? n.given.join(" ")
+    : (n.given || "");
+
+  const family = n.family || "";
+
+  text += `Patient Name: ${given} ${family}\n`;
+}
   }
   if (patient?.gender) text += `Gender: ${patient.gender}\n`;
   if (patient?.birthDate) text += `Birth Date: ${patient.birthDate}\n`;

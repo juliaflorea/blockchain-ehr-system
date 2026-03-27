@@ -34,8 +34,13 @@ function firstAddressLine(resource) {
 
 function stringifyDoseQuantity(quantity) {
   if (!quantity || typeof quantity !== "object") return "";
-  const value = quantity.value != null ? String(quantity.value) : "";
+
+  const value = quantity.value != null && !isNaN(quantity.value)
+    ? String(quantity.value)
+    : "";
+
   const unit = quantity.unit || quantity.code || "";
+
   return [value, unit].filter(Boolean).join(" ").trim();
 }
 
@@ -48,8 +53,26 @@ function extractMedicationName(resource) {
 
 function mapPatientResource(patientResource) {
   const name = firstHumanName(patientResource);
-  const firstName = asArray(name.given)[0] || "";
-  const lastName = name.family || "";
+
+  let firstName = "";
+  let lastName = "";
+
+  //  R4
+  if (name.given || name.family) {
+  if (Array.isArray(name.given)) {
+    firstName = name.given.join(" ");
+  } else if (typeof name.given === "string") {
+    firstName = name.given;
+  }
+
+  lastName = name.family || "";
+}
+  //  STU3
+  else if (name.text) {
+    const parts = name.text.split(" ");
+    firstName = parts.slice(0, -1).join(" ") || "";
+    lastName = parts.slice(-1).join(" ") || "";
+  }
 
   return {
     firstName,
@@ -63,8 +86,14 @@ function mapPatientResource(patientResource) {
   };
 }
 
-function mapConditionResource(resource) {
-  const clinicalStatus = firstCodingCode(resource.clinicalStatus) || firstCodingDisplay(resource.clinicalStatus) || "";
+function mapConditionResource(resource, fhirVersion) {
+  let clinicalStatus = "";
+
+if (fhirVersion === "STU3") {
+  clinicalStatus = resource.clinicalStatus || "";
+} else {
+  clinicalStatus = firstCodingCode(resource.clinicalStatus) || firstCodingDisplay(resource.clinicalStatus) || "";
+}
   const severity = firstCodingCode(resource.severity) || firstCodingDisplay(resource.severity) || "";
   const details = asArray(resource.note).map((note) => note && note.text).filter(Boolean).join("\n");
 
@@ -74,7 +103,10 @@ function mapConditionResource(resource) {
     diagnosed: resource.code?.text || firstCodingDisplay(resource.code) || "",
     clinicalStatus,
     severity,
-    affectedArea: asArray(resource.bodySite)[0]?.text || "",
+    affectedArea: asArray(resource.bodySite)
+  .map(b => b?.text || firstCodingDisplay(b))
+  .filter(Boolean)
+  .join(", "),
     details,
     fhirConditionResource: cloneResource(resource),
   };
@@ -89,14 +121,19 @@ function mapMedicationRequestResource(resource) {
   const duration = durationQuantity
     ? [durationQuantity.value, durationQuantity.unit || durationQuantity.code].filter(Boolean).join(" ").trim()
     : "";
-
+  const freq = Number.isFinite(dosageInstruction.timing?.repeat?.frequency)
+  ? String(dosageInstruction.timing.repeat.frequency)
+  : "";
   return {
     datetime: resource.authoredOn || "",
     doctor: resource.requester?.display || "",
     medicationName: extractMedicationName(resource),
     dose: stringifyDoseQuantity(doseQuantity),
     route: dosageInstruction.route?.text || firstCodingDisplay(dosageInstruction.route) || "",
-    frequency: dosageInstruction.text || dosageInstruction.timing?.code?.text || dosageInstruction.timing?.repeat?.frequency?.toString() || "",
+    frequency:
+  dosageInstruction.text ||
+  dosageInstruction.timing?.code?.text ||
+  (freq !== "" ? String(freq) : ""),
     duration,
     instructions: dosageInstruction.patientInstruction || dosageInstruction.text || asArray(resource.note).map((note) => note && note.text).filter(Boolean).join("\n"),
     fhirMedicationRequest: cloneResource(resource),
@@ -129,8 +166,27 @@ function mapEncounterResource(resource) {
   };
 }
 
+function detectFHIRVersion(bundle) {
+  const patient = (bundle.entry || [])
+    .map(e => e.resource)
+    .find(r => r?.resourceType === "Patient");
+
+  if (!patient) return "R4"; // default
+
+  if (Array.isArray(patient.name?.[0]?.given)) {
+  return "R4";
+}
+
+  if (patient.name?.[0]?.text) {
+    return "STU3";
+  }
+
+  return "R4";
+}
+
 function parseFHIRBundle(bundleJson) {
   const bundle = typeof bundleJson === "string" ? JSON.parse(bundleJson) : bundleJson;
+  const fhirVersion = detectFHIRVersion(bundle);
 
   if (!bundle || bundle.resourceType !== "Bundle") {
     throw new Error("Invalid FHIR Bundle: resourceType must be 'Bundle'.");
@@ -156,7 +212,7 @@ function parseFHIRBundle(bundleJson) {
         patientResource = cloneResource(resource);
         break;
       case "Condition":
-        normalizedRecord.diagnosis.push(mapConditionResource(resource));
+        normalizedRecord.diagnosis.push(mapConditionResource(resource, fhirVersion));
         break;
       case "MedicationRequest":
         normalizedRecord.treatmentPlan.push(mapMedicationRequestResource(resource));
@@ -186,7 +242,18 @@ function parseFHIRBundle(bundleJson) {
   normalizedRecord.telecom = cloneResource(patientResource.telecom) || [];
   normalizedRecord.address = cloneResource(patientResource.address) || [];
 
-  return normalizedRecord;
+  return  normalizeEmptyStrings(normalizedRecord);;
+}
+
+function normalizeEmptyStrings(obj) {
+  if (Array.isArray(obj)) return obj.map(normalizeEmptyStrings);
+  if (obj && typeof obj === "object") {
+    for (const k in obj) {
+      if (obj[k] === "") obj[k] = null;
+      else obj[k] = normalizeEmptyStrings(obj[k]);
+    }
+  }
+  return obj;
 }
 
 module.exports = {
