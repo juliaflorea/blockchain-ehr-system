@@ -30,6 +30,9 @@ async function addUser() {
     const fhirImportFile = document.getElementById("fhirImportFile")
       ? document.getElementById("fhirImportFile").files[0]
       : null;
+    const registrationMode = getSelectedRegistrationMode();
+    const password = getPatientPasswordValue();
+    const confirmPassword = getPatientConfirmPasswordValue();
 
     const accounts = await ethereum.request({ method: "eth_accounts" });
 
@@ -60,9 +63,18 @@ async function addUser() {
 
     // Handle registration based on designation
     if (designation === 0) {
-      if (fhirImportFile) {
-        const password = getPatientPasswordValue();
-        if (!validatePatientPassword(password)) {
+      if (!validatePatientPassword(password)) {
+        return;
+      }
+
+      if (!validatePatientPasswordConfirmation(password, confirmPassword)) {
+        alert("Passwords do not match.");
+        return;
+      }
+
+      if (registrationMode === "import") {
+        if (!fhirImportFile) {
+          alert("Please upload a FHIR file.");
           return;
         }
 
@@ -79,7 +91,7 @@ async function addUser() {
       }
 
       await registerPatient(ipfs, Buffer, publicKey, {
-        firstName, lastName, age, address, phoneNumber, email, gender, birthDate
+        firstName, lastName, age, address, phoneNumber, email, gender, birthDate, password
       });
     } else if (designation === 1) {
       await registerDoctor(ipfs, Buffer, publicKey, {
@@ -442,17 +454,52 @@ function toggleFields() {
   $("#commonFields").css("display", designation !== "" ? "block" : "none");
   $("#doctorFields").css("display", designation === "1" ? "block" : "none");
   $("#proxyFields").css("display", designation === "2" ? "block" : "none");
-  $("#patientPasswordGroup").css("display", designation === "0" ? "block" : "none");
-  $("#patientFhirImportGroup").css("display", designation === "0" ? "flex" : "none");
-
-  togglePatientImportMode();
+  updateRegistrationCopy(designation);
+  togglePatientRegistrationMode();
 
   if (designation === "2") toggleProxyOptionFields();
 }
 
+function updateRegistrationCopy(designation) {
+  const title = document.getElementById("registrationTitle");
+  const subtitle = document.getElementById("registrationSubtitle");
+
+  if (!title || !subtitle) return;
+
+  if (designation === "1") {
+    title.textContent = "Create Clinician Account";
+    subtitle.textContent = "Securely verify your professional access to the medical platform";
+    return;
+  }
+
+  if (designation === "2") {
+    title.textContent = "Create Proxy Account";
+    subtitle.textContent = "Manage delegated access to patient records with secure authorization";
+    return;
+  }
+
+  if (designation === "0") {
+    title.textContent = "Create Patient Account";
+    subtitle.textContent = "Securely manage your medical records";
+    return;
+  }
+
+  title.textContent = "Create Healthcare Account";
+  subtitle.textContent = "Securely manage your medical records and care access";
+}
+
+function getSelectedRegistrationMode() {
+  return document.querySelector('input[name="mode"]:checked')?.value || "manual";
+}
+
 function getPatientPasswordValue() {
-  const passwordInput = document.getElementById("patientPassword");
+  const passwordInput = document.getElementById("password");
   return passwordInput ? passwordInput.value.trim() : "";
+}
+
+function getPatientConfirmPasswordValue() {
+  const confirmPasswordInput = document.getElementById("confirmPassword");
+  return confirmPasswordInput ? confirmPasswordInput.value.trim() : "";
 }
 
 function validatePatientPassword(password) {
@@ -464,13 +511,44 @@ function validatePatientPassword(password) {
   return isValid;
 }
 
-function togglePatientImportMode() {
+function validatePatientPasswordConfirmation(password, confirmPassword) {
+  const confirmPasswordError = document.getElementById("confirmPasswordError");
+  const hasValues = Boolean(password) || Boolean(confirmPassword);
+  const isMatch = password === confirmPassword;
+
+  if (confirmPasswordError) {
+    confirmPasswordError.style.display = hasValues && !isMatch ? "block" : "none";
+  }
+
+  return isMatch;
+}
+
+function togglePatientRegistrationMode() {
   const designation = $("#designation").val();
   const isPatient = designation === "0";
-  const hasImportFile = Boolean(document.getElementById("fhirImportFile")?.files?.length);
-  const isImportMode = isPatient && hasImportFile;
+  const mode = getSelectedRegistrationMode();
+  const isImportMode = isPatient && mode === "import";
   const manualFieldIds = ["firstName", "lastName", "dob", "age", "gender", "email", "phone", "address"];
-  const importHint = document.getElementById("fhirImportModeHint");
+  const registrationMode = document.getElementById("registrationMode");
+  const manualSection = document.getElementById("manualSection");
+  const importSection = document.getElementById("importSection");
+  const passwordSection = document.getElementById("passwordSection");
+
+  if (registrationMode) {
+    registrationMode.style.display = isPatient ? "flex" : "none";
+  }
+
+  if (manualSection) {
+    manualSection.style.display = !isPatient || !isImportMode ? "block" : "none";
+  }
+
+  if (importSection) {
+    importSection.style.display = isImportMode ? "block" : "none";
+  }
+
+  if (passwordSection) {
+    passwordSection.style.display = isPatient ? "block" : "none";
+  }
 
   manualFieldIds.forEach((fieldId) => {
     const field = document.getElementById(fieldId);
@@ -482,19 +560,7 @@ function togglePatientImportMode() {
 
     field.disabled = isImportMode;
     field.required = isImportMode ? false : field.dataset.wasRequired === "true";
-
-    if (isImportMode && field.tagName === "INPUT" && fieldId !== "age") {
-      field.value = "";
-    }
-
-    if (isImportMode && field.tagName === "SELECT") {
-      field.value = "";
-    }
   });
-
-  if (importHint) {
-    importHint.style.display = isImportMode ? "block" : "none";
-  }
 }
 
 async function readJsonFile(file) {
@@ -571,19 +637,24 @@ function buildPatientRegistrationData(record) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll('input[name="mode"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      togglePatientRegistrationMode();
+    });
+  });
+
   const fhirImportFileInput = document.getElementById("fhirImportFile");
   if (fhirImportFileInput) {
     fhirImportFileInput.addEventListener("change", (event) => {
       const fileName = event.target.files && event.target.files[0]
         ? event.target.files[0].name
-        : "Import existing medical record (FHIR)";
+        : "Choose FHIR JSON file";
       const label = document.querySelector('label[for="fhirImportFile"].custom-file-label');
       if (label) label.textContent = fileName;
-      togglePatientImportMode();
     });
   }
 
-  const patientPasswordInput = document.getElementById("patientPassword");
+  const patientPasswordInput = document.getElementById("password");
   if (patientPasswordInput) {
     patientPasswordInput.addEventListener("input", () => {
       if (patientPasswordInput.value.trim()) {
@@ -592,10 +663,26 @@ document.addEventListener("DOMContentLoaded", () => {
         const passwordError = document.getElementById("passwordError");
         if (passwordError) passwordError.style.display = "none";
       }
+
+      validatePatientPasswordConfirmation(
+        patientPasswordInput.value.trim(),
+        getPatientConfirmPasswordValue()
+      );
     });
   }
 
-  togglePatientImportMode();
+  const confirmPasswordInput = document.getElementById("confirmPassword");
+  if (confirmPasswordInput) {
+    confirmPasswordInput.addEventListener("input", () => {
+      validatePatientPasswordConfirmation(
+        getPatientPasswordValue(),
+        confirmPasswordInput.value.trim()
+      );
+    });
+  }
+
+  updateRegistrationCopy($("#designation").val());
+  togglePatientRegistrationMode();
 });
 
 function toggleProxyOptionFields() {

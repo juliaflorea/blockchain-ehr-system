@@ -714,14 +714,32 @@ async function exportFHIRMedicalRecord() {
 
     const bundle = payload?.bundle || payload;
 
-    // Generate filename
-    const patientName = getPatientName(bundle).replace(/\s+/g, "_");
+    const patientResource = bundle?.entry?.find(
+      entry => entry?.resource?.resourceType === "Patient"
+    )?.resource;
 
-    // Download file
-    downloadJsonFile(
-      `${patientName || "medical_record"}_fhir_bundle.json`,
-      bundle
-    );
+    const firstName = patientResource?.name?.[0]?.given?.[0];
+    const lastName = patientResource?.name?.[0]?.family;
+
+    let fileName;
+
+    if (firstName && lastName) {
+      fileName = `MedicalRecord_${firstName}_${lastName}.json`;
+    } else {
+      fileName = "MedicalRecord_Patient.json";
+    }
+
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+      type: "application/json"
+    });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
 
   } catch (err) {
     console.error("FHIR export failed:", err);
@@ -735,6 +753,20 @@ function getPatientName(record) {
   // Case 0: FHIR payload wrapped under .bundle
   if (record?.bundle) {
     return getPatientName(record.bundle);
+  }
+
+  if (record?.personalInfo) {
+    const firstName = record.personalInfo.firstName || "";
+    const lastName = record.personalInfo.lastName || "";
+    if (firstName && lastName) {
+      return `${firstName}_${lastName}`;
+    }
+    if (firstName) {
+      return firstName;
+    }
+    if (lastName) {
+      return lastName;
+    }
   }
 
   let patient;

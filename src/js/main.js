@@ -89,45 +89,231 @@ window.addEventListener("load", async () => {
 
 
 // Function to allow patients, doctors, proxis to download the medical record of the patient
-function downloadMedicalRecord(data) {
-  // Remove HTML tags and unwanted titles for cleaner text in PDF
-  function cleanData(data) {
-    // Remove HTML tags
+function downloadMedicalRecord(data, patientName) {
+  function cleanData(rawData) {
     var div = document.createElement("div");
-    div.innerHTML = data;
-    var text = div.textContent || div.innerText || "";
-
-    return text.replace(/Medical Record/g, "").trim();
+    div.innerHTML = rawData;
+    return (div.textContent || div.innerText || "").trim();
   }
 
-  // Extract first name and last name from the medical record for filename
-  var firstNamePattern = /First Name: (.+)/;
-  var lastNamePattern = /Last Name: (.+)/;
+  function parseMedicalRecordText(rawText) {
+    var text = cleanData(rawText);
+    var lines = text
+      .split("\n")
+      .map(function (line) { return line.trim(); })
+      .filter(Boolean);
 
-  var firstNameMatch = data.match(firstNamePattern);
-  var lastNameMatch = data.match(lastNamePattern);
+    var details = {
+      fullName: "Not provided",
+      gender: "Not provided",
+      birthDate: "Not provided",
+      phone: "Not provided",
+      email: "Not provided",
+      address: "Not provided",
+      sections: [],
+    };
 
-  var firstName = firstNameMatch ? firstNameMatch[1].trim() : "Unknown";
-  var lastName = lastNameMatch ? lastNameMatch[1].trim() : "Unknown";
+    var sectionMap = {
+      "Allergies:": "Allergies",
+      "Diagnosis History:": "Diagnosis History",
+      "Treatment History:": "Treatment History",
+      "AI Triage Reports:": "AI Triage Reports",
+    };
 
-  var filename = `MedicalRecord_${firstName}_${lastName}.pdf`;
+    var currentSection = null;
 
-  // Create a PDF document
+    lines.forEach(function (line) {
+      if (line === "Medical Record" || line === "====================") {
+        return;
+      }
+
+      if (line.indexOf("Patient Name:") === 0) {
+        details.fullName = line.replace("Patient Name:", "").trim() || "Not provided";
+        return;
+      }
+
+      if (line.indexOf("Gender:") === 0) {
+        details.gender = line.replace("Gender:", "").trim() || "Not provided";
+        return;
+      }
+
+      if (line.indexOf("Birth Date:") === 0) {
+        details.birthDate = line.replace("Birth Date:", "").trim() || "Not provided";
+        return;
+      }
+
+      if (line === "Contacts:") {
+        currentSection = "contacts";
+        return;
+      }
+
+      if (line === "Addresses:") {
+        currentSection = "addresses";
+        return;
+      }
+
+      if (sectionMap[line]) {
+        currentSection = {
+          title: sectionMap[line],
+          lines: [],
+        };
+        details.sections.push(currentSection);
+        return;
+      }
+
+      if (line === "------------------") {
+        if (currentSection && typeof currentSection === "object") {
+          currentSection.lines.push("");
+        }
+        return;
+      }
+
+      if (currentSection === "contacts") {
+        if (line.indexOf("phone:") === 0) {
+          details.phone = line.replace("phone:", "").trim() || "Not provided";
+        } else if (line.indexOf("email:") === 0) {
+          details.email = line.replace("email:", "").trim() || "Not provided";
+        }
+        return;
+      }
+
+      if (currentSection === "addresses") {
+        details.address = details.address === "Not provided"
+          ? line
+          : details.address + "; " + line;
+        return;
+      }
+
+      if (currentSection && typeof currentSection === "object") {
+        currentSection.lines.push(line);
+      }
+    });
+
+    return details;
+  }
+
+  function ensurePageSpace(doc, currentY, requiredHeight) {
+    if (currentY + requiredHeight <= 270) {
+      return currentY;
+    }
+
+    doc.addPage();
+    return 20;
+  }
+
+  function addWrappedText(doc, text, x, y, maxWidth, lineHeight) {
+    var lines = doc.splitTextToSize(text || "Not provided", maxWidth);
+    doc.text(lines, x, y);
+    return y + (lines.length * lineHeight);
+  }
+
+  function drawSectionTitle(doc, title, y) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(title, 20, y);
+    return y + 10;
+  }
+
+  var filename = "MedicalRecord_Patient.pdf";
+
+  if (patientName) {
+    var safePatientName = String(patientName)
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Za-z0-9_-]/g, "");
+
+    if (safePatientName) {
+      filename = `MedicalRecord_${safePatientName}.pdf`;
+    }
+  } else {
+    // Fallback for older call sites that only pass the plain text
+    var firstNamePattern = /First Name: (.+)/;
+    var lastNamePattern = /Last Name: (.+)/;
+
+    var firstNameMatch = data.match(firstNamePattern);
+    var lastNameMatch = data.match(lastNamePattern);
+
+    var firstName = firstNameMatch ? firstNameMatch[1].trim() : "";
+    var lastName = lastNameMatch ? lastNameMatch[1].trim() : "";
+
+    if (firstName && lastName) {
+      filename = `MedicalRecord_${firstName}_${lastName}.pdf`;
+    }
+  }
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
+  var parsed = parseMedicalRecordText(data);
+  var y = 20;
 
-  // Prepare the data by cleaning and formatting
-  var cleanedData = cleanData(data);
-
-  // Add formatted title and the rest of the text to the PDF
-  doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("Medical Record", 105, 20, { align: "center" });
+  doc.setFontSize(18);
+  doc.text("Medical Record", 105, y, { align: "center" });
+  y += 5;
 
-  doc.setFontSize(12);
+  doc.setLineWidth(0.5);
+  doc.line(20, y, 190, y);
+  y += 10;
+
+  y = drawSectionTitle(doc, "Patient Information", y);
+  doc.rect(15, y - 7, 180, 30);
+
   doc.setFont("helvetica", "normal");
-  doc.text(cleanedData, 10, 30, { maxWidth: 180 });
-  // Save the PDF
+  doc.setFontSize(11);
+  doc.text("Name: " + parsed.fullName, 20, y);
+  doc.text("Gender: " + parsed.gender, 20, y + 7);
+  doc.text("Birth Date: " + parsed.birthDate, 20, y + 14);
+  y += 30;
+
+  y = ensurePageSpace(doc, y, 30);
+  y = drawSectionTitle(doc, "Contact Details", y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text("Phone: " + parsed.phone, 20, y);
+  doc.text("Email: " + parsed.email, 20, y + 7);
+  y += 20;
+
+  y = ensurePageSpace(doc, y, 26);
+  y = drawSectionTitle(doc, "Address", y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  y = addWrappedText(doc, parsed.address, 20, y, 170, 6);
+  y += 6;
+
+  parsed.sections.forEach(function (section) {
+    var contentLines = section.lines.filter(function (line) { return line !== ""; });
+    var estimatedHeight = Math.max(24, (contentLines.length * 7) + 16);
+    y = ensurePageSpace(doc, y, estimatedHeight);
+    y = drawSectionTitle(doc, section.title, y);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+
+    if (!section.lines.length) {
+      doc.text("Not provided", 20, y);
+      y += 10;
+      return;
+    }
+
+    section.lines.forEach(function (line) {
+      if (!line) {
+        y += 4;
+        return;
+      }
+
+      y = ensurePageSpace(doc, y, 10);
+      y = addWrappedText(doc, line, 20, y, 170, 6);
+      y += 2;
+    });
+
+    y += 4;
+  });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text("Generated on: " + new Date().toLocaleDateString(), 20, 280);
+  doc.text("Electronic Health Record System", 140, 280);
+
   doc.save(filename);
 }
 
