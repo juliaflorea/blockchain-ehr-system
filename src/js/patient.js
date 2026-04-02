@@ -31,6 +31,8 @@ let lastGeneratedTriageReport = null;
 let cachedTriageReports = null;
 let cachedTriageReportsHash = null;
 let draftTriageReports = {};
+const DEFAULT_THREAD_TITLE = "New conversation";
+const pendingThreadTitleIds = new Set();
 
 async function initChatHistoryStorageKey() {
   try {
@@ -70,7 +72,7 @@ function createNewThread(title) {
   const id = `t_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
   const thread = {
     id,
-    title: title || "New conversation",
+    title: title || DEFAULT_THREAD_TITLE,
     updatedAt: Date.now(),
     messages: []
   };
@@ -367,11 +369,6 @@ function addMessageToActiveThread(role, text) {
   thread.messages.push({ role, text, ts: Date.now() });
   thread.updatedAt = Date.now();
 
-  if (role === "user" && (!thread.title || thread.title === "New conversation")) {
-    const trimmed = (text || "").trim();
-    thread.title = trimmed ? trimmed.slice(0, 40) : "Conversation";
-  }
-
   // Keep history bounded to last 200 messages per thread.
   if (thread.messages.length > 200) {
     thread.messages = thread.messages.slice(thread.messages.length - 200);
@@ -379,6 +376,104 @@ function addMessageToActiveThread(role, text) {
 
   saveChatThreadsToStorage();
   renderChatThreadsList();
+}
+
+function isDefaultThreadTitle(title) {
+  const normalized = String(title || "").trim().toLowerCase();
+  return !normalized || normalized === DEFAULT_THREAD_TITLE.toLowerCase() || normalized === "conversation";
+}
+
+function toTitleCase(text) {
+  return String(text || "")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function buildFallbackConversationTitle(messages) {
+  const firstUserMessage = (messages || []).find((msg) => msg && msg.role === "user" && msg.text);
+  const source = String(firstUserMessage?.text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!source) return "Conversation";
+
+  let normalized = source
+    .replace(/^(hi|hello|hey)\b[!,.\s]*/i, "")
+    .replace(/^(can you|could you|would you|please|help me)\b[!,.\s]*/i, "")
+    .replace(/^(i have|i'm having|i am having|i feel|i'm feeling|i am feeling|my)\b[!,.\s]*/i, "")
+    .replace(/[?.!]+$/g, "")
+    .trim();
+
+  if (!normalized) normalized = source.replace(/[?.!]+$/g, "").trim();
+
+  const words = normalized.split(/\s+/).slice(0, 6);
+  const compact = words.join(" ").replace(/\s+/g, " ").trim();
+  return compact ? toTitleCase(compact) : "Conversation";
+}
+
+function sanitizeConversationTitle(title, messages) {
+  const cleaned = String(title || "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^(title|conversation title)\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
+    .trim()
+    .slice(0, 60);
+
+  return cleaned || buildFallbackConversationTitle(messages);
+}
+
+async function maybeGenerateThreadTitle(threadId) {
+  const thread = chatThreads.find((t) => t.id === threadId);
+  if (!thread || !isDefaultThreadTitle(thread.title) || pendingThreadTitleIds.has(threadId)) {
+    return;
+  }
+
+  const meaningfulMessages = (thread.messages || []).filter((msg) => String(msg.text || "").trim());
+  const hasUser = meaningfulMessages.some((msg) => msg.role === "user");
+  const hasAssistant = meaningfulMessages.some((msg) => msg.role === "assistant");
+  if (!hasUser || !hasAssistant) return;
+
+  pendingThreadTitleIds.add(threadId);
+
+  try {
+    const response = await fetch("http://localhost:3000/api/conversation-title", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: meaningfulMessages.slice(0, 6).map((msg) => ({
+          role: msg.role,
+          text: msg.text
+        }))
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Title generation failed");
+    }
+
+    const payload = await response.json();
+    const latestThread = chatThreads.find((t) => t.id === threadId);
+    if (!latestThread || !isDefaultThreadTitle(latestThread.title)) return;
+
+    latestThread.title = sanitizeConversationTitle(payload?.title, latestThread.messages);
+    latestThread.updatedAt = Date.now();
+    saveChatThreadsToStorage();
+    renderChatThreadsList();
+  } catch (err) {
+    const latestThread = chatThreads.find((t) => t.id === threadId);
+    if (latestThread && isDefaultThreadTitle(latestThread.title)) {
+      latestThread.title = buildFallbackConversationTitle(latestThread.messages);
+      latestThread.updatedAt = Date.now();
+      saveChatThreadsToStorage();
+      renderChatThreadsList();
+    }
+    console.warn("Conversation title generation failed:", err.message);
+  } finally {
+    pendingThreadTitleIds.delete(threadId);
+  }
 }
 
 
@@ -2526,6 +2621,10 @@ async function sendSymptomMessage() {
 
     const finalReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply)).trim();
     addMessageToActiveThread("assistant", finalReply);
+    const thread = getActiveThread();
+    if (thread) {
+      maybeGenerateThreadTitle(thread.id);
+    }
 
   } catch (err) {
     removeTypingIndicator(typingBubble);

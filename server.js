@@ -21,6 +21,7 @@ const OLLAMA_URL = "http://localhost:11434/api/generate";
 const NUM_PREDICT_DIAGNOSE = Number(process.env.OLLAMA_NUM_PREDICT_DIAGNOSE || 600);
 const NUM_PREDICT_SUMMARY = Number(process.env.OLLAMA_NUM_PREDICT_SUMMARY || 300);
 const NUM_PREDICT_TRIAGE = Number(process.env.OLLAMA_NUM_PREDICT_TRIAGE || 400);
+const NUM_PREDICT_TITLE = Number(process.env.OLLAMA_NUM_PREDICT_TITLE || 24);
 const IPFS_HOST = process.env.IPFS_HOST || "127.0.0.1";
 const IPFS_PORT = Number(process.env.IPFS_PORT || 5001);
 const IPFS_PROTOCOL = process.env.IPFS_PROTOCOL || "http";
@@ -42,6 +43,52 @@ function b64decode(str) {
 
 function ensureLowercaseAddress(address) {
   return String(address || "").trim().toLowerCase();
+}
+
+function isIsoDateString(value) {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value.trim());
+}
+
+function formatReadableDateTime(value) {
+  if (!isIsoDateString(value)) return value;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
+function humanizePromptData(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => humanizePromptData(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [key, humanizePromptData(entryValue)])
+    );
+  }
+
+  if (isIsoDateString(value)) {
+    return formatReadableDateTime(value);
+  }
+
+  return value;
+}
+
+function sanitizeConversationTitle(rawTitle, fallback = "Conversation") {
+  const cleaned = String(rawTitle || "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^(title|conversation title)\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+
+  return cleaned || fallback;
 }
 
 async function getMedicalDataRegistryContract() {
@@ -261,6 +308,8 @@ app.post("/api/diagnose", async (req, res) => {
       ? symptoms.join(", ")
       : symptoms;
 
+    const promptDiagnosisDetails = humanizePromptData(diagnosisDetails);
+    const promptTreatmentDetails = humanizePromptData(treatmentDetails);
     const prompt = clientPrompt || `
 You are an AI medical triage assistant.
 
@@ -275,8 +324,8 @@ Allergies: ${(allergies || []).join(", ") || "none"}
 Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
 Treatments: ${(treatments || []).join(", ") || "none"}
 Allergy details (compact): ${allergyDetails && allergyDetails.length ? JSON.stringify(allergyDetails) : "none"}
-Diagnosis details (compact; includes 'details' for Other): ${diagnosisDetails && diagnosisDetails.length ? JSON.stringify(diagnosisDetails) : "none"}
-Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSON.stringify(treatmentDetails) : "none"}
+Diagnosis details (compact; includes 'details' for Other): ${promptDiagnosisDetails && promptDiagnosisDetails.length ? JSON.stringify(promptDiagnosisDetails) : "none"}
+Treatment details (compact): ${promptTreatmentDetails && promptTreatmentDetails.length ? JSON.stringify(promptTreatmentDetails) : "none"}
 
 Current symptoms:
 ${symptomText}
@@ -392,6 +441,68 @@ Include a sentence in this exact format: "Risk level: <LOW|MODERATE|HIGH> - <sho
 
 });
 
+app.post("/api/conversation-title", async (req, res) => {
+  try {
+    const { messages } = req.body || {};
+
+    const conversation = Array.isArray(messages)
+      ? messages
+          .slice(0, 6)
+          .map((m) => `${m.role || "user"}: ${m.text || ""}`.trim())
+          .filter(Boolean)
+          .join("\n")
+      : "";
+
+    if (!conversation) {
+      return res.json({ title: "Conversation" });
+    }
+
+    const prompt = `
+Create a short title for this medical support conversation.
+Requirements:
+- 2 to 6 words
+- sentence case
+- no quotes
+- no trailing punctuation
+- summarize the main symptom or request
+- sound natural, similar to a ChatGPT conversation title
+
+Conversation:
+${conversation}
+`;
+
+    const ollamaResponse = await axios.post(
+      OLLAMA_URL,
+      {
+        model: "qwen2.5:1.5b-instruct",
+        prompt,
+        stream: false,
+        keep_alive: "10m",
+        options: {
+          temperature: 0.1,
+          num_predict: NUM_PREDICT_TITLE
+        }
+      },
+      { timeout: 60000 }
+    );
+
+    const raw = (ollamaResponse.data && ollamaResponse.data.response)
+      ? String(ollamaResponse.data.response).trim()
+      : "";
+
+    res.json({
+      title: sanitizeConversationTitle(raw)
+    });
+  } catch (error) {
+    const status = error.response && error.response.status;
+    const data = error.response && error.response.data;
+    console.error("Conversation title error:", error.message, status || "", data || "");
+    res.status(500).json({
+      error: "Conversation title generation failed."
+    });
+  }
+});
+
 app.post("/api/visit-summary", async (req, res) => {
   try {
     const {
@@ -412,6 +523,8 @@ app.post("/api/visit-summary", async (req, res) => {
           .join("\n")
       : "";
 
+    const promptDiagnosisDetails = humanizePromptData(diagnosisDetails);
+    const promptTreatmentDetails = humanizePromptData(treatmentDetails);
     const prompt = `
 You are a clinical assistant preparing a concise visit summary for a doctor.
 Write 5–7 bullet points, each under 18 words.
@@ -425,8 +538,8 @@ Allergies: ${(allergies || []).join(", ") || "none"}
 Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
 Treatments: ${(treatments || []).join(", ") || "none"}
 Allergy details (compact): ${allergyDetails && allergyDetails.length ? JSON.stringify(allergyDetails) : "none"}
-Diagnosis details (compact): ${diagnosisDetails && diagnosisDetails.length ? JSON.stringify(diagnosisDetails) : "none"}
-Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSON.stringify(treatmentDetails) : "none"}
+Diagnosis details (compact): ${promptDiagnosisDetails && promptDiagnosisDetails.length ? JSON.stringify(promptDiagnosisDetails) : "none"}
+Treatment details (compact): ${promptTreatmentDetails && promptTreatmentDetails.length ? JSON.stringify(promptTreatmentDetails) : "none"}
 
 Conversation (most recent messages):
 ${conversation || "none"}
@@ -533,6 +646,8 @@ app.post("/api/triage-report", async (req, res) => {
 
     const now = new Date().toISOString();
 
+    const promptDiagnosisDetails = humanizePromptData(diagnosisDetails);
+    const promptTreatmentDetails = humanizePromptData(treatmentDetails);
     const prompt = `
 You are a clinical assistant producing a concise AI triage report.
 Return plain text ONLY, exactly six lines, no extra lines.
@@ -558,8 +673,8 @@ Allergies: ${(allergies || []).join(", ") || "none"}
 Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
 Treatments: ${(treatments || []).join(", ") || "none"}
 Allergy details (compact): ${allergyDetails && allergyDetails.length ? JSON.stringify(allergyDetails) : "none"}
-Diagnosis details (compact): ${diagnosisDetails && diagnosisDetails.length ? JSON.stringify(diagnosisDetails) : "none"}
-Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSON.stringify(treatmentDetails) : "none"}
+Diagnosis details (compact): ${promptDiagnosisDetails && promptDiagnosisDetails.length ? JSON.stringify(promptDiagnosisDetails) : "none"}
+Treatment details (compact): ${promptTreatmentDetails && promptTreatmentDetails.length ? JSON.stringify(promptTreatmentDetails) : "none"}
 
 Conversation (most recent messages, may be truncated):
 ${conversationTrimmed || "none"}
