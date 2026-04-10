@@ -25,9 +25,13 @@
 
 </head>
 
-<body>
+<body class="dashboard-page">
 
     <div class="d-flex" id="wrapper">
+        <button type="button" class="sidebar-toggle" data-dashboard-toggle aria-label="Open navigation">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="sidebar-overlay" aria-hidden="true"></div>
         <!-- Sidebar -->
         <div class="bg-purple border-right" id="sidebar-wrapper">
             <div class="sidebar-heading "><i class="fas fa-notes-medical"></i> Electronic Medical Records</div>
@@ -82,9 +86,14 @@
 
         <!-- Page Content -->
         <div id="page-content-wrapper">
-            <a href="/index.html" id="logout" class="btn-logout">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
+            <header class="dashboard-topbar">
+                <div class="dashboard-topbar-inner">
+                    <div class="dashboard-topbar-title">Electronic Medical Records</div>
+                    <a href="/index.html" id="logout" class="btn-logout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </header>
 
 
             <div class="container-fluid">
@@ -138,7 +147,7 @@
                         <h3 class="text-center">Allergies Information</h3>
                     </div>
                     <div class="panel-body">
-                        <form id="allergyForm" class="form-horizontal">
+                        <form id="allergyForm" class="form-horizontal form-layout-compact">
                             <div class="form-group">
                                 <label for="allergySubstance" class="control-label col-sm-2">Substance:</label>
                                 <div class="col-sm-10">
@@ -186,8 +195,10 @@
                                 <!-- Doctor options will be populated here -->
                             </select>
                         </div>
-                        <button id="viewDoctorInfoBtn" class="btn btn-primary" onclick="viewDoctorInfo()">View Doctor
-                            Info</button>
+                        <div class="button-row">
+                            <button id="viewDoctorInfoBtn" class="btn btn-primary" onclick="viewDoctorInfo()">View Doctor
+                                Info</button>
+                        </div>
                         <div id="doctorInfoDisplay" class="info-container"></div>
 
                     </div>
@@ -253,7 +264,7 @@
                             <h3 class="text-center">Schedule an Appointment</h3>
                         </div>
                         <div class="panel-body">
-                            <form id="appointmentForm" class="form-horizontal" action="/action_page.php">
+                            <form id="appointmentForm" class="form-horizontal form-layout-compact" action="/action_page.php">
                                 <div class="form-group">
                                     <label for="doctorSelect" class="control-label col-sm-2">Select Doctor:</label>
                                     <div class="col-sm-10">
@@ -579,6 +590,7 @@
     <script src="./js/config.js"></script>
     <script src="/js/crypto.js"></script>
     <script src="/js/main.js"></script>
+    <script src="/js/dashboard-shell.js"></script>
     <script src="/js/medicalMapping.js"></script>
     <script src="/js/register.js"></script>
     <script src="/js/patient.js"></script>

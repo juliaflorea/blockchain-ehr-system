@@ -1064,7 +1064,9 @@ function displayAppointmentRequest(id, appointment) {
   $("<td>").text(patientName).appendTo(row);
   $("<td>").text(appointmentDate).appendTo(row);
   $("<td>").text(appointmentTime).appendTo(row);
-  $("<td>").text(appointment.status || "unknown").appendTo(row);
+  $("<td>")
+    .html(buildStatusBadgeMarkup(appointment.status || "unknown"))
+    .appendTo(row);
 
   const actionsCell = $("<td>").appendTo(row);
 
@@ -1151,10 +1153,25 @@ function displayAppointmentHistory(id, appointment, status) {
   $("<td>").text(appointmentDate).appendTo(row);
   $("<td>").text(appointmentTime).appendTo(row);
 
-  const statusCell = $("<td>").text(status).appendTo(row);
-  statusCell.addClass(status.toLowerCase() + "-status");
+  $("<td>")
+    .html(buildStatusBadgeMarkup(status))
+    .appendTo(row);
 
   $("#appointmentHistory tbody").append(row);
+}
+
+function normalizeAppointmentStatusLabel(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "accepted" || value === "booked" || value === "fulfilled") return "Accepted";
+  if (value === "pending" || value === "proposed" || value === "needs-action") return "Pending";
+  if (value === "rejected" || value === "cancelled" || value === "canceled") return "Rejected";
+  return "Unknown";
+}
+
+function buildStatusBadgeMarkup(status) {
+  const normalizedStatus = normalizeAppointmentStatusLabel(status);
+  const className = normalizedStatus.toLowerCase() + "-status";
+  return `<span class="status-badge ${className}">${normalizedStatus}</span>`;
 }
 
 
