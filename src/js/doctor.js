@@ -9,7 +9,6 @@ ailmentsDict[2] = "Cancer";
 ailmentsDict[3] = "Tumor";
 ailmentsDict[4] = "Covid-19";
 ailmentsDict[5] = "Heart-Disorder";
-ailmentsDict[6] = "Other";
 var url_string = window.location.href;
 var url = new URL(url_string);
 var key;
@@ -21,6 +20,24 @@ let recordsToggled = {};
 
 
 console.log("doctor.js loaded");
+
+function toggleCustomDiagnosisInput(patientAddress) {
+  const diagnosisSelect = document.getElementById(`ailmentsList${patientAddress}`);
+  const customDiagnosisWrapper = document.getElementById(`customDiagnosisWrapper${patientAddress}`);
+  const customDiagnosisInput = document.getElementById(`customDiagnosis${patientAddress}`);
+  const isOtherSelected = diagnosisSelect && diagnosisSelect.value === "other";
+
+  if (customDiagnosisWrapper) {
+    customDiagnosisWrapper.style.display = isOtherSelected ? "block" : "none";
+  }
+
+  if (customDiagnosisInput) {
+    customDiagnosisInput.required = isOtherSelected;
+    if (!isOtherSelected) {
+      customDiagnosisInput.value = "";
+    }
+  }
+}
 
 async function getDoctorAESKeyForPatient(patientAddress) {
   if (doctorSessionKeys[patientAddress]) return doctorSessionKeys[patientAddress];
@@ -476,7 +493,11 @@ async function showRecords(element) {
       // Convert record to formatted HTML
       const formattedHtml = `
         <div class="medical-record-title">Medical Record</div>
-        ${renderMedicalRecord(decryptedRecord)}
+        ${renderMedicalRecord(decryptedRecord, {
+          includeDiagnosis: false,
+          includeTreatment: false,
+          includeTriage: false,
+        })}
       `;
       const sharedConversationsHtml = renderSharedConversations(decryptedRecord);
       const canEditTriage = await canEditTriageReport(patientAddr);
@@ -532,7 +553,7 @@ async function showRecords(element) {
                 <div class="form-row clinical-form-row">
                   <div class="form-field">
                     <label for="ailmentsList${patientAddr}" class="form-label">Diagnosis Name</label>
-                    <select class="form-control clinical-input" id="ailmentsList${patientAddr}" required>
+                    <select class="form-control clinical-input" id="ailmentsList${patientAddr}" required onchange="toggleCustomDiagnosisInput('${patientAddr}')">
                       <option selected disabled>Choose diagnosis...</option>
                       <option value="0">Common Flu</option>
                       <option value="1">Viral Infection</option>
@@ -540,16 +561,20 @@ async function showRecords(element) {
                       <option value="3">Tumor</option>
                       <option value="4">Covid-19</option>
                       <option value="5">Heart Disorder</option>
-                      <option value="6">Other</option>
+                      <option value="other">Other</option>
                     </select>
+                    <div id="customDiagnosisWrapper${patientAddr}" class="mt-3" style="display:none;">
+                      <label for="customDiagnosis${patientAddr}" class="form-label">Custom Diagnosis</label>
+                      <input type="text" class="form-control clinical-input" id="customDiagnosis${patientAddr}" placeholder="Enter diagnosis">
+                    </div>
                   </div>
                   <div class="form-field">
                     <label for="severity${patientAddr}" class="form-label">Severity</label>
                     <select class="form-control clinical-input" id="severity${patientAddr}" required>
                       <option selected disabled>Select severity...</option>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
+                      <option value="low">Mild</option>
+                      <option value="medium">Moderate</option>
+                      <option value="high">Severe</option>
                     </select>
                   </div>
                 </div>
@@ -684,11 +709,11 @@ async function submitDiagnosis(element, index) {
     // Get form details
     const diagnosisIndex = document.getElementById(`ailmentsList${patientAddress}`).value;
     const clinicalStatus = document.getElementById(`clinicalStatus${patientAddress}`).value;
-    const severity = document.getElementById(`severity${patientAddress}`).value;
+    let severityInput = document.getElementById(`severity${patientAddress}`).value;
     const affectedArea = document.getElementById(`affectedArea${patientAddress}`).value;
     const otherDetails = document.getElementById(`details${patientAddress}`).value;
 
-    if (!diagnosisIndex || !clinicalStatus || !severity || !affectedArea) {
+    if (!diagnosisIndex || !clinicalStatus || !severityInput || !affectedArea) {
       alert("Please fill in all fields.");
       return;
     }
@@ -722,8 +747,38 @@ async function submitDiagnosis(element, index) {
 
     const datetime = new Date().toISOString();
     const docNameStored = docName || "Unknown Doctor";
-    const diagnosis = parseInt(diagnosisIndex);
-    const diagnosed = ailmentsDict[diagnosis];
+    const severityMap = {
+      low: "mild",
+      medium: "moderate",
+      high: "severe",
+      mild: "mild",
+      moderate: "moderate",
+      severe: "severe",
+    };
+    const severity = severityMap[severityInput];
+
+    if (!severity) {
+      alert("Please select a valid severity.");
+      return;
+    }
+
+    let diagnosed;
+    if (diagnosisIndex === "other") {
+      diagnosed = document.getElementById(`customDiagnosis${patientAddress}`).value;
+
+      if (!diagnosed || diagnosed.trim() === "") {
+        alert("Please enter a diagnosis.");
+        return;
+      }
+
+      diagnosed = diagnosed.trim();
+    } else {
+      diagnosed = ailmentsDict[parseInt(diagnosisIndex, 10)];
+    }
+
+    const coding = typeof window.mapToSNOMED === "function"
+      ? window.mapToSNOMED(diagnosed)
+      : [];
 
     const fhirConditionResource = {
       resourceType: "Condition",
@@ -740,10 +795,14 @@ async function submitDiagnosis(element, index) {
           {
             system: "http://terminology.hl7.org/CodeSystem/condition-severity",
             code: severity,
+            display: severity,
           },
         ],
       },
-      code: { text: diagnosed },
+      code: {
+        text: diagnosed,
+        coding,
+      },
       bodySite: [{ text: affectedArea }],
       onsetDateTime: datetime,
       note: [{ text: otherDetails }],

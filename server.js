@@ -1,6 +1,16 @@
+const { validateFHIRBundle } = require("./services/fhirValidationService");
+
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
+const { webcrypto } = require("crypto");
+const { TextEncoder, TextDecoder } = require("util");
+const { Web3 } = require("web3");
+const FormData = require("form-data");
+
+const medicalDataRegistryArtifact = require("./build/contracts/MedicalDataRegistry.json");
+const { parseFHIRBundle } = require("./services/fhirImportService");
+const { generateFHIRBundle } = require("./services/fhirExportService");
 
 const app = express();
 
@@ -11,6 +21,271 @@ const OLLAMA_URL = "http://localhost:11434/api/generate";
 const NUM_PREDICT_DIAGNOSE = Number(process.env.OLLAMA_NUM_PREDICT_DIAGNOSE || 600);
 const NUM_PREDICT_SUMMARY = Number(process.env.OLLAMA_NUM_PREDICT_SUMMARY || 300);
 const NUM_PREDICT_TRIAGE = Number(process.env.OLLAMA_NUM_PREDICT_TRIAGE || 400);
+const NUM_PREDICT_TITLE = Number(process.env.OLLAMA_NUM_PREDICT_TITLE || 24);
+const IPFS_HOST = process.env.IPFS_HOST || "127.0.0.1";
+const IPFS_PORT = Number(process.env.IPFS_PORT || 5001);
+const IPFS_PROTOCOL = process.env.IPFS_PROTOCOL || "http";
+const IPFS_GATEWAY_URL = "http://127.0.0.1:8080/ipfs";
+const WEB3_HTTP_URL = process.env.WEB3_HTTP_URL || "http://127.0.0.1:8546";
+
+const subtle = webcrypto.subtle;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const web3 = new Web3(WEB3_HTTP_URL);
+
+function b64encode(buf) {
+  return Buffer.from(new Uint8Array(buf)).toString("base64");
+}
+
+function b64decode(str) {
+  return Uint8Array.from(Buffer.from(str, "base64"));
+}
+
+function ensureLowercaseAddress(address) {
+  return String(address || "").trim().toLowerCase();
+}
+
+function isIsoDateString(value) {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value.trim());
+}
+
+function formatReadableDateTime(value) {
+  if (!isIsoDateString(value)) return value;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
+function humanizePromptData(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => humanizePromptData(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [key, humanizePromptData(entryValue)])
+    );
+  }
+
+  if (isIsoDateString(value)) {
+    return formatReadableDateTime(value);
+  }
+
+  return value;
+}
+
+function sanitizeConversationTitle(rawTitle, fallback = "Conversation") {
+  const cleaned = String(rawTitle || "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^(title|conversation title)\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+
+  return cleaned || fallback;
+}
+
+async function getMedicalDataRegistryContract() {
+  const networkId = String(await web3.eth.net.getId());
+  const deployedNetwork =
+    medicalDataRegistryArtifact.networks[networkId] ||
+    medicalDataRegistryArtifact.networks[Object.keys(medicalDataRegistryArtifact.networks)[0]];
+
+  if (!deployedNetwork || !deployedNetwork.address) {
+    throw new Error("MedicalDataRegistry contract is not deployed for the configured network.");
+  }
+
+  return new web3.eth.Contract(
+    medicalDataRegistryArtifact.abi,
+    deployedNetwork.address
+  );
+}
+
+async function generateAESKey() {
+  return subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptAES(plaintext, aesKey) {
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const encoded = encoder.encode(plaintext);
+
+  const ciphertext = await subtle.encrypt(
+    { name: "AES-GCM", iv },
+    aesKey,
+    encoded
+  );
+
+  return {
+    iv: b64encode(iv),
+    data: b64encode(ciphertext),
+  };
+}
+
+async function decryptAES(payload, aesKey) {
+  const plaintext = await subtle.decrypt(
+    { name: "AES-GCM", iv: b64decode(payload.iv) },
+    aesKey,
+    b64decode(payload.data)
+  );
+
+  return decoder.decode(plaintext);
+}
+
+async function deriveUAK(password, ethAddress) {
+  const keyMaterial = await subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(ensureLowercaseAddress(ethAddress)),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function deriveRecoveryUAK(recoveryKey, ethAddress) {
+  const keyMaterial = await subtle.importKey(
+    "raw",
+    encoder.encode(recoveryKey),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  return subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(`recovery-${ensureLowercaseAddress(ethAddress)}`),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function wrapRMK(rmk, uak) {
+  const rawRMK = new Uint8Array(await subtle.exportKey("raw", rmk));
+  const iv = webcrypto.getRandomValues(new Uint8Array(12));
+  const wrapped = await subtle.encrypt(
+    { name: "AES-GCM", iv },
+    uak,
+    rawRMK
+  );
+
+  return JSON.stringify({
+    iv: b64encode(iv),
+    data: b64encode(wrapped),
+  });
+}
+
+async function unwrapRMK(payload, uak) {
+  const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+  const rawRMK = await subtle.decrypt(
+    { name: "AES-GCM", iv: b64decode(parsed.iv) },
+    uak,
+    b64decode(parsed.data)
+  );
+
+  return subtle.importKey(
+    "raw",
+    rawRMK,
+    "AES-GCM",
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+function generateRecoveryKey() {
+  const bytes = webcrypto.getRandomValues(new Uint8Array(32));
+  return b64encode(bytes);
+}
+
+async function uploadEncryptedPayloadToIPFS(payload) {
+  const form = new FormData();
+  form.append("file", Buffer.from(JSON.stringify(payload), "utf8"), {
+    filename: "medical-record.json",
+    contentType: "application/json",
+  });
+
+  const response = await axios.post(
+    `${IPFS_PROTOCOL}://${IPFS_HOST}:${IPFS_PORT}/api/v0/add?pin=true`,
+    form,
+    {
+      headers: form.getHeaders(),
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 60000,
+    }
+  );
+
+  const data = response.data;
+  if (typeof data === "string") {
+    const lastLine = data.trim().split("\n").filter(Boolean).pop();
+    const parsed = JSON.parse(lastLine);
+    return parsed.Hash;
+  }
+
+  return data.Hash || data.Cid?.["/"];
+}
+
+async function readEncryptedPayloadFromIPFS(ipfsHash) {
+  const url = `${IPFS_GATEWAY_URL}/${ipfsHash}`;
+  console.log("Fetching from IPFS:", url);
+
+  const response = await axios.get(url, { timeout: 30000 });
+
+  return typeof response.data === "string"
+    ? JSON.parse(response.data)
+    : response.data;
+}
+
+async function getPatientRecordHash(patientAddress) {
+  const contract = await getMedicalDataRegistryContract();
+  return contract.methods.getHash(patientAddress).call({ from: patientAddress });
+}
+
+async function getWrappedRMKForPatient(patientAddress) {
+  const contract = await getMedicalDataRegistryContract();
+  return contract.methods.getEncryptedAESKey(patientAddress).call({ from: patientAddress });
+}
+
+async function tryStoreHashOnChain(patientAddress, ipfsHash) {
+  try {
+    const contract = await getMedicalDataRegistryContract();
+    await contract.methods.setHash(patientAddress, ipfsHash).send({
+      from: patientAddress,
+      gas: 500000,
+    });
+    return true;
+  } catch (error) {
+    console.warn("FHIR hash persistence skipped:", error.message);
+    return false;
+  }
+}
 
 app.post("/api/diagnose", async (req, res) => {
 
@@ -33,6 +308,8 @@ app.post("/api/diagnose", async (req, res) => {
       ? symptoms.join(", ")
       : symptoms;
 
+    const promptDiagnosisDetails = humanizePromptData(diagnosisDetails);
+    const promptTreatmentDetails = humanizePromptData(treatmentDetails);
     const prompt = clientPrompt || `
 You are an AI medical triage assistant.
 
@@ -47,8 +324,8 @@ Allergies: ${(allergies || []).join(", ") || "none"}
 Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
 Treatments: ${(treatments || []).join(", ") || "none"}
 Allergy details (compact): ${allergyDetails && allergyDetails.length ? JSON.stringify(allergyDetails) : "none"}
-Diagnosis details (compact; includes 'details' for Other): ${diagnosisDetails && diagnosisDetails.length ? JSON.stringify(diagnosisDetails) : "none"}
-Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSON.stringify(treatmentDetails) : "none"}
+Diagnosis details (compact; includes 'details' for Other): ${promptDiagnosisDetails && promptDiagnosisDetails.length ? JSON.stringify(promptDiagnosisDetails) : "none"}
+Treatment details (compact): ${promptTreatmentDetails && promptTreatmentDetails.length ? JSON.stringify(promptTreatmentDetails) : "none"}
 
 Current symptoms:
 ${symptomText}
@@ -164,6 +441,68 @@ Include a sentence in this exact format: "Risk level: <LOW|MODERATE|HIGH> - <sho
 
 });
 
+app.post("/api/conversation-title", async (req, res) => {
+  try {
+    const { messages } = req.body || {};
+
+    const conversation = Array.isArray(messages)
+      ? messages
+          .slice(0, 6)
+          .map((m) => `${m.role || "user"}: ${m.text || ""}`.trim())
+          .filter(Boolean)
+          .join("\n")
+      : "";
+
+    if (!conversation) {
+      return res.json({ title: "Conversation" });
+    }
+
+    const prompt = `
+Create a short title for this medical support conversation.
+Requirements:
+- 2 to 6 words
+- sentence case
+- no quotes
+- no trailing punctuation
+- summarize the main symptom or request
+- sound natural, similar to a ChatGPT conversation title
+
+Conversation:
+${conversation}
+`;
+
+    const ollamaResponse = await axios.post(
+      OLLAMA_URL,
+      {
+        model: "qwen2.5:1.5b-instruct",
+        prompt,
+        stream: false,
+        keep_alive: "10m",
+        options: {
+          temperature: 0.1,
+          num_predict: NUM_PREDICT_TITLE
+        }
+      },
+      { timeout: 60000 }
+    );
+
+    const raw = (ollamaResponse.data && ollamaResponse.data.response)
+      ? String(ollamaResponse.data.response).trim()
+      : "";
+
+    res.json({
+      title: sanitizeConversationTitle(raw)
+    });
+  } catch (error) {
+    const status = error.response && error.response.status;
+    const data = error.response && error.response.data;
+    console.error("Conversation title error:", error.message, status || "", data || "");
+    res.status(500).json({
+      error: "Conversation title generation failed."
+    });
+  }
+});
+
 app.post("/api/visit-summary", async (req, res) => {
   try {
     const {
@@ -184,6 +523,8 @@ app.post("/api/visit-summary", async (req, res) => {
           .join("\n")
       : "";
 
+    const promptDiagnosisDetails = humanizePromptData(diagnosisDetails);
+    const promptTreatmentDetails = humanizePromptData(treatmentDetails);
     const prompt = `
 You are a clinical assistant preparing a concise visit summary for a doctor.
 Write 5–7 bullet points, each under 18 words.
@@ -197,8 +538,8 @@ Allergies: ${(allergies || []).join(", ") || "none"}
 Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
 Treatments: ${(treatments || []).join(", ") || "none"}
 Allergy details (compact): ${allergyDetails && allergyDetails.length ? JSON.stringify(allergyDetails) : "none"}
-Diagnosis details (compact): ${diagnosisDetails && diagnosisDetails.length ? JSON.stringify(diagnosisDetails) : "none"}
-Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSON.stringify(treatmentDetails) : "none"}
+Diagnosis details (compact): ${promptDiagnosisDetails && promptDiagnosisDetails.length ? JSON.stringify(promptDiagnosisDetails) : "none"}
+Treatment details (compact): ${promptTreatmentDetails && promptTreatmentDetails.length ? JSON.stringify(promptTreatmentDetails) : "none"}
 
 Conversation (most recent messages):
 ${conversation || "none"}
@@ -305,6 +646,8 @@ app.post("/api/triage-report", async (req, res) => {
 
     const now = new Date().toISOString();
 
+    const promptDiagnosisDetails = humanizePromptData(diagnosisDetails);
+    const promptTreatmentDetails = humanizePromptData(treatmentDetails);
     const prompt = `
 You are a clinical assistant producing a concise AI triage report.
 Return plain text ONLY, exactly six lines, no extra lines.
@@ -330,8 +673,8 @@ Allergies: ${(allergies || []).join(", ") || "none"}
 Past diagnoses: ${(pastDiagnoses || []).join(", ") || "none"}
 Treatments: ${(treatments || []).join(", ") || "none"}
 Allergy details (compact): ${allergyDetails && allergyDetails.length ? JSON.stringify(allergyDetails) : "none"}
-Diagnosis details (compact): ${diagnosisDetails && diagnosisDetails.length ? JSON.stringify(diagnosisDetails) : "none"}
-Treatment details (compact): ${treatmentDetails && treatmentDetails.length ? JSON.stringify(treatmentDetails) : "none"}
+Diagnosis details (compact): ${promptDiagnosisDetails && promptDiagnosisDetails.length ? JSON.stringify(promptDiagnosisDetails) : "none"}
+Treatment details (compact): ${promptTreatmentDetails && promptTreatmentDetails.length ? JSON.stringify(promptTreatmentDetails) : "none"}
 
 Conversation (most recent messages, may be truncated):
 ${conversationTrimmed || "none"}
@@ -448,6 +791,172 @@ ${conversationTrimmed || "none"}
   }
 });
 
+app.post("/api/fhir/import", async (req, res) => {
+  try {
+    const {
+      bundleJson,
+      patientAddress,
+      password,
+      persistOnChain = false,
+    } = req.body || {};
+
+    if (!bundleJson) {
+      return res.status(400).json({ error: "FHIR import requires a bundleJson payload." });
+    }
+
+    if (!bundleJson) {
+  return res.status(400).json({ error: "FHIR import requires a bundleJson payload." });
+}
+
+    const bundleObjRaw = typeof bundleJson === "string" ? JSON.parse(bundleJson) : bundleJson;
+    const bundleObj =
+      bundleObjRaw.bundle ||
+      bundleObjRaw.bundleJson ||
+      bundleObjRaw;
+
+// ✅ VALIDATE FIRST
+const validation = validateFHIRBundle(bundleObj);
+
+if (!validation.valid) {
+  return res.status(400).json({
+    error: "Invalid FHIR Bundle",
+    validation
+  });
+}
+
+const normalizedRecord = removeNaN(parseFHIRBundle(bundleObj));
+
+    const normalizedPatientAddress = ensureLowercaseAddress(patientAddress);
+    const rmk = await generateAESKey();
+    const encryptedPayload = await encryptAES(JSON.stringify(normalizedRecord), rmk);
+    const ipfsHash = await uploadEncryptedPayloadToIPFS(encryptedPayload);
+    console.log("IPFS hash returned from upload:", ipfsHash);
+
+    const uak = await deriveUAK(password, normalizedPatientAddress);
+    const wrappedRMK = await wrapRMK(rmk, uak);
+    const recoveryKey = generateRecoveryKey();
+    const recoveryUAK = await deriveRecoveryUAK(recoveryKey, normalizedPatientAddress);
+    const wrappedRMKRecovery = await wrapRMK(rmk, recoveryUAK);
+    const storedOnChain = persistOnChain
+      ? await tryStoreHashOnChain(normalizedPatientAddress, ipfsHash)
+      : false;
+
+    return res.json({
+      success: true,
+      ipfsHash,
+      storedOnChain,
+      wrappedRMK,
+      wrappedRMKRecovery,
+      recoveryKey,
+      normalizedRecord,
+    });
+  } catch (error) {
+    console.error("FHIR import failed:", error.message);
+    return res.status(500).json({
+      error: error.message || "FHIR import failed.",
+    });
+  }
+});
+
+app.get("/api/fhir/export/:patientAddress", async (req, res) => {
+  try {
+    const patientAddress = ensureLowercaseAddress(req.params.patientAddress);
+    const requestedVersion = String(req.query.version || "R4").toUpperCase();
+    const exportVersion = requestedVersion === "STU3" ? "STU3" : "R4";
+    
+    const recordHashRaw = await getPatientRecordHash(patientAddress);
+console.log("RAW recordHash from blockchain:", recordHashRaw);
+
+const recordHash = normalizeIPFSHash(recordHashRaw);
+console.log("Normalized recordHash:", recordHash);
+    if (!recordHash) {
+      return res.status(404).json({ error: "No medical record found for this patient." });
+    }
+
+    const rawKeyBase64 = req.get("x-session-key");
+
+if (!rawKeyBase64) {
+  return res.status(400).json({ error: "Missing session key." });
+}
+
+// reconstruct AES key
+const rawKey = b64decode(rawKeyBase64);
+
+const rmk = await subtle.importKey(
+  "raw",
+  rawKey,
+  "AES-GCM",
+  true,
+  ["decrypt"]
+);
+    const encryptedPayload = await readEncryptedPayloadFromIPFS(recordHash);
+    const decryptedRecord = JSON.parse(await decryptAES(encryptedPayload, rmk));
+    const bundle = generateFHIRBundle(decryptedRecord, exportVersion);
+
+// ✅ VALIDATE BEFORE RETURN
+const validation = validateFHIRBundle(bundle);
+
+if (!validation.valid) {
+  console.warn("FHIR Export validation issues:", validation.issues);
+}
+
+res.setHeader("Content-Type", "application/fhir+json; charset=utf-8");
+
+return res.json({
+  bundle,
+  validation,
+  version: exportVersion,
+});
+  } catch (error) {
+    console.error("FHIR export failed:", error.message);
+    return res.status(500).json({
+      error: error.message || "FHIR export failed.",
+    });
+  }
+});
+
 app.listen(3000, () => {
   console.log("Server running on port 3000");
 });
+
+function normalizeIPFSHash(hash) {
+  if (!hash) return hash;
+
+  // remove subdomain-style: bafy...ipfs.localhost
+  if (hash.includes(".ipfs.")) {
+    return hash.split(".ipfs.")[0];
+  }
+
+  // remove full URL if stored accidentally
+  if (hash.includes("/ipfs/")) {
+    return hash.split("/ipfs/")[1];
+  }
+
+  return hash;
+}
+
+function removeNaN(obj) {
+  if (Array.isArray(obj)) {
+    return obj.map(removeNaN);
+  } else if (obj && typeof obj === "object") {
+    const cleaned = {};
+    for (const key in obj) {
+      let value = obj[key];
+
+      // ❌ Remove NaN
+      if (typeof value === "number" && isNaN(value)) continue;
+
+      // ❌ Remove undefined
+      if (value === undefined) continue;
+
+      // ✅ Fix null numeric fields
+      if (key === "frequency" && (value === null || value === "")) {
+        value = 1; // default safe value
+      }
+
+      cleaned[key] = removeNaN(value);
+    }
+    return cleaned;
+  }
+  return obj;
+}

@@ -39,27 +39,36 @@
                 <hr class="sidebar-divider">
                 <p class="sidebar-category ">HEALTH MANAGEMENT</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="appointmentPanel sentAppointmentRequests"><i
-                        class="fas fa-briefcase-medical"></i>Schedule an Appointment</a>
-                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i>Appointment
-                    Calendar</a>
+                    data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
+
                 <hr class="sidebar-divider">
-                <p class="sidebar-category ">AI ASSISTANT</p>
+                <p class="sidebar-category ">APPOINTMENTS</p>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="appointmentPanel sentAppointmentRequests"><i
+                        class="fas fa-briefcase-medical"></i> Schedule Appointment</a>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="appointmentCalendarPanel"><i class="fas fa-calendar-alt"></i> Appointment
+                    Calendar</a>
+
+                <hr class="sidebar-divider">
+                <p class="sidebar-category ">SMART HEALTH TOOLS</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="aiAssistantPanel">
                     <i class="fas fa-robot"></i> AI Symptom Assistant
                 </a>
-                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="allergyPanel"><i class="fas fa-allergies"></i> Allergies</a>
+
                 <hr class="sidebar-divider">
-                <p class="sidebar-category ">AVAILABLE DOCTORS</p>
-                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
-                    data-target="doctorInfoPanel"><i class="fas fa-user-md"></i> Doctors</a>
+                <p class="sidebar-category ">ACCESS &amp; SHARING</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="shareRecordPanel currentHoldersPanel"><i class="fas fa-share-square"></i> Share Medical
                     Record</a>
 
+                <hr class="sidebar-divider">
+                <p class="sidebar-category ">AVAILABLE DOCTORS</p>
+                <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
+                    data-target="doctorInfoPanel"><i class="fas fa-user-md"></i> Doctors</a>
+
+                <hr class="sidebar-divider">
                 <p class="sidebar-category ">PROXY DESIGNATION</p>
                 <a href="#" class="list-group-item list-group-item-action bg-purple text-white"
                     data-target="designateProxyPanel"><i class="fas fa-user-plus"></i> Designate Proxy</a>
@@ -103,8 +112,17 @@
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-info btn-lg patient-records-toggle"
-                                onclick="showRecords(this)">View medical records</button>
+                            <button id="viewRecordsBtn" type="submit" class="btn btn-primary btn-lg patient-records-toggle"
+                                onclick="showRecords(this)">View Medical Records</button>
+                            <div class="d-flex flex-column align-items-start">
+                                <label for="fhirExportVersion" class="mb-2 font-weight-semibold">FHIR Export Version</label>
+                                <select id="fhirExportVersion" class="form-control mb-3">
+                                    <option value="R4">FHIR R4</option>
+                                    <option value="STU3">FHIR STU3</option>
+                                </select>
+                                <button id="exportBtn" type="button" class="btn btn-primary btn-lg"
+                                    onclick="exportFHIRMedicalRecord()">Export Medical Record</button>
+                            </div>
                         </div>
 
                         <pre id="records" style="margin-top: 20px;">
@@ -561,6 +579,7 @@
     <script src="./js/config.js"></script>
     <script src="/js/crypto.js"></script>
     <script src="/js/main.js"></script>
+    <script src="/js/medicalMapping.js"></script>
     <script src="/js/register.js"></script>
     <script src="/js/patient.js"></script>
 

@@ -37,43 +37,49 @@
             <!-- <a class="nav-link signup-button" href="register.html">Register</a> -->
 
         </div>
-        </div>
     </nav>
 
 
-    <div class="container mt-5">
-        <div class="panel panel-default ">
-            <div class="panel-heading">
-                <h3 class="text-center">Want to join our community?</h3>
-            </div>
-            <div class="panel-body">
-                <div class="row">
-                    <div class="alert alert-warning col-sm-8 col-sm-offset-2" style="display: none;">
-                        <strong>Warning!</strong> Invalid public key. Please enter a valid public key to register.
-                    </div>
-
-                    <div class="alert alert-info col-sm-8 col-sm-offset-2" style="display: none;">
-                        <strong>Info!</strong> User already registered. Please check your details.
-                    </div>
+    <main class="container registration-page">
+        <section class="card registration-card">
+            <div class="registration-header">
+                <div class="brand-badge">
+                    <i class="fas fa-heartbeat"></i>
                 </div>
-                <div class="alert alert-danger col-sm-8 col-sm-offset-2" id="certificateValidationError"
-                    style="display: none;">
+                <h2 class="title" id="registrationTitle">Create Healthcare Account</h2>
+                <p class="subtitle" id="registrationSubtitle">Securely manage your medical records and care access</p>
+            </div>
+
+            <div class="registration-alerts">
+                <div class="alert alert-warning" style="display: none;">
+                        <strong>Warning!</strong> Invalid public key. Please enter a valid public key to register.
+                </div>
+
+                <div class="alert alert-info" style="display: none;">
+                    <strong>Info!</strong> User already registered. Please check your details.
+                </div>
+
+                <div class="alert alert-danger" id="certificateValidationError" style="display: none;">
                     <strong>Error!</strong> <span id="certificateValidationErrorMessage">The medical certificate has
                         expired or the
                         license number is not valid.</span>
                 </div>
-                <div class="alert alert-danger col-sm-8 col-sm-offset-2" id="poaValidationError" style="display: none;">
+
+                <div class="alert alert-danger" id="poaValidationError" style="display: none;">
                     <strong>Error!</strong> <span id="poaValidationErrorMessage">The details in the POA document do not
                         match the form inputs.</span>
                 </div>
+            </div>
 
 
-
-                <form name="registerForm" class="form-horizontal" action="./doctor.html">
+                <form name="registerForm" class="form-horizontal registration-form" action="./doctor.html">
+                    <div class="section">
+                        <h4>Account Type</h4>
+                        <p class="section-description">Choose how you want to access the medical platform.</p>
+                    </div>
                     <div class="form-group">
-                        <label for="designation" class="control-label col-sm-2">What role do you wish to register as
-                            ?</label>
-                        <div class="col-sm-8">
+                        <label for="designation" class="control-label">What role do you wish to register as?</label>
+                        <div class="field-shell">
                             <select class="form-control" id="designation" onchange="toggleFields();">
                                 <option selected disabled>-- Please Select --</option>
                                 <option value="0">Patient</option>
@@ -84,134 +90,201 @@
                     </div>
 
                     <div id="commonFields" style="display:none;">
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="firstName">First Name:</label>
-                            <div class="col-sm-8">
-                                <input type="text" class="form-control" id="firstName" placeholder="Enter first name"
-                                    required>
-                            </div>
+                        <div class="section">
+                            <h4>Patient Registration</h4>
+                            <p class="section-description">Choose whether to enter details manually or import an existing FHIR bundle.</p>
                         </div>
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="lastName">Last Name:</label>
-                            <div class="col-sm-8">
-                                <input type="text" class="form-control" id="lastName" placeholder="Enter last name"
-                                    required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="dob">Date of Birth:</label>
-                            <div class="col-sm-8">
-                                <input type="date" class="form-control" id="dob" required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="age">Age:</label>
-                            <div class="col-sm-8">
-                                <input type="text" class="form-control" id="age" placeholder="Age" readonly>
+                        <div id="registrationMode" class="form-group mode-select" style="display:none;">
+                            <label class="control-label">Registration Mode</label>
+                            <div class="registration-mode-options">
+                                <label class="registration-mode-option">
+                                    <input type="radio" name="mode" value="manual" checked>
+                                    Enter details manually
+                                </label>
+                                <label class="registration-mode-option">
+                                    <input type="radio" name="mode" value="import">
+                                    Import Medical Record (FHIR Bundle)
+                                </label>
                             </div>
                         </div>
 
-                        <!-- Gender -->
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="gender">Gender:</label>
-                            <div class="col-sm-8">
-                                <select class="form-control" id="gender" required>
-                                    <option value="">Select Gender</option>
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                </select>
+                        <div id="manualSection">
+                            <div class="section">
+                                <h4>Personal Details</h4>
+                                <p class="section-description">Provide the patient information needed to create a secure account.</p>
                             </div>
-                        </div>
-                        <!-- Email -->
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="email">Email:</label>
-                            <div class="col-sm-8">
-                                <input type="email" class="form-control" id="email" placeholder="Enter email" required>
-                            </div>
-                        </div>
-                        <!-- Phone Number -->
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="phone">Phone Number:</label>
-                            <div class="col-sm-8">
-                                <input type="tel" class="form-control" id="phone" placeholder="Enter phone number"
-                                    required>
-                            </div>
-                        </div>
-                        <!-- Address -->
-                        <div class="form-group">
-                            <label class="control-label col-sm-2" for="address">Address:</label>
-                            <div class="col-sm-8">
-                                <input type="text" class="form-control" id="address" placeholder="Enter address"
-                                    required>
-                            </div>
-                        </div>
-
-                        <div class="form-group row" id="patientPasswordGroup" style="display:none;">
-                            <label class="col-sm-2 col-form-label" for="patientPassword">
-                                Access Password:
-                            </label>
-
-                            <div class="col-sm-8">
-                                <div class="input-group">
-                                    <input type="password" class="form-control" id="patientPassword"
-                                        placeholder="Set access password">
-                                    <div class="input-group-append">
-                                        <span class="input-group-text" style="cursor:pointer;"
-                                            onclick="togglePasswordVisibility('patientPassword')">
-                                            <i class="fa fa-eye"></i>
-                                        </span>
-                                    </div>
+                            <div class="form-group">
+                                <label class="control-label" for="firstName">First Name</label>
+                                <div class="field-shell">
+                                    <input type="text" class="form-control" id="firstName" placeholder="Enter first name"
+                                        required>
                                 </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="lastName">Last Name</label>
+                                <div class="field-shell">
+                                    <input type="text" class="form-control" id="lastName" placeholder="Enter last name"
+                                        required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="dob">Date of Birth</label>
+                                <div class="field-shell">
+                                    <input type="date" class="form-control" id="dob" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="age">Age</label>
+                                <div class="field-shell">
+                                    <input type="text" class="form-control" id="age" placeholder="Age" readonly>
+                                </div>
+                            </div>
 
-                                <!-- Constraints -->
-                                <small class="form-text text-muted mt-1">
-                                    <span>Password must contain:</span>
-                                    <ul class="mb-1">
-                                        <li>At least <strong>8 characters</strong></li>
-                                        <li>One <strong>uppercase</strong> letter</li>
-                                        <li>One <strong>lowercase</strong> letter</li>
-                                        <li>One <strong>number</strong></li>
-                                        <li>One <strong>special character</strong></li>
-                                    </ul>
-                                    <span>This password encrypts your medical records. If forgotten, use recovery
-                                        key.</span>
-                                </small>
-                                <small id="passwordError" class="text-danger" style="display:none;">
-                                    Password does not meet the required complexity.
-                                </small>
+                            <div class="form-group">
+                                <label class="control-label" for="gender">Gender</label>
+                                <div class="field-shell">
+                                    <select class="form-control" id="gender" required>
+                                        <option value="">Select Gender</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="email">Email</label>
+                                <div class="field-shell">
+                                    <input type="email" class="form-control" id="email" placeholder="Enter email" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="phone">Phone Number</label>
+                                <div class="field-shell">
+                                    <input type="tel" class="form-control" id="phone" placeholder="Enter phone number"
+                                        required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="address">Address</label>
+                                <div class="field-shell">
+                                    <input type="text" class="form-control" id="address" placeholder="Enter address"
+                                        required>
+                                </div>
+                            </div>
+                        </div>
 
+                        <div id="importSection" style="display:none;">
+                            <div class="section">
+                                <h4>Medical Record Import</h4>
+                                <p class="section-description">Upload a FHIR bundle to prefill registration from an existing record.</p>
+                            </div>
+                            <div class="form-group import-box">
+                                <label class="control-label" for="fhirImportFile">Upload FHIR Bundle</label>
+                                <div class="field-shell">
+                                    <div class="custom-file">
+                                        <input type="file" class="custom-file-input" id="fhirImportFile" accept=".json,application/json">
+                                        <label class="custom-file-label" for="fhirImportFile">Choose FHIR JSON file</label>
+                                    </div>
+                                    <small class="form-text text-info mt-2 d-block">
+                                        Supported: STU3, R4
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
 
+                        <div id="passwordSection" class="registration-subsection" style="display:none;">
+                            <div class="section">
+                                <h4>Security</h4>
+                                <p class="section-description">Create a strong password to protect access to encrypted medical records.</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="control-label" for="password">
+                                    Access Password
+                                </label>
+
+                                <div class="field-shell">
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="password"
+                                            placeholder="Set access password">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text" style="cursor:pointer;"
+                                                onclick="togglePasswordVisibility('password')">
+                                                <i class="fa fa-eye"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <small class="form-text text-muted mt-1">
+                                        <span>Password must contain:</span>
+                                        <ul class="mb-1">
+                                            <li>At least <strong>8 characters</strong></li>
+                                            <li>One <strong>uppercase</strong> letter</li>
+                                            <li>One <strong>lowercase</strong> letter</li>
+                                            <li>One <strong>number</strong></li>
+                                            <li>One <strong>special character</strong></li>
+                                        </ul>
+                                        <span>This password encrypts your medical records. If forgotten, use recovery
+                                            key.</span>
+                                    </small>
+                                    <small id="passwordError" class="text-danger" style="display:none;">
+                                        Password does not meet the required complexity.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="control-label" for="confirmPassword">
+                                    Confirm Password
+                                </label>
+                                <div class="field-shell">
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="confirmPassword"
+                                            placeholder="Confirm access password">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text" style="cursor:pointer;"
+                                                onclick="togglePasswordVisibility('confirmPassword')">
+                                                <i class="fa fa-eye"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <small id="confirmPasswordError" class="text-danger" style="display:none;">
+                                        Passwords do not match.
+                                    </small>
+                                </div>
                             </div>
                         </div>
 
                     </div>
 
                     <div id="doctorFields" style="display:none;">
+                        <div class="section">
+                            <h4>Professional Details</h4>
+                            <p class="section-description">Enter your clinician profile information for license verification.</p>
+                        </div>
                         <div class="form-group">
-                            <label class="control-label col-sm-2" for="yearsExperience">Years of Experience:</label>
-                            <div class="col-sm-8">
+                            <label class="control-label" for="yearsExperience">Years of Experience</label>
+                            <div class="field-shell">
                                 <input type="number" class="form-control" id="yearsOfExperience"
                                     placeholder="Enter years of experience">
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="control-label col-sm-2" for="specialty">Specialty:</label>
-                            <div class="col-sm-8">
+                            <label class="control-label" for="specialty">Specialty</label>
+                            <div class="field-shell">
                                 <input type="text" class="form-control" id="specialty" placeholder="Enter specialty">
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="control-label col-sm-2" for="licenseNumber">License Number:</label>
-                            <div class="col-sm-8">
+                            <label class="control-label" for="licenseNumber">License Number</label>
+                            <div class="field-shell">
                                 <input type="text" class="form-control" id="licenseNumber"
                                     placeholder="Enter license number">
                             </div>
                         </div>
                         <div class="form-group" id="certificateUploadField">
-                            <div id="loadingMessage" class="alert alert-info col-sm-8 offset-sm-2"
+                            <div id="loadingMessage" class="alert alert-info"
                                 style="display: none; text-align: center;"></div>
-                            <label class="control-label col-sm-2" for="medicalCertificate">Medical Certificate:</label>
-                            <div class="col-sm-8">
+                            <label class="control-label" for="medicalCertificate">Medical Certificate</label>
+                            <div class="field-shell">
                                 <input type="file" class="form-control" id="medicalCertificate" accept=".jpeg" required>
                                 <small>Upload the document in JPEG format.</small>
                             </div>
@@ -221,10 +294,14 @@
 
                     <!-- Additional fields for Proxy Registration -->
                     <div id="proxyFields" style="display:none;">
+                        <div class="section">
+                            <h4>Proxy Access</h4>
+                            <p class="section-description">Register access through a token or by uploading the power of attorney document.</p>
+                        </div>
                         <!-- Option for Token or POA -->
                         <div class="form-group">
-                            <label class="control-label col-sm-2" for="proxyOption">Proxy Option:</label>
-                            <div class="col-sm-8">
+                            <label class="control-label" for="proxyOption">Proxy Option</label>
+                            <div class="field-shell">
                                 <select class="form-control" id="proxyOption" onchange="toggleProxyOptionFields();">
                                     <option value="token">Token</option>
                                     <option value="poa">POA Document</option>
@@ -234,8 +311,8 @@
 
                         <!-- Token Input Field -->
                         <div class="form-group token-input-group" id="tokenInputField" style="display:none;">
-                            <label class="control-label col-sm-2" for="token">Token:</label>
-                            <div class="col-sm-8">
+                            <label class="control-label" for="token">Token</label>
+                            <div class="field-shell">
                                 <input type="text" class="form-control token-input" id="token"
                                     placeholder="Token received via email">
                             </div>
@@ -245,16 +322,15 @@
                         <!-- POA Upload and Patient Name Fields -->
                         <div id="poaFields" style="display:none;">
                             <div class="form-group">
-                                <label class="control-label col-sm-2" for="poaDoc">POA Document:</label>
-                                <div class="col-sm-8">
+                                <label class="control-label" for="poaDoc">POA Document</label>
+                                <div class="field-shell">
                                     <input type="file" class="form-control" id="poaDoc" accept=".pdf">
                                     <small>Upload the POA document in PDF format.</small>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="control-label col-sm-2" for="patientEthereumAddress">Patient Ethereum
-                                    Address:</label>
-                                <div class="col-sm-8">
+                                <label class="control-label" for="patientEthereumAddress">Patient Ethereum Address</label>
+                                <div class="field-shell">
                                     <input type="text" class="form-control" id="patientEthereumAddress"
                                         placeholder="Enter patient's Ethereum address">
                                 </div>
@@ -267,14 +343,10 @@
 
                 </form>
                 <div class="text-center">
-                    <button class="btn btn-primary btn-lg" onclick="addUser()">Register</button>
+                    <button class="btn btn-primary btn-lg" onclick="addUser()">Create Account</button>
                 </div>
-            </div>
-        </div>
-
-        <hr>
-
-    </div>
+        </section>
+    </main>
 
 
 

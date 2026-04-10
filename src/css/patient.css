@@ -143,7 +143,8 @@ body {
 button.btn-view-records,
 #personalInfoPanel .patient-summary-wrap > button,
 #personalInfoPanel button.patient-records-toggle,
-#personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg {
+#personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg,
+#personalInfoPanel #exportBtn.btn-primary {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -152,21 +153,20 @@ button.btn-view-records,
   min-width: 0 !important;
   max-width: 100% !important;
   margin: 20px auto 0 !important;
-  padding: 14px 32px !important;
-  border: 1px solid #4f6bff !important;
-  border-radius: 999px !important;
-  background: linear-gradient(135deg, #5f76ff 0%, #4155df 100%) !important;
+  padding: 12px 20px !important;
+  border: none !important;
+  border-radius: 25px !important;
+  background: linear-gradient(to right, #4facfe, #00c6ff) !important;
   color: #ffffff !important;
   font-size: 0.96rem !important;
-  font-weight: 700 !important;
+  font-weight: 500 !important;
   letter-spacing: 0 !important;
   line-height: 1.2 !important;
   text-transform: none !important;
   text-decoration: none !important;
   white-space: nowrap !important;
-  box-shadow: 0 14px 30px rgba(54, 87, 255, 0.24) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
-    border-color 0.2s ease !important;
+  box-shadow: none !important;
+  transition: opacity 0.3s ease !important;
   appearance: none;
   -webkit-appearance: none;
 }
@@ -185,12 +185,16 @@ button.btn-view-records:active,
 #personalInfoPanel button.patient-records-toggle:active,
 #personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg:hover,
 #personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg:focus,
-#personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg:active {
-  background: linear-gradient(135deg, #6c82ff 0%, #4659de 100%) !important;
+#personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg:active,
+#personalInfoPanel #exportBtn.btn-primary:hover,
+#personalInfoPanel #exportBtn.btn-primary:focus,
+#personalInfoPanel #exportBtn.btn-primary:active {
+  background: linear-gradient(to right, #4facfe, #00c6ff) !important;
   color: #ffffff !important;
-  border-color: #4f6bff !important;
-  box-shadow: 0 18px 34px rgba(54, 87, 255, 0.28) !important;
-  transform: translateY(-1px);
+  opacity: 0.9 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  transform: none;
   outline: none !important;
   text-decoration: none !important;
 }
@@ -307,27 +311,23 @@ button.btn-view-records:focus-visible,
 
 .btn-primary,
 .btn-info {
-  padding: 6px 12px;
-  font-size: 0.8rem;
+  background: linear-gradient(to right, #4facfe, #00c6ff);
+  border: none;
+  padding: 12px 20px;
+  border-radius: 25px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.3s;
   width: auto;
   display: inline-block;
   text-align: center;
   margin: 0 auto;
-  background-color: #5e72e4;
-  border-color: #5e72e4;
-  padding: 8px 16px;
-  font-size: 0.8rem;
-  border-radius: 5px;
-  color: #fff;
-  text-transform: uppercase;
-  font-weight: bold;
-  letter-spacing: 1px;
 }
 
 .btn-primary:hover,
 .btn-info:hover {
-  background-color: #324cdd;
-  border-color: #324cdd;
+  opacity: 0.9;
 }
 
 .table th,

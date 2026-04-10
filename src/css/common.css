@@ -31,12 +31,30 @@ body {
 
 #sidebar-wrapper {
   min-height: 100vh;
+  height: 100vh;
   width: 280px;
   background: linear-gradient(160deg, var(--brand-700), var(--brand-500));
   color: white;
   font-size: 1rem;
   position: fixed;
   box-shadow: 8px 0 24px rgba(16, 24, 40, 0.2);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+#sidebar-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+#sidebar-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+}
+
+#sidebar-wrapper::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .sidebar-heading {

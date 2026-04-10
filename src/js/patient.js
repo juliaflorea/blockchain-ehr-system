@@ -31,6 +31,8 @@ let lastGeneratedTriageReport = null;
 let cachedTriageReports = null;
 let cachedTriageReportsHash = null;
 let draftTriageReports = {};
+const DEFAULT_THREAD_TITLE = "New conversation";
+const pendingThreadTitleIds = new Set();
 
 async function initChatHistoryStorageKey() {
   try {
@@ -70,7 +72,7 @@ function createNewThread(title) {
   const id = `t_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
   const thread = {
     id,
-    title: title || "New conversation",
+    title: title || DEFAULT_THREAD_TITLE,
     updatedAt: Date.now(),
     messages: []
   };
@@ -367,11 +369,6 @@ function addMessageToActiveThread(role, text) {
   thread.messages.push({ role, text, ts: Date.now() });
   thread.updatedAt = Date.now();
 
-  if (role === "user" && (!thread.title || thread.title === "New conversation")) {
-    const trimmed = (text || "").trim();
-    thread.title = trimmed ? trimmed.slice(0, 40) : "Conversation";
-  }
-
   // Keep history bounded to last 200 messages per thread.
   if (thread.messages.length > 200) {
     thread.messages = thread.messages.slice(thread.messages.length - 200);
@@ -381,15 +378,110 @@ function addMessageToActiveThread(role, text) {
   renderChatThreadsList();
 }
 
+function isDefaultThreadTitle(title) {
+  const normalized = String(title || "").trim().toLowerCase();
+  return !normalized || normalized === DEFAULT_THREAD_TITLE.toLowerCase() || normalized === "conversation";
+}
+
+function toTitleCase(text) {
+  return String(text || "")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function buildFallbackConversationTitle(messages) {
+  const firstUserMessage = (messages || []).find((msg) => msg && msg.role === "user" && msg.text);
+  const source = String(firstUserMessage?.text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!source) return "Conversation";
+
+  let normalized = source
+    .replace(/^(hi|hello|hey)\b[!,.\s]*/i, "")
+    .replace(/^(can you|could you|would you|please|help me)\b[!,.\s]*/i, "")
+    .replace(/^(i have|i'm having|i am having|i feel|i'm feeling|i am feeling|my)\b[!,.\s]*/i, "")
+    .replace(/[?.!]+$/g, "")
+    .trim();
+
+  if (!normalized) normalized = source.replace(/[?.!]+$/g, "").trim();
+
+  const words = normalized.split(/\s+/).slice(0, 6);
+  const compact = words.join(" ").replace(/\s+/g, " ").trim();
+  return compact ? toTitleCase(compact) : "Conversation";
+}
+
+function sanitizeConversationTitle(title, messages) {
+  const cleaned = String(title || "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^(title|conversation title)\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
+    .trim()
+    .slice(0, 60);
+
+  return cleaned || buildFallbackConversationTitle(messages);
+}
+
+async function maybeGenerateThreadTitle(threadId) {
+  const thread = chatThreads.find((t) => t.id === threadId);
+  if (!thread || !isDefaultThreadTitle(thread.title) || pendingThreadTitleIds.has(threadId)) {
+    return;
+  }
+
+  const meaningfulMessages = (thread.messages || []).filter((msg) => String(msg.text || "").trim());
+  const hasUser = meaningfulMessages.some((msg) => msg.role === "user");
+  const hasAssistant = meaningfulMessages.some((msg) => msg.role === "assistant");
+  if (!hasUser || !hasAssistant) return;
+
+  pendingThreadTitleIds.add(threadId);
+
+  try {
+    const response = await fetch("http://localhost:3000/api/conversation-title", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: meaningfulMessages.slice(0, 6).map((msg) => ({
+          role: msg.role,
+          text: msg.text
+        }))
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Title generation failed");
+    }
+
+    const payload = await response.json();
+    const latestThread = chatThreads.find((t) => t.id === threadId);
+    if (!latestThread || !isDefaultThreadTitle(latestThread.title)) return;
+
+    latestThread.title = sanitizeConversationTitle(payload?.title, latestThread.messages);
+    latestThread.updatedAt = Date.now();
+    saveChatThreadsToStorage();
+    renderChatThreadsList();
+  } catch (err) {
+    const latestThread = chatThreads.find((t) => t.id === threadId);
+    if (latestThread && isDefaultThreadTitle(latestThread.title)) {
+      latestThread.title = buildFallbackConversationTitle(latestThread.messages);
+      latestThread.updatedAt = Date.now();
+      saveChatThreadsToStorage();
+      renderChatThreadsList();
+    }
+    console.warn("Conversation title generation failed:", err.message);
+  } finally {
+    pendingThreadTitleIds.delete(threadId);
+  }
+}
+
 
 async function getSessionAESKey() {
   if (sessionAESKey) return sessionAESKey;
 
   const accounts = await ethereum.request({ method: "eth_requestAccounts" });
   const patientAddress = accounts[0].toLowerCase(); // ✅ lowercase
-
-  const password = await requestPassword();
-  if (!password) throw new Error("Password required");
 
   // Only 1 param: patientAddress
   const wrappedRMK = await medicalDataRegistry.methods
@@ -400,13 +492,31 @@ async function getSessionAESKey() {
     throw new Error("No encryption key found for patient");
   }
 
-  // Derive UAK with lowercase address
-  const uak = await window.deriveUAK(password, patientAddress);
+  let passwordError = "";
 
-  sessionAESKey = await window.unwrapRMK(wrappedRMK, uak);
+  while (!sessionAESKey) {
+    const password = await requestPassword(passwordError);
+    if (!password) {
+      throw new Error("Password entry cancelled.");
+    }
 
-  // Cache for session
-  window.sessionAESKey = sessionAESKey;
+    try {
+      // Derive UAK with lowercase address
+      const uak = await window.deriveUAK(password, patientAddress);
+      sessionAESKey = await window.unwrapRMK(wrappedRMK, uak);
+
+      // Cache for session
+      window.sessionAESKey = sessionAESKey;
+      return sessionAESKey;
+    } catch (err) {
+      if (!isIncorrectPasswordError(err)) {
+        throw err;
+      }
+
+      passwordError = "The password you entered is incorrect. Please try again or use your recovery key if you have forgotten it.";
+      console.warn("Incorrect patient password entered.");
+    }
+  }
 
   return sessionAESKey;
 }
@@ -645,29 +755,165 @@ async function showRecords(element) {
     console.log("Records displayed successfully!");
   } catch (err) {
     console.error("Error in showRecords:", err);
-    alert(err.message);
+    if (err?.message === "Password entry cancelled.") {
+      return;
+    }
+    if (isIncorrectPasswordError(err)) {
+      alert("Unable to unlock your medical records because the password entered is incorrect. Please try again.");
+      return;
+    }
+    alert(err.message || "Unable to load your medical records right now. Please try again.");
+  }
+}
+
+function downloadJsonFile(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/fhir+json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getApiBaseUrl() {
+  return window.__API_BASE_URL__ || "http://localhost:3000";
+}
+
+async function readApiJson(response, fallbackMessage) {
+  const rawText = await response.text();
+
+  try {
+    return rawText ? JSON.parse(rawText) : {};
+  } catch (err) {
+    const looksLikeHtml = rawText.trim().startsWith("<!DOCTYPE") || rawText.trim().startsWith("<html");
+    if (looksLikeHtml) {
+      throw new Error(`${fallbackMessage} The API returned an HTML page instead of JSON. Make sure the Node server is running on ${getApiBaseUrl()} and has been restarted after the FHIR endpoint changes.`);
+    }
+    throw new Error(`${fallbackMessage} The API returned an invalid JSON response.`);
+  }
+}
+
+async function exportFHIRMedicalRecord() {
+  try {
+    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+    const patientAddress = accounts[0].toLowerCase();
+    const selectedVersion = document.getElementById("fhirExportVersion")?.value || "R4";
+
+    // Ensure session key exists
+    if (!sessionAESKey) {
+      alert("Session expired. Please log in again.");
+      return;
+    }
+
+    // Export raw AES key from session
+    const rawKey = await window.crypto.subtle.exportKey("raw", sessionAESKey);
+
+    // Convert to base64
+    const rawKeyBase64 = btoa(
+      String.fromCharCode(...new Uint8Array(rawKey))
+    );
+
+    // Call backend with session key instead of password
+    const response = await fetch(`${getApiBaseUrl()}/api/fhir/export/${patientAddress}?version=${encodeURIComponent(selectedVersion)}`, {
+      method: "GET",
+      headers: {
+        "x-session-key": rawKeyBase64,
+      },
+    });
+
+    const payload = await readApiJson(response, "FHIR export failed.");
+    if (!response.ok) {
+      throw new Error(payload.error || "FHIR export failed.");
+    }
+
+    const bundle = payload?.bundle || payload;
+
+    const patientResource = bundle?.entry?.find(
+      entry => entry?.resource?.resourceType === "Patient"
+    )?.resource;
+
+    const firstName = patientResource?.name?.[0]?.given?.[0];
+    const lastName = patientResource?.name?.[0]?.family;
+
+    let fileName;
+
+    if (firstName && lastName) {
+      fileName = `MedicalRecord_${firstName}_${lastName}.json`;
+    } else {
+      fileName = "MedicalRecord_Patient.json";
+    }
+
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+      type: "application/json"
+    });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+
+  } catch (err) {
+    console.error("FHIR export failed:", err);
+    alert(err.message || "FHIR export failed.");
   }
 }
 
 
-// Get the patient name for the filename
 // Recursively find the first name in the record or its nested resources
 function getPatientName(record) {
-  // Case 1: Direct Patient resource
-  if (record?.resourceType === "Patient" && record.name?.length) {
-    const n = record.name[0];
-    return `${n.given.join("_")}_${n.family}`;
+  // Case 0: FHIR payload wrapped under .bundle
+  if (record?.bundle) {
+    return getPatientName(record.bundle);
   }
 
-  // Case 2: FHIR Bundle (CORRECT STRUCTURE)
-  if (record?.resourceType === "Bundle" && Array.isArray(record.entry)) {
+  if (record?.personalInfo) {
+    const firstName = record.personalInfo.firstName || "";
+    const lastName = record.personalInfo.lastName || "";
+    if (firstName && lastName) {
+      return `${firstName}_${lastName}`;
+    }
+    if (firstName) {
+      return firstName;
+    }
+    if (lastName) {
+      return lastName;
+    }
+  }
+
+  let patient;
+
+  // Case 1: Direct Patient resource
+  if (record?.resourceType === "Patient") {
+    patient = record;
+  }
+  // Case 2: FHIR Bundle
+  else if (record?.resourceType === "Bundle" && Array.isArray(record.entry)) {
     for (const e of record.entry) {
       const res = e.resource;
-      if (res?.resourceType === "Patient" && res.name?.length) {
-        const n = res.name[0];
-        return `${n.given.join("_")}_${n.family}`;
+      if (res?.resourceType === "Patient") {
+        patient = res;
+        break;
       }
     }
+  }
+
+  if (!patient || !patient.name?.length) return "Unknown_Unknown";
+
+  const n = patient.name[0];
+
+  // Prefer 'given' + 'family' if available
+  if (Array.isArray(n.given) && n.family) {
+    return `${n.given.join("_")}_${n.family}`;
+  }
+  // Fallback to 'text' field
+  if (n.text) {
+    return n.text.replace(/\s+/g, "_");
   }
 
   return "Unknown_Unknown";
@@ -2033,26 +2279,81 @@ function toggleModalPasswordVisibility() {
   }
 }
 
+function isIncorrectPasswordError(err) {
+  const name = String(err?.name || "");
+  const message = String(err?.message || "");
+
+  return (
+    name === "OperationError" ||
+    name === "InvalidAccessError" ||
+    name === "DataError" ||
+    /decrypt/i.test(message) ||
+    /operation/i.test(message) ||
+    /unsupported state/i.test(message) ||
+    /provided data is too small/i.test(message)
+  );
+}
+
 // Show modal and wait for password input
-function requestPassword() {
-  return new Promise((resolve, reject) => {
+function requestPassword(errorMessage = "") {
+  return new Promise((resolve) => {
     $("#modalPassword").val(""); // clear previous input
-    $("#modalPasswordError").hide();
+    if (errorMessage) {
+      $("#modalPasswordError").text(errorMessage).show();
+    } else {
+      $("#modalPasswordError").hide();
+    }
+
     const modalEl = document.getElementById("passwordModal");
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
     modal.show();
 
     const submitBtn = document.getElementById("submitPasswordButton");
+    const cancelBtn = modalEl.querySelector('[data-dismiss="modal"]');
+    const passwordInput = document.getElementById("modalPassword");
+    let settled = false;
+
+    function cleanup() {
+      submitBtn.removeEventListener("click", handleSubmit);
+      cancelBtn?.removeEventListener("click", handleCancel);
+      passwordInput.removeEventListener("keydown", handleKeydown);
+      modalEl.removeEventListener("hidden.bs.modal", handleDismiss);
+    }
+
+    function finish(value) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    }
 
     function handleSubmit() {
       const pw = document.getElementById("modalPassword").value;
       if (!pw) return; // ignore empty
+      finish(pw);
       modal.hide();
-      submitBtn.removeEventListener("click", handleSubmit);
-      resolve(pw);
+    }
+
+    function handleCancel() {
+      finish(null);
+    }
+
+    function handleDismiss() {
+      finish(null);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleSubmit();
+      }
     }
 
     submitBtn.addEventListener("click", handleSubmit);
+    cancelBtn?.addEventListener("click", handleCancel);
+    passwordInput.addEventListener("keydown", handleKeydown);
+    modalEl.addEventListener("hidden.bs.modal", handleDismiss, { once: true });
+    passwordInput.focus();
   });
 }
 
@@ -2397,6 +2698,10 @@ async function sendSymptomMessage() {
 
     const finalReply = addSectionSpacing(dedupeConsecutiveSentences(aiReply)).trim();
     addMessageToActiveThread("assistant", finalReply);
+    const thread = getActiveThread();
+    if (thread) {
+      maybeGenerateThreadTitle(thread.id);
+    }
 
   } catch (err) {
     removeTypingIndicator(typingBubble);
