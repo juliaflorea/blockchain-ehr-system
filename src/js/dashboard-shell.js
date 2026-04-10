@@ -49,4 +49,32 @@ document.addEventListener("DOMContentLoaded", function () {
       closeSidebar();
     }
   });
+
+    // PANEL SWITCHING LOGIC
+  const panels = document.querySelectorAll(".panel");
+
+  navLinks.forEach((link) => {
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+
+      // 1. Remove active from ALL panels
+      panels.forEach((panel) => panel.classList.remove("active"));
+
+      // 2. Remove active from all sidebar links
+      navLinks.forEach((l) => l.classList.remove("active"));
+
+      // 3. Activate clicked link
+      this.classList.add("active");
+
+      // 4. Activate target panel
+      const target = this.getAttribute("data-target");
+
+      if (target) {
+        const targetPanel = document.getElementById(target);
+        if (targetPanel) {
+          targetPanel.classList.add("active");
+        }
+      }
+    });
+  });
 });

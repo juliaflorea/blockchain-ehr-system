@@ -268,11 +268,7 @@ button.btn-view-records:focus-visible,
   border: 1px solid #ced4da;
 }
 
-.btn-info {
-  display: block;
-  width: 50%;
-  margin: 1rem auto;
-}
+
 
 .btn-info:hover,
 .btn-info:focus {
