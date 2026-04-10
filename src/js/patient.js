@@ -483,9 +483,6 @@ async function getSessionAESKey() {
   const accounts = await ethereum.request({ method: "eth_requestAccounts" });
   const patientAddress = accounts[0].toLowerCase(); // ✅ lowercase
 
-  const password = await requestPassword();
-  if (!password) throw new Error("Password required");
-
   // Only 1 param: patientAddress
   const wrappedRMK = await medicalDataRegistry.methods
     .getEncryptedAESKey(patientAddress)
@@ -495,13 +492,31 @@ async function getSessionAESKey() {
     throw new Error("No encryption key found for patient");
   }
 
-  // Derive UAK with lowercase address
-  const uak = await window.deriveUAK(password, patientAddress);
+  let passwordError = "";
 
-  sessionAESKey = await window.unwrapRMK(wrappedRMK, uak);
+  while (!sessionAESKey) {
+    const password = await requestPassword(passwordError);
+    if (!password) {
+      throw new Error("Password entry cancelled.");
+    }
 
-  // Cache for session
-  window.sessionAESKey = sessionAESKey;
+    try {
+      // Derive UAK with lowercase address
+      const uak = await window.deriveUAK(password, patientAddress);
+      sessionAESKey = await window.unwrapRMK(wrappedRMK, uak);
+
+      // Cache for session
+      window.sessionAESKey = sessionAESKey;
+      return sessionAESKey;
+    } catch (err) {
+      if (!isIncorrectPasswordError(err)) {
+        throw err;
+      }
+
+      passwordError = "The password you entered is incorrect. Please try again or use your recovery key if you have forgotten it.";
+      console.warn("Incorrect patient password entered.");
+    }
+  }
 
   return sessionAESKey;
 }
@@ -740,7 +755,14 @@ async function showRecords(element) {
     console.log("Records displayed successfully!");
   } catch (err) {
     console.error("Error in showRecords:", err);
-    alert(err.message);
+    if (err?.message === "Password entry cancelled.") {
+      return;
+    }
+    if (isIncorrectPasswordError(err)) {
+      alert("Unable to unlock your medical records because the password entered is incorrect. Please try again.");
+      return;
+    }
+    alert(err.message || "Unable to load your medical records right now. Please try again.");
   }
 }
 
@@ -2257,26 +2279,81 @@ function toggleModalPasswordVisibility() {
   }
 }
 
+function isIncorrectPasswordError(err) {
+  const name = String(err?.name || "");
+  const message = String(err?.message || "");
+
+  return (
+    name === "OperationError" ||
+    name === "InvalidAccessError" ||
+    name === "DataError" ||
+    /decrypt/i.test(message) ||
+    /operation/i.test(message) ||
+    /unsupported state/i.test(message) ||
+    /provided data is too small/i.test(message)
+  );
+}
+
 // Show modal and wait for password input
-function requestPassword() {
-  return new Promise((resolve, reject) => {
+function requestPassword(errorMessage = "") {
+  return new Promise((resolve) => {
     $("#modalPassword").val(""); // clear previous input
-    $("#modalPasswordError").hide();
+    if (errorMessage) {
+      $("#modalPasswordError").text(errorMessage).show();
+    } else {
+      $("#modalPasswordError").hide();
+    }
+
     const modalEl = document.getElementById("passwordModal");
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
     modal.show();
 
     const submitBtn = document.getElementById("submitPasswordButton");
+    const cancelBtn = modalEl.querySelector('[data-dismiss="modal"]');
+    const passwordInput = document.getElementById("modalPassword");
+    let settled = false;
+
+    function cleanup() {
+      submitBtn.removeEventListener("click", handleSubmit);
+      cancelBtn?.removeEventListener("click", handleCancel);
+      passwordInput.removeEventListener("keydown", handleKeydown);
+      modalEl.removeEventListener("hidden.bs.modal", handleDismiss);
+    }
+
+    function finish(value) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    }
 
     function handleSubmit() {
       const pw = document.getElementById("modalPassword").value;
       if (!pw) return; // ignore empty
+      finish(pw);
       modal.hide();
-      submitBtn.removeEventListener("click", handleSubmit);
-      resolve(pw);
+    }
+
+    function handleCancel() {
+      finish(null);
+    }
+
+    function handleDismiss() {
+      finish(null);
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleSubmit();
+      }
     }
 
     submitBtn.addEventListener("click", handleSubmit);
+    cancelBtn?.addEventListener("click", handleCancel);
+    passwordInput.addEventListener("keydown", handleKeydown);
+    modalEl.addEventListener("hidden.bs.modal", handleDismiss, { once: true });
+    passwordInput.focus();
   });
 }
 
