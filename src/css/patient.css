@@ -145,28 +145,8 @@ button.btn-view-records,
 #personalInfoPanel button.patient-records-toggle,
 #personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg,
 #personalInfoPanel #exportBtn.btn-primary {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  align-self: center !important;
-  width: auto !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  margin: 20px auto 0 !important;
-  padding: 12px 20px !important;
-  border: none !important;
-  border-radius: 25px !important;
-  background: linear-gradient(to right, #4facfe, #00c6ff) !important;
-  color: #ffffff !important;
-  font-size: 0.96rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
-  line-height: 1.2 !important;
-  text-transform: none !important;
-  text-decoration: none !important;
-  white-space: nowrap !important;
-  box-shadow: none !important;
-  transition: opacity 0.3s ease !important;
+  align-self: center;
+  white-space: nowrap;
   appearance: none;
   -webkit-appearance: none;
 }
@@ -189,14 +169,7 @@ button.btn-view-records:active,
 #personalInfoPanel #exportBtn.btn-primary:hover,
 #personalInfoPanel #exportBtn.btn-primary:focus,
 #personalInfoPanel #exportBtn.btn-primary:active {
-  background: linear-gradient(to right, #4facfe, #00c6ff) !important;
-  color: #ffffff !important;
-  opacity: 0.9 !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  transform: none;
-  outline: none !important;
-  text-decoration: none !important;
+  text-decoration: none;
 }
 
 .button-view-records:focus-visible,
@@ -204,59 +177,8 @@ button.btn-view-records:focus-visible,
 #personalInfoPanel .patient-summary-wrap > button:focus-visible,
 #personalInfoPanel button.patient-records-toggle:focus-visible,
 #personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg:focus-visible {
-  outline: 3px solid rgba(126, 207, 255, 0.85) !important;
-  outline-offset: 3px !important;
-}
-
-#logout.btn-logout,
-#page-content-wrapper #logout.btn-logout {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  position: fixed !important;
-  top: 20px !important;
-  right: 24px !important;
-  z-index: 1200 !important;
-  margin: 0 !important;
-  padding: 12px 20px !important;
-  border: 1px solid rgba(79, 107, 255, 0.95) !important;
-  border-radius: 999px !important;
-  background: linear-gradient(135deg, #5f76ff 0%, #4155df 100%) !important;
-  color: #ffffff !important;
-  font-size: 0.94rem !important;
-  font-weight: 700 !important;
-  line-height: 1 !important;
-  text-decoration: none !important;
-  box-shadow: 0 14px 30px rgba(54, 87, 255, 0.24) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
-    border-color 0.2s ease !important;
-}
-
-#logout.btn-logout:hover,
-#logout.btn-logout:focus,
-#logout.btn-logout:active,
-#page-content-wrapper #logout.btn-logout:hover,
-#page-content-wrapper #logout.btn-logout:focus,
-#page-content-wrapper #logout.btn-logout:active {
-  background: linear-gradient(135deg, #6c82ff 0%, #4659de 100%) !important;
-  color: #ffffff !important;
-  border-color: #4f6bff !important;
-  box-shadow: 0 18px 34px rgba(54, 87, 255, 0.28) !important;
-  transform: translateY(-1px);
-  outline: none !important;
-  text-decoration: none !important;
-}
-
-#logout.btn-logout:focus-visible,
-#page-content-wrapper #logout.btn-logout:focus-visible {
-  outline: 3px solid rgba(126, 207, 255, 0.85) !important;
-  outline-offset: 3px !important;
-}
-
-#logout.btn-logout i,
-#page-content-wrapper #logout.btn-logout i {
-  font-size: 1rem !important;
-  margin-right: 6px !important;
+  outline: 3px solid rgba(126, 207, 255, 0.85);
+  outline-offset: 3px;
 }
 
 #personalInfoPanel #downloadLinkContainer {
@@ -346,11 +268,7 @@ button.btn-view-records:focus-visible,
   border: 1px solid #ced4da;
 }
 
-.btn-info {
-  display: block;
-  width: 50%;
-  margin: 1rem auto;
-}
+
 
 .btn-info:hover,
 .btn-info:focus {
@@ -853,7 +771,7 @@ button.btn-view-records:focus-visible,
 .ai-input-row {
   display: flex;
   gap: 12px;
-  align-items: stretch;
+  align-items: flex-end;
   padding: 12px;
   border-radius: 18px;
   border: 1px solid var(--chat-border);
@@ -869,8 +787,11 @@ button.btn-view-records:focus-visible,
 }
 
 .ai-send {
-  border-radius: 12px;
-  padding: 10px 22px;
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-height: 46px;
+  max-width: 180px;
+  font-size: 14px;
   text-transform: none;
   letter-spacing: 0.4px;
   font-weight: 600;
@@ -964,17 +885,8 @@ button.btn-view-records:focus-visible,
   #personalInfoPanel .patient-summary-wrap > button,
   #personalInfoPanel button.patient-records-toggle,
   #personalInfoPanel .patient-summary-wrap > button.btn.btn-info.btn-lg {
-    width: auto !important;
     max-width: calc(100vw - 32px);
     white-space: normal;
-  }
-
-  #logout.btn-logout,
-  #page-content-wrapper #logout.btn-logout {
-    position: fixed !important;
-    top: 20px !important;
-    right: 24px !important;
-    margin: 0 !important;
   }
 
   #records {
@@ -1151,12 +1063,12 @@ label {
 }
 
 .panel-heading {
-  padding: 12px 16px !important;
-  margin-bottom: 0 !important;
+  padding: 12px 16px;
+  margin-bottom: 0;
 }
 
 .panel-heading h3 {
-  margin: 0 !important;
+  margin: 0;
   font-size: 1.2rem;
   font-weight: 600;
 }

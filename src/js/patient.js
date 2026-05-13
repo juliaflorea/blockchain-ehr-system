@@ -1097,40 +1097,34 @@ function viewDoctorInfo() {
       if (!ipfsHash || ipfsHash === "0x" || ipfsHash === "0x0") {
 
         document.getElementById("doctorInfoDisplay").innerHTML =
-          "Doctor information not available.";
+          '<div class="detail-empty">Doctor information not available.</div>';
         return;
       }
 
       // Fetch doctor's information from IPFS
       $.get("http://localhost:8080/ipfs/" + ipfsHash, function (data) {
         // Extracting relevant information from the raw data
-        var lines = data.split(/\r?\n/).map(l => l.trim());
+        var lines = data.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
-        var gender = lines.find(l => l.toLowerCase().startsWith("gender:"));
-        var contact = lines.find(l => l.toLowerCase().startsWith("contact:"));
-        var specialty = lines.find(
-        l => l.toLowerCase().startsWith("specialty:")
-     || l.toLowerCase().startsWith("speciality:")
-);
+        var gender = extractDoctorInfoValue(lines, ["gender"]);
+        var contact = extractDoctorInfoValue(lines, ["contact"]);
+        var specialty = extractDoctorInfoValue(lines, ["specialty", "speciality"]);
+        var hospital = extractDoctorInfoValue(lines, ["hospital", "clinic", "organization"]);
         var yearsOfExperienceLine = lines.find((line) =>
           line.startsWith("Years of Experience:")
         );
-        var yearsOfExperience = yearsOfExperienceLine.split(":")[1].trim();
+        var yearsOfExperience = yearsOfExperienceLine
+          ? yearsOfExperienceLine.split(":").slice(1).join(":").trim()
+          : "Not provided";
 
-        console.log("IPFS lines:", lines);
-        console.log("Found specialty line:", specialty);
-
-
-        var content = `
-        <div class="doctor-info">
-          <p>First Name: ${doctorDetails[0]}</p>
-          <p>Last Name: ${doctorDetails[1]}</p>
-          <p>Years of Experience: ${yearsOfExperience}</p>
-          <p>${gender}</p>
-          <p>${contact}</p>
-          <p>${specialty}</p>
-        </div>
-      `;
+        var content = buildDoctorInfoCard({
+          name: `${doctorDetails[0]} ${doctorDetails[1]}`.trim(),
+          specialty: specialty || "Not provided",
+          contact: contact || "Not provided",
+          hospital: hospital || "Not provided",
+          yearsOfExperience: yearsOfExperience || "Not provided",
+          gender: gender || "Not provided"
+        });
       
 
         document.getElementById("doctorInfoDisplay").innerHTML = content;
@@ -1139,14 +1133,54 @@ function viewDoctorInfo() {
       }).fail(function () {
         console.error("Failed to fetch data from IPFS.");
         document.getElementById("doctorInfoDisplay").innerHTML =
-          "Error loading doctor information.";
+          '<div class="detail-empty">Error loading doctor information.</div>';
       });
     })
     .catch(function (error) {
       console.error("Error fetching doctor details:", error);
       document.getElementById("doctorInfoDisplay").innerHTML =
-        "Error loading doctor information.";
+        '<div class="detail-empty">Error loading doctor information.</div>';
     });
+}
+
+function extractDoctorInfoValue(lines, keys) {
+  if (!Array.isArray(lines)) return "";
+  const keyList = Array.isArray(keys) ? keys : [keys];
+  const match = lines.find((line) =>
+    keyList.some((key) => line.toLowerCase().startsWith(key.toLowerCase() + ":"))
+  );
+  if (!match) return "";
+  return match.split(":").slice(1).join(":").trim();
+}
+
+function buildDoctorInfoCard(data) {
+  const details = [
+    { label: "Name", value: data.name },
+    { label: "Specialty", value: data.specialty },
+    { label: "Contact", value: data.contact },
+    { label: "Hospital", value: data.hospital },
+    { label: "Years of Experience", value: data.yearsOfExperience },
+    { label: "Gender", value: data.gender }
+  ];
+
+  const items = details.map((item) => `
+    <div class="detail-item">
+      <span class="detail-label">${item.label}</span>
+      <span class="detail-value">${item.value || "Not provided"}</span>
+    </div>
+  `).join("");
+
+  return `
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <h4 class="detail-card-title">Doctor Information</h4>
+        <p class="detail-card-subtitle">Professional details and contact information</p>
+      </div>
+      <div class="detail-grid">
+        ${items}
+      </div>
+    </div>
+  `;
 }
 
 
@@ -1362,15 +1396,15 @@ function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   $("<td>", { class: "doctorName" }).text(doctorName).appendTo(row);
   $("<td>", { class: "appointmentDate" }).text(appointmentDate).appendTo(row);
   $("<td>", { class: "appointmentTime" }).text(appointmentTime).appendTo(row);
-  var statusCell = $("<td>").text(status).appendTo(row);
+  var statusCell = $("<td>").appendTo(row);
   if (status === "Accepted") {
-    statusCell.addClass("accepted-status");
+    statusCell.html('<span class="status-badge accepted-status">Accepted</span>');
   } else if (status === "Rejected") {
-    statusCell.addClass("rejected-status");
+    statusCell.html('<span class="status-badge rejected-status">Rejected</span>');
   } else if (status === "Pending") {
-    statusCell.addClass("pending-status");
+    statusCell.html('<span class="status-badge pending-status">Pending</span>');
   } else {
-    statusCell.addClass("unknown-status");
+    statusCell.html('<span class="status-badge unknown-status">Unknown</span>');
   }
   $("#sentAppointmentRequests tbody").append(row);
 }

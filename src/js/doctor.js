@@ -133,55 +133,7 @@ function escapeConversationHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function renderSharedConversations(record) {
-  const shared = Array.isArray(record?.sharedConversations)
-    ? record.sharedConversations
-    : [];
 
-  if (!shared.length) {
-    return `
-      <div class="ai-shared-empty">
-        No conversations shared yet.
-      </div>
-    `;
-  }
-
-  const sorted = [...shared].sort((a, b) => {
-    const aTime = a?.sharedAt ? Date.parse(a.sharedAt) : 0;
-    const bTime = b?.sharedAt ? Date.parse(b.sharedAt) : 0;
-    return bTime - aTime;
-  });
-
-  return sorted.map((conversation) => {
-    const title = escapeConversationHtml(conversation.title || "Conversation");
-    const sharedAt = conversation.sharedAt
-      ? new Date(conversation.sharedAt).toLocaleString()
-      : "Unknown time";
-    const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
-
-    const messageHtml = messages.map((msg) => {
-      const roleLabel = msg.role === "assistant" ? "Assistant" : "Patient";
-      const timestamp = msg.ts ? new Date(msg.ts).toLocaleString() : "";
-      const header = timestamp ? `${roleLabel} (${timestamp})` : roleLabel;
-      return `
-        <div class="ai-shared-message">
-          <div class="ai-shared-message-header">${escapeConversationHtml(header)}</div>
-          <div class="ai-shared-message-body">${escapeConversationHtml(msg.text || "")}</div>
-        </div>
-      `;
-    }).join("");
-
-    return `
-      <div class="ai-shared-card">
-        <div class="ai-shared-title">${title}</div>
-        <div class="ai-shared-meta">Shared: ${escapeConversationHtml(sharedAt)}</div>
-        <div class="ai-shared-thread">
-          ${messageHtml}
-        </div>
-      </div>
-    `;
-  }).join("");
-}
 
 const TRIAGE_SECTION_TITLES = [
   "Chief Complaint",
@@ -492,14 +444,23 @@ async function showRecords(element) {
 
       // Convert record to formatted HTML
       const formattedHtml = `
-        <div class="medical-record-title">Medical Record</div>
-        ${renderMedicalRecord(decryptedRecord, {
-          includeDiagnosis: false,
-          includeTreatment: false,
-          includeTriage: false,
-        })}
-      `;
-      const sharedConversationsHtml = renderSharedConversations(decryptedRecord);
+  <div class="medical-record-title">Medical Record</div>
+
+  <div class="medical-record-surface" id="records${patientAddr}">
+    ${renderMedicalRecord(decryptedRecord, {
+      includeDiagnosis: false,
+      includeTreatment: false,
+      includeTriage: false,
+    })}
+  </div>
+
+  <div class="download-button-container text-center mt-3">
+    <button class="btn btn-primary" onclick='downloadMedicalRecord(${JSON.stringify(recordToPlainText(decryptedRecord))})'>
+      Download Medical Record
+    </button>
+  </div>
+`;
+      
       const canEditTriage = await canEditTriageReport(patientAddr);
       const triageReportHtml = renderTriageReport(decryptedRecord, patientAddr, canEditTriage);
 
@@ -522,10 +483,12 @@ async function showRecords(element) {
       const content = `
         <div class="tab-content">
           <div id="view${patientAddr}">
-            <div class="row">
-              <div class="col-sm-12">
-                <div class="medical-record-surface" id="records${patientAddr}">
-                  ${formattedHtml}
+           <div class="medical-record-wrapper">
+  <div class="medical-record-surface" id="records${patientAddr}">
+    ${formattedHtml}
+  </div>
+</div>
+                  
                 </div>
               </div>
             </div>
@@ -534,13 +497,6 @@ async function showRecords(element) {
               <h5 class="ai-triage-title">AI Triage Report</h5>
               <div class="ai-triage-content">
                 ${triageReportHtml}
-              </div>
-            </div>
-            <hr>
-            <div class="section shared-conversations-section">
-              <h5 class="shared-conversations-title">Shared Conversations</h5>
-              <div class="shared-conversations-content">
-                ${sharedConversationsHtml}
               </div>
             </div>
             <hr>
@@ -656,7 +612,7 @@ async function showRecords(element) {
       newRow.classList.add("recordRow");
       const newCell = newRow.insertCell(0);
       newCell.colSpan = 3;
-      newCell.append(downloadButtonContainer[0]);
+      
 
       const contentWrapper = document.createElement("div");
       contentWrapper.innerHTML = content;
@@ -777,7 +733,7 @@ async function submitDiagnosis(element, index) {
     }
 
     const coding = typeof window.mapToSNOMED === "function"
-      ? window.mapToSNOMED(diagnosed)
+      ? await window.mapToSNOMED(diagnosed)
       : [];
 
     const fhirConditionResource = {
@@ -1064,7 +1020,9 @@ function displayAppointmentRequest(id, appointment) {
   $("<td>").text(patientName).appendTo(row);
   $("<td>").text(appointmentDate).appendTo(row);
   $("<td>").text(appointmentTime).appendTo(row);
-  $("<td>").text(appointment.status || "unknown").appendTo(row);
+  $("<td>")
+    .html(buildStatusBadgeMarkup(appointment.status || "unknown"))
+    .appendTo(row);
 
   const actionsCell = $("<td>").appendTo(row);
 
@@ -1151,10 +1109,25 @@ function displayAppointmentHistory(id, appointment, status) {
   $("<td>").text(appointmentDate).appendTo(row);
   $("<td>").text(appointmentTime).appendTo(row);
 
-  const statusCell = $("<td>").text(status).appendTo(row);
-  statusCell.addClass(status.toLowerCase() + "-status");
+  $("<td>")
+    .html(buildStatusBadgeMarkup(status))
+    .appendTo(row);
 
   $("#appointmentHistory tbody").append(row);
+}
+
+function normalizeAppointmentStatusLabel(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "accepted" || value === "booked" || value === "fulfilled") return "Accepted";
+  if (value === "pending" || value === "proposed" || value === "needs-action") return "Pending";
+  if (value === "rejected" || value === "cancelled" || value === "canceled") return "Rejected";
+  return "Unknown";
+}
+
+function buildStatusBadgeMarkup(status) {
+  const normalizedStatus = normalizeAppointmentStatusLabel(status);
+  const className = normalizedStatus.toLowerCase() + "-status";
+  return `<span class="status-badge ${className}">${normalizedStatus}</span>`;
 }
 
 

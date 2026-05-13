@@ -2,28 +2,35 @@
 
 
 .panel {
-  background-color: #fff;
+ background-color: #fff;
   border-radius: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   margin: 2rem auto;
-  width: 80%;
+  width: 100%;
+  max-width: 1100px; 
   max-height: 500px;
   overflow-y: auto;
-  display: none;
+  display: block;
+  justify-content: center;
+  padding: 0;
 }
 
 .panel.active {
-  display: block; 
+  display: flex !important;
+  flex-direction: column;
 }
 
 
 .panel-body {
   padding: 2rem;
   color: #5a5c69;
+  overflow-y: auto;
 }
 
 .medical-record-surface {
-  margin: 20px 0;
+  margin: 20px auto;
+  width: 100%;
+  max-width: 1000px;
 }
 
 .medical-record-title {
@@ -42,7 +49,52 @@
   max-width: 1080px;
   margin-left: auto;
   margin-right: auto;
-  padding: 0 16px 8px;
+  padding: 0;
+}
+
+.ai-triage-actions {
+  display: flex;
+  justify-content: center !important;
+  width: 100%;
+}
+
+
+
+.tab-content {
+  width: 100%;
+}
+
+.tab-content > div {
+  max-width: 1000px;
+  margin: 0 auto;   /* ✅ centers */
+}
+
+.records-wrapper,
+.medical-record-wrapper {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.medical-record-surface {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+
+.recordRow td {
+  padding: 30px !important;
+}
+
+
+
+.section {
+  margin-top: 30px;
+}
+
+.medical-record-surface .grid {
+  margin: 0;
 }
 
 .medical-record-surface .ehr-shell > .grid {
@@ -160,66 +212,6 @@
   flex-direction: column;
   align-items: center;
   width: 100%;
-}
-
-.shared-conversations-section {
-  width: 100%;
-  align-items: stretch;
-}
-
-.shared-conversations-title {
-  margin-bottom: 1rem;
-  align-self: center;
-}
-
-.shared-conversations-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ai-shared-card {
-  border: 1px solid #d8dbe6;
-  border-radius: 10px;
-  padding: 12px;
-  background: #fbfcff;
-  box-shadow: 0 4px 12px rgba(22, 38, 74, 0.08);
-}
-
-.ai-shared-title {
-  font-weight: 600;
-  color: #27314a;
-  margin-bottom: 4px;
-}
-
-.ai-shared-meta {
-  font-size: 0.85rem;
-  color: #6c757d;
-  margin-bottom: 8px;
-}
-
-.ai-shared-thread {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ai-shared-message {
-  border-left: 3px solid #6c8bd9;
-  padding: 6px 10px;
-  background: #ffffff;
-  border-radius: 6px;
-}
-
-.ai-shared-message-header {
-  font-size: 0.8rem;
-  color: #4b556a;
-  margin-bottom: 4px;
-}
-
-.ai-shared-message-body {
-  white-space: pre-wrap;
-  color: #1f2937;
 }
 
 .ai-triage-report-section {
@@ -366,8 +358,8 @@
 
 .clinical-form-actions {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
+  justify-content: center;
+  margin-top: 16px;
 }
 
 .clinical-submit-btn {

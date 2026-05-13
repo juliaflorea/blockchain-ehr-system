@@ -31,9 +31,13 @@
 
 </head>
 
-<body>
+<body class="dashboard-page">
 
     <div class="d-flex" id="wrapper">
+        <button type="button" class="sidebar-toggle" data-dashboard-toggle aria-label="Open navigation">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="sidebar-overlay" aria-hidden="true"></div>
         <!-- Sidebar -->
         <div class="bg-purple border-right" id="sidebar-wrapper">
             <div class="sidebar-heading "><i class="fas fa-notes-medical"></i> Electronic Medical Records</div>
@@ -61,9 +65,14 @@
 
         <!-- Page Content -->
         <div id="page-content-wrapper">
-            <a href="/index.html" id="logout" class="btn-logout">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
+            <header class="dashboard-topbar">
+                <div class="dashboard-topbar-inner">
+                    <div class="dashboard-topbar-title">Electronic Medical Records</div>
+                    <a href="/index.html" id="logout" class="btn-logout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </header>
 
 
             <div class="container-fluid">
@@ -197,6 +206,7 @@
     <script src="./js/config.js"></script>
     <script src="/js/crypto.js"></script>
     <script src="/js/main.js"></script>
+    <script src="/js/dashboard-shell.js"></script>
     <script src="/js/medicalMapping.js"></script>
     <script src="/js/doctor.js"></script>
 
