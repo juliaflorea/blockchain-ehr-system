@@ -1,5 +1,5 @@
 (function attachMedicalMapping(globalScope) {
-  const SNOMED_MAP = {
+  const SNOMED_FALLBACK_MAP = {
     enterocolitis: {
       system: "http://snomed.info/sct",
       code: "111854005",
@@ -27,14 +27,41 @@
     },
   };
 
-  function mapToSNOMED(text) {
+  function getApiBaseUrl() {
+    return "http://localhost:3000";
+  }
+
+  function mapToSNOMEDFallback(text) {
     if (!text) return [];
 
     const normalized = String(text).trim().toLowerCase();
-    const mapped = SNOMED_MAP[normalized];
+    const mapped = SNOMED_FALLBACK_MAP[normalized];
 
     return mapped ? [mapped] : [];
   }
 
+  async function mapToSNOMED(text, options = {}) {
+    if (!text) return [];
+
+    try {
+      const params = new URLSearchParams({
+        term: String(text).trim(),
+        limit: String(options.limit || 3),
+      });
+      const response = await fetch(`${getApiBaseUrl()}/api/snomed/search?${params.toString()}`);
+      if (response.ok) {
+        const payload = await response.json();
+        if (Array.isArray(payload.coding) && payload.coding.length > 0) {
+          return payload.coding;
+        }
+      }
+    } catch (err) {
+      console.warn("SNOMED lookup unavailable, using local fallback:", err.message);
+    }
+
+    return mapToSNOMEDFallback(text);
+  }
+
   globalScope.mapToSNOMED = mapToSNOMED;
+  globalScope.mapToSNOMEDFallback = mapToSNOMEDFallback;
 })(window);

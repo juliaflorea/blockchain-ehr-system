@@ -733,7 +733,7 @@ async function submitDiagnosis(element, index) {
     }
 
     const coding = typeof window.mapToSNOMED === "function"
-      ? window.mapToSNOMED(diagnosed)
+      ? await window.mapToSNOMED(diagnosed)
       : [];
 
     const fhirConditionResource = {

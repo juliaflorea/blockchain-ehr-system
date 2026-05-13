@@ -11,6 +11,7 @@ const FormData = require("form-data");
 const medicalDataRegistryArtifact = require("./build/contracts/MedicalDataRegistry.json");
 const { parseFHIRBundle } = require("./services/fhirImportService");
 const { generateFHIRBundle } = require("./services/fhirExportService");
+const { mapToSNOMED } = require("./services/semanticMappingService");
 
 const app = express();
 
@@ -791,6 +792,25 @@ ${conversationTrimmed || "none"}
   }
 });
 
+app.get("/api/snomed/search", async (req, res) => {
+  try {
+    const term = String(req.query.term || "").trim();
+    const limit = Number(req.query.limit || 5);
+
+    if (!term) {
+      return res.status(400).json({ error: "Missing term query parameter." });
+    }
+
+    const coding = await mapToSNOMED(term, { limit });
+    return res.json({ term, coding });
+  } catch (error) {
+    console.error("SNOMED search failed:", error.message);
+    return res.status(500).json({
+      error: error.message || "SNOMED search failed.",
+    });
+  }
+});
+
 app.post("/api/fhir/import", async (req, res) => {
   try {
     const {
@@ -891,7 +911,7 @@ const rmk = await subtle.importKey(
 );
     const encryptedPayload = await readEncryptedPayloadFromIPFS(recordHash);
     const decryptedRecord = JSON.parse(await decryptAES(encryptedPayload, rmk));
-    const bundle = generateFHIRBundle(decryptedRecord, exportVersion);
+    const bundle = await generateFHIRBundle(decryptedRecord, exportVersion);
 
 // ✅ VALIDATE BEFORE RETURN
 const validation = validateFHIRBundle(bundle);

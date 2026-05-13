@@ -36,8 +36,8 @@ function normalizeResourceId(prefix, value, fallback) {
   return `${prefix}-${normalized}`;
 }
 
-function normalizeConditionCode(resourceCode, diagnosedText) {
-  const mappedCoding = mapToSNOMED(diagnosedText);
+async function normalizeConditionCode(resourceCode, diagnosedText) {
+  const mappedCoding = await mapToSNOMED(diagnosedText);
 
   if (mappedCoding.length > 0) {
     return {
@@ -59,7 +59,7 @@ function normalizeConditionCode(resourceCode, diagnosedText) {
   };
 }
 
-function buildCanonicalCondition(diagnosis, index) {
+async function buildCanonicalCondition(diagnosis, index) {
   const source = diagnosis && diagnosis.fhirConditionResource ? diagnosis.fhirConditionResource : {};
   const diagnosedText =
     diagnosis?.diagnosed ||
@@ -135,7 +135,7 @@ function buildCanonicalCondition(diagnosis, index) {
               },
             ],
           },
-    code: normalizeConditionCode(source.code, diagnosedText),
+    code: await normalizeConditionCode(source.code, diagnosedText),
     bodySite: cloneIfPresent(bodySite) || [],
     recordedDate: diagnosis?.datetime || source.recordedDate || source.onsetDateTime,
     note: cloneIfPresent(note) || [],
@@ -208,8 +208,8 @@ function buildPatientResource(record) {
   return patientResource;
 }
 
-function buildConditionResource(diagnosis, index, version) {
-  return formatCondition(buildCanonicalCondition(diagnosis, index), version);
+async function buildConditionResource(diagnosis, index, version) {
+  return formatCondition(await buildCanonicalCondition(diagnosis, index), version);
 }
 
 function buildMedicationRequestResource(treatment, index) {
@@ -284,18 +284,101 @@ function buildEncounterResource(encounter, index) {
   };
 }
 
-function generateFHIRBundle(record, version = "R4") {
+function getCompositionFromBundle(bundle) {
+  const entry = asArray(bundle && bundle.entry);
+  const compositionEntry = entry.find((item) => item?.resource?.resourceType === "Composition");
+  return compositionEntry ? compositionEntry.resource : null;
+}
+
+function isFinalTriageReport(report) {
+  if (!report || !report.bundle) return false;
+  const composition = getCompositionFromBundle(report.bundle);
+  return report.status === "final" || composition?.status === "final";
+}
+
+function getFinalTriageReports(record) {
+  const reports = [
+    ...asArray(record.aiTriageReports),
+    record.aiTriageReport,
+  ].filter(isFinalTriageReport);
+
+  const seen = new Set();
+  return reports.filter((report) => {
+    const key = report.id || report.updatedAt || report.sharedAt || report.createdAt || JSON.stringify(report.bundle);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeTriageResource(resource, report, index, resourceIndex, patientReference) {
+  const normalized = cloneResource(resource);
+  const prefix = String(normalized.resourceType || "resource").toLowerCase();
+  normalized.id = normalizeResourceId(prefix, normalized.id || report.id, `triage-${index + 1}-${resourceIndex + 1}`);
+
+  if (normalized.resourceType === "Composition") {
+    normalized.status = "final";
+    normalized.title = normalized.title || report.title || "AI Triage Report";
+    normalized.date = normalized.date || report.updatedAt || report.createdAt;
+    normalized.subject = normalized.subject || { reference: patientReference };
+  }
+
+  if (["Condition", "Observation", "MedicationRequest"].includes(normalized.resourceType)) {
+    normalized.subject = normalized.subject || { reference: patientReference };
+  }
+
+  return normalized;
+}
+
+async function normalizeTriageConditionResource(resource, version) {
+  const condition = cloneResource(resource);
+  if (condition.resourceType !== "Condition") return condition;
+
+  const diagnosedText = condition.code?.text || firstCodingValue(condition.code);
+  if (!asArray(condition.code?.coding).length && diagnosedText) {
+    condition.code = await normalizeConditionCode(condition.code, diagnosedText);
+  }
+
+  return formatCondition(condition, version);
+}
+
+async function buildFinalTriageEntries(record, patientResource, version) {
+  const patientReference = `Patient/${patientResource.id}`;
+  const reports = getFinalTriageReports(record);
+  const entries = [];
+
+  for (const [index, report] of reports.entries()) {
+    const resources = asArray(report.bundle.entry)
+      .map((entry) => entry && entry.resource)
+      .filter(Boolean);
+
+    for (const [resourceIndex, resource] of resources.entries()) {
+      const normalized = normalizeTriageResource(resource, report, index, resourceIndex, patientReference);
+      const mapped = await normalizeTriageConditionResource(normalized, version);
+      entries.push({ resource: mapped });
+    }
+  }
+
+  return entries;
+}
+
+async function generateFHIRBundle(record, version = "R4") {
   if (!record || typeof record !== "object") {
     throw new Error("A decrypted patient record object is required for FHIR export.");
   }
 
   const normalizedVersion = version === "STU3" ? "STU3" : "R4";
+  const patientResource = buildPatientResource(record);
+  const conditionEntries = await Promise.all(
+    asArray(record.diagnosis).map(async (diagnosis, index) => ({
+      resource: await buildConditionResource(diagnosis, index, normalizedVersion),
+    }))
+  );
+  const triageEntries = await buildFinalTriageEntries(record, patientResource, normalizedVersion);
 
   const entries = [
-    { resource: buildPatientResource(record) },
-    ...asArray(record.diagnosis).map((diagnosis, index) => ({
-      resource: buildConditionResource(diagnosis, index, normalizedVersion),
-    })),
+    { resource: patientResource },
+    ...conditionEntries,
     ...asArray(record.treatmentPlan).map((treatment, index) => ({
       resource: buildMedicationRequestResource(treatment, index),
     })),
@@ -305,6 +388,7 @@ function generateFHIRBundle(record, version = "R4") {
     ...asArray(record.encounters).map((encounter, index) => ({
       resource: buildEncounterResource(encounter, index),
     })),
+    ...triageEntries,
   ];
 
   return {
