@@ -1,4 +1,4 @@
-// ================= Main User Registration =================
+// function to handle user registration for patients, doctors, and proxies
 async function addUser() {
   try {
     const ipfs = window.IpfsApi("localhost", "5001");
@@ -112,10 +112,10 @@ async function addUser() {
   }
 }
 
-// ================= Patient Registration (SECURE + VALIDATED) =================
+// function to handle patient registration, including FHIR import, encryption, and blockchain interaction
 async function registerPatient(ipfs, Buffer, publicKey, data) {
   try {
-    console.log("🚀 Starting secure patient registration...");
+    console.log(" Starting secure patient registration...");
 
     const ethAddress = publicKey.toLowerCase();
 
@@ -166,6 +166,7 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
         rmk
       );
 
+      // ---------- Store encrypted record on IPFS ----------
       const ipfsBuffer = Buffer.from(
         JSON.stringify(encryptedPayload)
       );
@@ -210,7 +211,7 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
         gas: 1500000
       });
 
-    // ---------- Store wrapped RMK (normal login) ----------
+    // ---------- Store wrapped RMK  ----------
     await medicalDataRegistry.methods
       .setEncryptedAESKey(
         ethAddress,
@@ -249,9 +250,6 @@ async function registerPatient(ipfs, Buffer, publicKey, data) {
     alert("Registration failed. Please check your inputs.");
   }
 }
-
-
-
 
 // ================= Doctor Registration =================
 async function registerDoctor(ipfs, Buffer, publicKey, data) {
@@ -420,15 +418,12 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
     gas: 500000
   });
 
-    
-
     // ---------- Save RMK locally ----------
     sessionStorage.setItem("rmk", wrappedForProxy);
 
     await userRegistry.methods
   .consumeTempRMK(hashOrToken)
   .send({ from: publicKey });
-
 
     // ---------- Redirect ----------
     location.replace("./proxy.html");
@@ -439,10 +434,6 @@ async function registerProxy(ipfs, Buffer, publicKey, data) {
     $("#poaValidationErrorMessage").text(error.message || error);
   }
 }
-
-
-
-
 
 // ================= Utility / Helper Functions =================
 async function checkLicenseUniqueness(licenseNumber) {
@@ -460,6 +451,7 @@ function toggleFields() {
   if (designation === "2") toggleProxyOptionFields();
 }
 
+// function to update registration page copy based on selected designation (patient, doctor, proxy)
 function updateRegistrationCopy(designation) {
   const title = document.getElementById("registrationTitle");
   const subtitle = document.getElementById("registrationSubtitle");
@@ -586,6 +578,7 @@ async function readApiJson(response, fallbackMessage) {
   }
 }
 
+// function to call backend API for FHIR import, which will handle normalization, encryption, IPFS storage, and return necessary data for patient registration
 async function importFHIRMedicalRecord(bundleJson, patientAddress, password) {
   const response = await fetch(`${getApiBaseUrl()}/api/fhir/import`, {
     method: "POST",
@@ -600,6 +593,7 @@ async function importFHIRMedicalRecord(bundleJson, patientAddress, password) {
     }),
   });
 
+  // handle API responses
   const payload = await readApiJson(response, "FHIR import failed.");
   if (!response.ok) {
     throw new Error(payload.error || "FHIR import failed.");
@@ -636,6 +630,7 @@ function buildPatientRegistrationData(record) {
   };
 }
 
+// event listeners for registration page interactions, including designation change, registration mode toggle, file input changes, and password validation
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll('input[name="mode"]').forEach((radio) => {
     radio.addEventListener("change", () => {
@@ -839,8 +834,6 @@ async function validatePOADetails(buffer, formDetails) {
 
   return allDetailsMatch;
 }
-
-
 
 // ================= Doctor Certificate Validation =================
 function validateDoctorCertificate(file, licenseNumber) {

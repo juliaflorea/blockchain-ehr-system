@@ -226,7 +226,7 @@ function downloadMedicalRecord(data, patientName) {
       filename = `MedicalRecord_${safePatientName}.pdf`;
     }
   } else {
-    // Fallback for older call sites that only pass the plain text
+    
     var firstNamePattern = /First Name: (.+)/;
     var lastNamePattern = /Last Name: (.+)/;
 
@@ -318,7 +318,6 @@ function downloadMedicalRecord(data, patientName) {
 }
 
 // Function to calculate age of user based on user date of birth
-
 function calculateAge(dob) {
   var diff_ms = Date.now() - dob.getTime();
   var age_dt = new Date(diff_ms);
@@ -380,8 +379,6 @@ function fetchFromIPFS(ipfsHash, callback) {
       console.error("Failed to fetch data from IPFS.");
     });
 }
-
-
 
 function medicalRecordSafeText(value, fallback = "Not provided") {
   if (value === undefined || value === null || value === "") return fallback;

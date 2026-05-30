@@ -1,13 +1,18 @@
 "use strict";
 
+// import axios HTTP client for making requests to SNOMED FHIR API
 const axios = require("axios");
 
-const SNOMED_SYSTEM = "http://snomed.info/sct";
+const SNOMED_SYSTEM = "http://snomed.info/sct"; // SNOMED CT code system URI
+// SNOMED URL 
 const SNOMED_FHIR_BASE_URL = process.env.SNOMED_FHIR_BASE_URL || "https://snowstorm-training.snomedtools.org/fhir";
+// max request wait time
 const SNOMED_LOOKUP_TIMEOUT_MS = Number(process.env.SNOMED_LOOKUP_TIMEOUT_MS || 5000);
+// restricts search to clinical findings hierarchy in SNOMED CT (ECL expression for all descendants of "Clinical finding" concept)
 const CLINICAL_FINDING_VALUESET = "http://snomed.info/sct?fhir_vs=ecl/<<404684003";
 const lookupCache = new Map();
 
+// Fallback mapping for common medical terms to SNOMED codes when API lookup fails or returns no results
 const SNOMED_FALLBACK_MAP = {
   enterocolitis: {
     system: SNOMED_SYSTEM,
@@ -36,12 +41,14 @@ const SNOMED_FALLBACK_MAP = {
   },
 };
 
+// cleans search input
 function normalizeSearchText(text) {
   return String(text || "")
     .trim()
     .replace(/\s+/g, " ");
 }
 
+// uses predefined mappings
 function mapToSNOMEDFallback(text) {
   if (!text) return [];
 
@@ -51,21 +58,26 @@ function mapToSNOMEDFallback(text) {
   return mapped ? [mapped] : [];
 }
 
+// function to query the SNOMED server
 async function searchSNOMEDConcepts(text, options = {}) {
+  // normalize input
   const term = normalizeSearchText(text);
   if (!term) return [];
 
+  // limit results to 3
   const limit = Number(options.limit || 3);
   const cacheKey = `${term.toLowerCase()}|${limit}`;
+  // check if search is already cached
   if (lookupCache.has(cacheKey)) {
     return lookupCache.get(cacheKey);
   }
-
+// create request URL for SNOMED FHIR API $expand operation on the clinical findings ValueSet, with search term as filter and specified result limit
   const url = `${SNOMED_FHIR_BASE_URL.replace(/\/$/, "")}/ValueSet/$expand`;
+  // query server
   const response = await axios.get(url, {
     params: {
       url: CLINICAL_FINDING_VALUESET,
-      filter: term,
+      filter: term, // search term entered by user
       count: limit,
       _format: "json",
     },
@@ -76,9 +88,11 @@ async function searchSNOMEDConcepts(text, options = {}) {
     },
   });
 
+// extracts the response which should contain an expansion object with a contains array of matching concepts
   const items = Array.isArray(response.data?.expansion?.contains)
     ? response.data.expansion.contains
     : [];
+    // maps concepts to FHIR coding format
   const codings = items
     .map((item) => ({
       system: item.system || SNOMED_SYSTEM,
@@ -86,20 +100,22 @@ async function searchSNOMEDConcepts(text, options = {}) {
       display: item.display || item.code,
     }))
     .filter((coding) => coding.code);
-  lookupCache.set(cacheKey, codings);
+  lookupCache.set(cacheKey, codings); // cache results
   return codings;
 }
 
+// function to map free text to SNOMED codes, first trying the API and falling back to the predefined list
 async function mapToSNOMED(text, options = {}) {
   if (!text) return [];
 
   try {
+    // first attempt to find matches via SNOMED FHIR API
     const codings = await searchSNOMEDConcepts(text, options);
     if (codings.length > 0) return codings;
   } catch (error) {
     console.warn(`SNOMED lookup failed for "${text}":`, error.message);
   }
-
+// if API fails, use fallback maping
   return mapToSNOMEDFallback(text);
 }
 

@@ -2,16 +2,16 @@
 
 const Ajv = require("ajv");
 
-const ajv = new Ajv({ allErrors: true });
+const ajv = new Ajv({ allErrors: true });  // create AJV validator instance
 
-// VERY BASIC FHIR Bundle schema (you can extend later)
-const bundleSchema = {
+
+const bundleSchema = { // defines structure for validating a FHIR bundle
   type: "object",
   properties: {
-    resourceType: { const: "Bundle" },
+    resourceType: { const: "Bundle" }, // it must be a bundle resource
     entry: {
       type: "array",
-      minItems: 1,
+      minItems: 1, // bundle cannot be empty
       items: {
         type: "object",
         properties: {
@@ -21,7 +21,7 @@ const bundleSchema = {
               resourceType: { type: "string" }
             },
             required: ["resourceType"],
-            additionalProperties: true 
+            additionalProperties: true  // extra fields are allowed in the resource, we just need to ensure it has a resourceType
           }
         },
         required: ["resource"],
@@ -32,10 +32,10 @@ const bundleSchema = {
   required: ["resourceType", "entry"],
   additionalProperties: true 
 };
-const validate = ajv.compile(bundleSchema);
+const validate = ajv.compile(bundleSchema); // compile the schema into a validation function
 
 function validateFHIRBundle(bundle) {
-  const valid = validate(bundle);
+  const valid = validate(bundle); // check if bundle follows schema
 
   if (valid) {
     return { valid: true, issues: [] };

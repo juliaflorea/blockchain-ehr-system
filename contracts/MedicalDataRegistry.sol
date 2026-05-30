@@ -8,7 +8,7 @@ contract MedicalDataRegistry {
 
     UserRegistry userRegistry;
 
-    address public owner;
+    address public owner; // contract administrator address
     
 
     // ===== Events =====
@@ -17,35 +17,36 @@ contract MedicalDataRegistry {
 
     constructor(address _userRegistry) public {
         userRegistry = UserRegistry(_userRegistry);
-        owner = msg.sender;
+        owner = msg.sender; // person deploying contract becomes owner
     }
 
-    mapping(address => string) private medicalRecords;
-    mapping(address => bool) public trustedWriters;
+    mapping(address => string) private medicalRecords; // maps a patient address to the IPFS hash
+    mapping(address => bool) public trustedWriters;  // stores special authorized system components because contracts might need to update records automatically
 
     // wrapped Record Master Key (AES-GCM, password-derived key)
-    mapping(address => mapping(address => string)) private encryptedAESKeys;
+    mapping(address => mapping(address => string)) private encryptedAESKeys; // maps a patient to an authorized accessor and an encrypted AES key
     // Recovery wrapped RMK (patient only)
-    mapping(address => string) private recoveryEncryptedAESKeys;
+    mapping(address => string) private recoveryEncryptedAESKeys;  
 
 
      
 
     // ===== Functions =====
 
+// function to update medical record reference
     function setHash(address userAddr, string memory ipfsHash) public {
         require(
             msg.sender == userAddr ||
-            msg.sender == address(userRegistry) ||
-            trustedWriters[msg.sender] ||
-            isAuthorizedDoctorForPatient(userAddr, msg.sender) ||
+            msg.sender == address(userRegistry) || // either patient or user registry contract can update
+            trustedWriters[msg.sender] || // or trusted system components
+            isAuthorizedDoctorForPatient(userAddr, msg.sender) || // or authorized doctors or proxies
             isAuthorizedProxyForPatient(userAddr, msg.sender),
             "Not authorized to update record"
         );
 
         require(userRegistry.userExists(userAddr), "User not found");
 
-        medicalRecords[userAddr] = ipfsHash;
+        medicalRecords[userAddr] = ipfsHash;  // store new IPFS hash
 
         // Sync back to UserRegistry
         userRegistry.updateLocalRecord(userAddr, ipfsHash);
@@ -64,19 +65,20 @@ contract MedicalDataRegistry {
     }
 
     function setTrustedWriter(address writer, bool allowed) external {
-    require(msg.sender == owner, "Only owner");
+    require(msg.sender == owner, "Only owner");  // only contract owner can approve trusted writers
     trustedWriters[writer] = allowed;
 }
     // ===== AES Key functions =====
+    // function to store encrypteed AES key for accessor
     function setEncryptedAESKey(
     address patientAddr,
     address accessorAddr,
-    string calldata encryptedKey
+    string calldata encryptedKey // more gas efficient than memory for external inputs 
 ) external {
 
     require(
         msg.sender == patientAddr ||
-        isAuthorizedProxyForPatient(patientAddr, msg.sender),
+        isAuthorizedProxyForPatient(patientAddr, msg.sender), // patient or proxy can set keys
         "Not authorized to set encrypted key"
     );
 
@@ -87,14 +89,14 @@ contract MedicalDataRegistry {
 );
 
 
-    encryptedAESKeys[patientAddr][accessorAddr] = encryptedKey;
+    encryptedAESKeys[patientAddr][accessorAddr] = encryptedKey;  // store accessor specific encrypted key; each accessor receives different encrypted AES key wrapper
 
     emit EncryptedAESKeySet(patientAddr, accessorAddr);
 }
 
 
     function getEncryptedAESKey(address patientAddr) external view returns (string memory) {
-        string memory key = encryptedAESKeys[patientAddr][msg.sender];
+        string memory key = encryptedAESKeys[patientAddr][msg.sender]; // accessor retreives their key
         require(bytes(key).length != 0, "No encrypted key for caller");
         return key;
     }
@@ -121,7 +123,7 @@ contract MedicalDataRegistry {
     view
     returns (bool)
 {
-    address expectedProxy = userRegistry.getPatient(patientAddr).proxyAddress;
+    address expectedProxy = userRegistry.getPatient(patientAddr).proxyAddress; // get proxy
 
     if (expectedProxy != proxyAddr) return false;
 

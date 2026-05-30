@@ -8,19 +8,19 @@ contract UserRegistry {
 
      MedicalDataRegistry public medicalDataRegistry;
 
- address public owner;
+ address public owner; // stores administrator address
 
 constructor() public {
-    owner = msg.sender;
+    owner = msg.sender; // deployer becomes owner
 }
 
 modifier onlyOwner() {
     require(msg.sender == owner, "Not owner");
-    _;
+    _; // continue executing original function
 }
-
+// function to set medical data registry contract after deployment
 function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner {
-    require(address(medicalDataRegistry) == address(0), "Already set");
+    require(address(medicalDataRegistry) == address(0), "Already set"); // can only be set once
     medicalDataRegistry = MedicalDataRegistry(_medicalDataRegistry);
 }
 
@@ -66,7 +66,7 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
     address[] public doctorList;
     address[] public proxyList;
 
-    mapping(address => Patient) public patientInfo;
+    mapping(address => Patient) public patientInfo; 
     mapping(address => Doctor) public doctorInfo;
     mapping(address => Proxy) public proxies;
 
@@ -74,7 +74,7 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
     mapping(string => address) private tokenToPatient;
     mapping(address => string) private patientToToken;
     mapping(address => bytes32) private proxyDetailsHash;
-    mapping(string => string) private tokenToTempWrappedRMK;
+    mapping(string => string) private tokenToTempWrappedRMK; // stores temporary wrapped Record Master Keys
 
    
 
@@ -87,6 +87,7 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
 
     // ===== Functions =====
 
+// function that registers a patient
     function addPatient(
     string memory firstName,
     string memory lastName,
@@ -110,9 +111,9 @@ function setMedicalDataRegistry(address _medicalDataRegistry) external onlyOwner
         hasDesignatedProxy: false
     });
 
-    patientInfo[msg.sender] = p;
-    patientList.push(msg.sender);
-    medicalDataRegistry.setHash(msg.sender, recordHash);
+    patientInfo[msg.sender] = p; // maps aller address to patient profile
+    patientList.push(msg.sender); // pushes new patient to patient list
+    medicalDataRegistry.setHash(msg.sender, recordHash); // sets a hash for the record
     emit PatientRegistered(msg.sender);
 }
 
@@ -304,7 +305,7 @@ function addProxy(
         require(bytes(patientInfo[msg.sender].firstName).length != 0, "Only patients can designate proxy");
 
         Patient storage p = patientInfo[msg.sender];
-        tokenToTempWrappedRMK[token] = tempWrappedRMKHash;
+        tokenToTempWrappedRMK[token] = tempWrappedRMKHash; // temporary wrappdd RMK
 
 
     // patient can only have one proxy
@@ -326,6 +327,7 @@ function addProxy(
         emit ProxyDesignated(msg.sender, token);
 }
 
+//function for synchronizing with the medical data registry contract
     function updateLocalRecord(address userAddr, string calldata newHash) external {
         require(
         msg.sender == address(medicalDataRegistry),
@@ -347,6 +349,7 @@ function addProxy(
     return tokenToTempWrappedRMK[token];
 }
 
+// function to delete temporary delegation key after usage
 function consumeTempRMK(string calldata token) external {
     require(tokenToPatient[token] != address(0), "Invalid token");
 

@@ -198,9 +198,6 @@ async function loadProxyData() {
   loadSentAppointmentRequests();
 }
 
-
-// Function to display record of patient
-
 window.addEventListener("contractsReady", async () => {
   console.log("contractsReady → proxy");
   await loadProxyData();
@@ -242,38 +239,37 @@ function showRecords(element) {
       console.log("Patient address:", patientAddress);
       console.log("Proxy address (msg.sender):", proxyAddress);
 
-      // 1️⃣ Get wrapped RMK
+      // Get wrapped RMK
       const wrappedRMK =
         await medicalDataRegistry.methods
           .getEncryptedAESKey(patientAddress)
           .call({ from: proxyAddress });
     
-      // 2️⃣ Derive proxy UAK
+      //  Derive proxy UAK
       const proxyUAK =
         await window.deriveUAKForDoctor(proxyAddress);
     
-      // 3️⃣ Unwrap RMK
+      // Unwrap RMK
       const rmk =
         await window.unwrapRMK(wrappedRMK, proxyUAK);
     
-      // 4️⃣ Get encrypted record hash
+      //  Get encrypted record hash
       const recordHash =
         await medicalDataRegistry.methods
           .getHash(patientAddress)
           .call();
     
-      // 5️⃣ Fetch encrypted data
+      //  Fetch encrypted data
       const encryptedPayload =
         await $.get("http://localhost:8080/ipfs/" + recordHash);
     
-      // 6️⃣ Decrypt
+      //  Decrypt
       const decryptedData =
   await window.decryptAES(
     encryptedPayload,
     rmk
   );
 
-    
       // If decryptAES returns string → parse it
 const jsonData =
 typeof decryptedData === "string"
@@ -296,8 +292,6 @@ typeof decryptedData === "string"
     </div>
   `;
   
-
-    
       var row1 = table.insertRow(index + 1);
       row1.classList.add("recordsRow");
       var cell1 = row1.insertCell(0);
@@ -503,20 +497,20 @@ async function giveAccessByProxy() {
       .grantDoctorAccessByProxy(doctorToBeAdded, patientAddress)
       .send({ from: proxyAddress, gas: 1000000, value: web3.utils.toWei("2", "ether") });
 
-    // 🔐 Crypto steps (all using proxyAddress)
+    //  After granting access, we need to wrap the RMK for the new doctor so they can decrypt the records
     const proxyUAK = await window.deriveUAKForDoctor(proxyAddress);
 
     const wrappedRMKForProxy = await medicalDataRegistry.methods
       .getEncryptedAESKey(patientAddress)
       .call({ from: proxyAddress });
 
+      // Unwrap RMK with proxy UAK
     const rmk = await window.unwrapRMK(wrappedRMKForProxy, proxyUAK);
 
+    // Wrap RMK for the new doctor
     const doctorUAK = await window.deriveUAKForDoctor(doctorToBeAdded);
     const wrappedRMKForDoctor = await window.wrapRMK(rmk, doctorUAK);
-    
-
-    // IMPORTANT: must send from proxyAddress
+    // Store the wrapped RMK for the doctor in the registry
     await medicalDataRegistry.methods
       .setEncryptedAESKey(patientAddress, doctorToBeAdded, wrappedRMKForDoctor)
       .send({ from: proxyAddress, gas: 1000000 });
@@ -528,9 +522,6 @@ async function giveAccessByProxy() {
     alert("Failed to grant access or encrypt RMK. See console for details.");
   }
 }
-
-
-
 
 // Function for proxy to revoke access to doctors for a patient's record
 function revokeAccessByProxy(element) {
@@ -588,8 +579,6 @@ function revokeAccessByProxy(element) {
 }
 
 // Function to send appointment request on behalf of patient
-// Function to send appointment request on behalf of patient
-// Function to send appointment request on behalf of patient
 async function scheduleAppointmentByProxy() {
   const doctorId = $("#doctorSelect").val();
   const appointmentDate = $("#appointmentDate").val().replace(/-/g, "");
@@ -625,7 +614,6 @@ async function scheduleAppointmentByProxy() {
       alert("This doctor does not have access to the patient's records. Please grant access first.");
       return;
     }
-
     // FHIR Appointment resource
     const fhirAppointmentResource = {
       resourceType: "Appointment",
@@ -643,7 +631,7 @@ async function scheduleAppointmentByProxy() {
       ],
     };
 
-    // 🔐 Proxy keys
+    //  Derive proxy UAK (using proxy's own address)
     const proxyUAK = await window.deriveUAKForDoctor(fromAddress);
 
     // Fetch patient RMK from registry and unwrap it with proxy UAK
@@ -652,26 +640,26 @@ async function scheduleAppointmentByProxy() {
       .call({ from: fromAddress });
     const patientRMK = await window.unwrapRMK(wrappedRMK, proxyUAK);
 
-    // 1️⃣ Generate per-appointment AES key
+    //  Generate per-appointment AES key
     const appointmentAESKey = await window.generateAESKey();
 
-    // 2️⃣ Encrypt appointment
+    //  Encrypt appointment
     const encryptedAppointment = await window.encryptAES(
       JSON.stringify(fhirAppointmentResource),
       appointmentAESKey
     );
 
-    // 3️⃣ Wrap AES key for doctor
+    //  Wrap AES key for doctor
     const doctorUAK = await window.deriveUAKForDoctor(doctorId);
     const wrappedKeyForDoctor = await window.wrapRMK(appointmentAESKey, doctorUAK);
 
-    // 4️⃣ Wrap AES key for patient (so patient can decrypt later)
+    //  Wrap AES key for patient (so patient can decrypt later)
     const wrappedKeyForPatient = await window.wrapRMK(appointmentAESKey, patientRMK);
 
-    // 5️⃣ Wrap AES key for proxy itself
+    //  Wrap AES key for proxy itself
     const wrappedKeyForProxy = await window.wrapRMK(appointmentAESKey, proxyUAK);
 
-    // 6️⃣ Store complete payload in IPFS
+    // Store complete payload in IPFS
     const ipfsPayload = {
       iv: encryptedAppointment.iv,
       data: encryptedAppointment.data,
@@ -684,7 +672,7 @@ async function scheduleAppointmentByProxy() {
     const ipfsResult = await ipfs.files.add(buffer);
     const ipfsHash = ipfsResult[0].hash;
 
-    // 7️⃣ Store appointment reference on-chain
+    //  Store appointment reference on-chain
     await appointmentManager.methods
       .requestAppointmentByProxy(doctorId, patientAddress, ipfsHash, dateAsNumber, parseInt(paddedHour))
       .send({ from: fromAddress, gas: 1000000 });
@@ -700,11 +688,7 @@ async function scheduleAppointmentByProxy() {
   }
 }
 
-
-
-
-
-// Function to load all sent appointments for proxy (for all accessible patients)
+// Function to load all sent appointments for proxy 
 async function loadSentAppointmentRequests() {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
@@ -719,6 +703,7 @@ async function loadSentAppointmentRequests() {
       .call();
 
     for (const patientAddress of patientAddresses) {
+
       // Get patient RMK for fallback decryption
       const wrappedRMK = await medicalDataRegistry.methods
         .getEncryptedAESKey(patientAddress)
@@ -818,8 +803,7 @@ async function loadSentAppointmentRequests() {
 }
 
 
-
-// Display function stays the same as patient one
+// Display function
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   console.log(`Full Appointment ${id} Data:`, appointment);
 
@@ -874,10 +858,10 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   $("#logout").click(function () {
-    // Implement your logout logic here
+    
     console.log("Logout button clicked");
-    // Redirect to login page or logout user
-    window.location.href = "/index.html"; // Modify as needed
+    // Redirect to login page 
+    window.location.href = "/index.html"; 
   });
 
   var today = new Date().toISOString().split("T")[0]; // Format today's date as YYYY-MM-DD
@@ -903,11 +887,9 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
-
-
 // Function to populate available hours for a selected appointment date
 function populateHoursDropdown() {
-  const selectedDate = $("#appointmentDate").val(); // Assuming "YYYY-MM-DD" format
+  const selectedDate = $("#appointmentDate").val(); 
   const formattedDate = selectedDate.replace(/-/g, ""); // Convert date to "YYYYMMDD" format
   const doctorId = $("#doctorSelect").val(); // Get selected doctor's Ethereum address
 

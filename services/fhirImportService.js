@@ -1,37 +1,45 @@
 "use strict";
 
+// creates deep copy of object
 function cloneResource(resource) {
   return resource ? JSON.parse(JSON.stringify(resource)) : resource;
 }
 
+// makes sure the value is an array
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+// returns the code from the first coding in an entry
 function firstCodingCode(concept) {
   const coding = asArray(concept && concept.coding);
   return coding[0] && coding[0].code ? coding[0].code : "";
 }
 
+// returns the display or code from the first coding in an entry
 function firstCodingDisplay(concept) {
   const coding = asArray(concept && concept.coding);
   return coding[0] && (coding[0].display || coding[0].code) ? (coding[0].display || coding[0].code) : "";
 }
 
+// returns the first name object from the patient resource
 function firstHumanName(patientResource) {
   const names = asArray(patientResource && patientResource.name);
   return names[0] || {};
 }
 
+// returns the value of the telecom entry (phone, email etc)
 function firstTelecomValue(resource, system) {
   return asArray(resource && resource.telecom).find((item) => item && item.system === system)?.value || "";
 }
 
+// returns the first line of the address from the patient resource
 function firstAddressLine(resource) {
   const address = asArray(resource && resource.address)[0];
   return asArray(address && address.line).join(", ");
 }
 
+// converts the dosage quantity to a string with value and unit (e.g. "500 mg")
 function stringifyDoseQuantity(quantity) {
   if (!quantity || typeof quantity !== "object") return "";
 
@@ -44,6 +52,7 @@ function stringifyDoseQuantity(quantity) {
   return [value, unit].filter(Boolean).join(" ").trim();
 }
 
+// extracts the medication name from either medicationCodeableConcept or medicationReference
 function extractMedicationName(resource) {
   if (resource.medicationCodeableConcept) {
     return resource.medicationCodeableConcept.text || firstCodingDisplay(resource.medicationCodeableConcept) || "";
@@ -51,13 +60,14 @@ function extractMedicationName(resource) {
   return resource.medicationReference?.display || "";
 }
 
+// converts the FHIR patient resource to an internal format
 function mapPatientResource(patientResource) {
   const name = firstHumanName(patientResource);
 
   let firstName = "";
   let lastName = "";
 
-  //  R4
+  //  R4 format
   if (name.given || name.family) {
   if (Array.isArray(name.given)) {
     firstName = name.given.join(" ");
@@ -67,7 +77,7 @@ function mapPatientResource(patientResource) {
 
   lastName = name.family || "";
 }
-  //  STU3
+  //  STU3 format
   else if (name.text) {
     const parts = name.text.split(" ");
     firstName = parts.slice(0, -1).join(" ") || "";
@@ -86,6 +96,7 @@ function mapPatientResource(patientResource) {
   };
 }
 
+// maps a FHIR Condition resource to an internal diagnosis format, handling both R4 and STU3 versions
 function mapConditionResource(resource, fhirVersion) {
   let clinicalStatus = "";
   let severity = "";
@@ -114,6 +125,7 @@ if (fhirVersion === "STU3") {
   };
 }
 
+// maps a FHIR MedicationRequest resource to an internal treatment plan format, handling both R4 and STU3 versions
 function mapMedicationRequestResource(resource) {
   const dosageInstruction = asArray(resource.dosageInstruction)[0] || {};
   const doseQuantity = asArray(dosageInstruction.doseAndRate)[0]?.doseQuantity;
@@ -142,6 +154,7 @@ function mapMedicationRequestResource(resource) {
   };
 }
 
+// maps a FHIR AllergyIntolerance resource to an internal allergy format, handling both R4 and STU3 versions
 function mapAllergyResource(resource) {
   const firstReaction = asArray(resource.reaction)[0] || {};
   const manifestation = asArray(firstReaction.manifestation)[0] || {};
@@ -156,6 +169,7 @@ function mapAllergyResource(resource) {
   };
 }
 
+// maps a FHIR Encounter resource to an internal encounter format, handling both R4 and STU3 versions 
 function mapEncounterResource(resource) {
   const period = resource.period || {};
   return {
@@ -168,6 +182,7 @@ function mapEncounterResource(resource) {
   };
 }
 
+// detects the FHIR version of the bundle by checking the structure of the Patient resource, specifically looking at the name field to determine if it's R4 or STU3
 function detectFHIRVersion(bundle) {
   const patient = (bundle.entry || [])
     .map(e => e.resource)
@@ -186,6 +201,7 @@ function detectFHIRVersion(bundle) {
   return "R4";
 }
 
+// main function to parse a FHIR Bundle and convert it into a normalized internal format, handling both R4 and STU3 versions and ensuring that we have a Patient resource to work with
 function parseFHIRBundle(bundleJson) {
   const bundle = typeof bundleJson === "string" ? JSON.parse(bundleJson) : bundleJson;
   const fhirVersion = detectFHIRVersion(bundle);
@@ -247,6 +263,7 @@ function parseFHIRBundle(bundleJson) {
   return  normalizeEmptyStrings(normalizedRecord);;
 }
 
+// recursively normalizes empty strings in the object to null values, ensuring that we don't have empty strings in our internal representation which can simplify downstream processing and comparisons
 function normalizeEmptyStrings(obj) {
   if (Array.isArray(obj)) return obj.map(normalizeEmptyStrings);
   if (obj && typeof obj === "object") {

@@ -20,7 +20,7 @@ contract DiagnosisAndTreatment {
         medicalDataRegistry = MedicalDataRegistry(_medicalDataRegistry);
         accessControl = AccessControl(_accessControl);
     }
-
+ // function called by a doctor to submit a diagnosis
    function submitDiagnosis(
     uint appointmentId,
     string memory _hash
@@ -46,8 +46,8 @@ contract DiagnosisAndTreatment {
         treatmentPlanSubmitted
     ) = appointmentManager.getAppointment(appointmentId);
 
-    require(isAccepted, "Appointment not accepted");
-    require(!diagnosisSubmitted, "Diagnosis already submitted");
+    require(isAccepted, "Appointment not accepted"); // an appt has to be accepted first
+    require(!diagnosisSubmitted, "Diagnosis already submitted"); // prevents resubmission of a diagnosis for the same appt
     require(doctorAddr == msg.sender, "Only assigned doctor can submit diagnosis");
 
     // Mark diagnosis as submitted
@@ -59,7 +59,7 @@ contract DiagnosisAndTreatment {
     emit DiagnosisSubmitted(msg.sender, patientAddr, appointmentId);
 }
 
-
+// function called by a doctor to submit a treatment plan
  function submitTreatmentPlan(
     uint appointmentId,
     string memory treatmentPlanIPFSHash

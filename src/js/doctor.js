@@ -39,25 +39,26 @@ function toggleCustomDiagnosisInput(patientAddress) {
   }
 }
 
+// function to derive the user access key (UAK) for the doctor by signing a message with their Ethereum account and using the signature to generate a symmetric key for encrypting and decrypting the record master key (RMK)
 async function getDoctorAESKeyForPatient(patientAddress) {
-  if (doctorSessionKeys[patientAddress]) return doctorSessionKeys[patientAddress];
+  if (doctorSessionKeys[patientAddress]) return doctorSessionKeys[patientAddress]; // return cached key if available
 
   const accounts = await ethereum.request({ method: "eth_requestAccounts" });
   const doctorAddress = accounts[0].toLowerCase();
 
-  const wrappedKey = await medicalDataRegistry.methods
+  const wrappedKey = await medicalDataRegistry.methods // fetches the encrypted AES key (RMK) for the patient from the blockchain, which is encrypted with the doctor's UAK
     .getEncryptedAESKey(patientAddress)
     .call({ from: doctorAddress });
 
   if (!wrappedKey) throw new Error("No access key for this patient");
 
-  const uak = await window.deriveUAKForDoctor(doctorAddress);
-  const aesKey = await window.unwrapRMK(wrappedKey, uak);
+  // derive the doctor's UAK and unwrap the RMK to get the AES key for encrypting/decrypting the patient's record. This way the doctor can access the patient's record without exposing the RMK on-chain.
+  const uak = await window.deriveUAKForDoctor(doctorAddress); 
+  const aesKey = await window.unwrapRMK(wrappedKey, uak); 
 
-  doctorSessionKeys[patientAddress] = aesKey;
+  doctorSessionKeys[patientAddress] = aesKey; // the derived AES key is cached in doctorSessionKeys for subsequent accesses during the session.
   return aesKey;
 }
-
 
 
 async function loadDoctorData() {
@@ -123,6 +124,7 @@ window.addEventListener("contractsReady", async () => {
   loadAppointmentHistory();
 });
 
+// function to escape HTML special characters in the AI triage report sections to prevent XSS vulnerabilities when rendering user-generated content in the report
 function escapeConversationHtml(value) {
   if (value === null || value === undefined) return "";
   return String(value)
@@ -144,8 +146,9 @@ const TRIAGE_SECTION_TITLES = [
   "Doctor Notes"
 ];
 
+// function to retrieve the most recent AI triage report from a patient's record
 function getTriageReportFromRecord(record) {
-  if (record && record.aiTriageReport) return record.aiTriageReport;
+  if (record && record.aiTriageReport) return record.aiTriageReport; // for backward compatibility with older records that only have a single aiTriageReport field, return that if it exists
   if (Array.isArray(record?.aiTriageReports) && record.aiTriageReports.length) {
     return [...record.aiTriageReports].sort((a, b) => {
       const aTime = Date.parse(a.updatedAt || a.sharedAt || a.createdAt || 0);
@@ -156,6 +159,7 @@ function getTriageReportFromRecord(record) {
   return null;
 }
 
+// function to extract the Composition resource from a FHIR Bundle, which contains the structured content of the AI triage report. The Composition resource is used to organize the different sections of the report and their content.
 function getCompositionFromBundle(bundle) {
   if (!bundle || bundle.resourceType !== "Bundle") return null;
   const entry = Array.isArray(bundle.entry) ? bundle.entry : [];
@@ -163,6 +167,7 @@ function getCompositionFromBundle(bundle) {
   return compEntry ? compEntry.resource : null;
 }
 
+// function to make sure the bundle contains a Comosition resource with all required sections
 function ensureComposition(bundle) {
   if (!bundle || bundle.resourceType !== "Bundle") return null;
   if (!Array.isArray(bundle.entry)) bundle.entry = [];
@@ -204,6 +209,7 @@ function ensureComposition(bundle) {
   return composition;
 }
 
+// function to get the text content of a specific section in the AI triage report by its title, which is used to populate the corresponding textarea fields when rendering the report for viewing or editing. If the section is not found, it returns an empty string.
 function getSectionText(bundle, title) {
   const composition = getCompositionFromBundle(bundle);
   if (!composition || !Array.isArray(composition.section)) return "";
@@ -212,6 +218,7 @@ function getSectionText(bundle, title) {
   return typeof value === "string" ? value : "";
 }
 
+// function to set the text content of a specific section in the AI triage report by its title, which is used to update the bundle with the edited content from the textarea fields when saving the report
 function setSectionText(bundle, title, text) {
   const composition = ensureComposition(bundle);
   if (!composition) return;
@@ -219,6 +226,7 @@ function setSectionText(bundle, title, text) {
   if (section) section.text = text || "Not provided";
 }
 
+// function to render the AI triage report sections with their content in textarea fields for viewing or editing, along with metadata about the report's status and last updated time. The canEdit parameter determines whether the textarea fields are editable or read-only, and whether the Save button is displayed for editing the report. If no report is found in the record, it displays a message indicating that no report has been shared yet.
 function renderTriageReport(record, patientAddr, canEdit) {
   const report = getTriageReportFromRecord(record);
   if (!report || !report.bundle) {
@@ -230,7 +238,7 @@ function renderTriageReport(record, patientAddr, canEdit) {
   }
 
   const bundle = report.bundle;
-  const status = report.status || getCompositionFromBundle(bundle)?.status || "preliminary";
+  const status = report.status || getCompositionFromBundle(bundle)?.status || "preliminary"; // checks if report is marked as final, otherwise falls back to composition status, and defaults to preliminary if neither is set
   const updatedAt = report.updatedAt || report.sharedAt || report.createdAt;
   const readonlyAttr = canEdit ? "" : "readonly";
 
@@ -261,8 +269,10 @@ function renderTriageReport(record, patientAddr, canEdit) {
   `;
 }
 
+// function to update the text content of a specific section in the AI triage report by its title, which is used to update the bundle with the edited content from the textarea fields when saving the report
 async function canEditTriageReport(patientAddress) {
   try {
+    // gets the doctor and checks if there is an appointment accepted with that patient 
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const doctorAddress = accounts[0];
     const appointmentIds = await appointmentManager.methods
@@ -284,8 +294,10 @@ async function canEditTriageReport(patientAddress) {
   return false;
 }
 
+// function to save the report, by checking if the doctor can edit the report, retrieving the existing report and bundle from the patient's record, updating the bundle with the edited content from the textarea fields, encrypting the updated record and saving it to IPFS, and then updating the record hash on the blockchain to point to the new version of the record with the updated report. It also updates the status and last updated time displayed in the UI after saving.
 async function saveTriageReport(patientAddr, reportId) {
   try {
+    // check if doctor can edit report 
     const canEdit = await canEditTriageReport(patientAddr);
     if (!canEdit) {
       alert("You need an accepted appointment to edit this report.");
@@ -295,6 +307,7 @@ async function saveTriageReport(patientAddr, reportId) {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const doctorAddr = accounts[0];
 
+    // fetch the existing record to get the current bundle and report
     const recordHash = await medicalDataRegistry.methods
       .getHash(patientAddr)
       .call({ from: doctorAddr });
@@ -302,13 +315,15 @@ async function saveTriageReport(patientAddr, reportId) {
       alert("No medical record found for this patient.");
       return;
     }
-
     const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
+    // get the encrypted record from IPFS
     const encryptedPayload = await resp.json();
+    // get the key to decrypt the record
     const aesKey = await getDoctorAESKeyForPatient(patientAddr);
     const decryptedRecordStr = await window.decryptAES(encryptedPayload, aesKey);
     const record = JSON.parse(decryptedRecordStr);
-
+    
+    // get the existing report and bundle from the record 
     let reports = [];
     if (Array.isArray(record?.aiTriageReports)) {
       reports = record.aiTriageReports;
@@ -316,6 +331,7 @@ async function saveTriageReport(patientAddr, reportId) {
       reports = [record.aiTriageReport];
     }
 
+    // find the report being edited by its id
     let report = null;
     if (reportId) {
       report = reports.find((r) => r && r.id === reportId) || null;
@@ -329,6 +345,7 @@ async function saveTriageReport(patientAddr, reportId) {
       return;
     }
 
+    // check the structure of the report 
     const bundle = report.bundle;
     TRIAGE_SECTION_TITLES.forEach((title) => {
       const idSuffix = `${title.replace(/[^a-z0-9]+/gi, "")}${patientAddr}`;
@@ -341,7 +358,7 @@ async function saveTriageReport(patientAddr, reportId) {
     if (composition) {
       composition.status = "final";
       composition.date = now;
-      composition.attester = [
+      composition.attester = [ // adds docotr identity, timestamp, signature metadata
         {
           mode: "legal",
           time: now,
@@ -352,7 +369,7 @@ async function saveTriageReport(patientAddr, reportId) {
         }
       ];
     }
-
+// mark report as final after being edited by the doctor
     report.status = "final";
     report.updatedAt = now;
     report.attestedBy = {
@@ -366,13 +383,12 @@ async function saveTriageReport(patientAddr, reportId) {
     record.aiTriageReports.unshift(report);
     record.aiTriageReport = report;
 
+    // encrypt the updated record and save to IPFS, then update the hash on the blockchain
     const encryptedUpdated = await window.encryptAES(JSON.stringify(record), aesKey);
     const buffer = Buffer.from(JSON.stringify(encryptedUpdated), "utf-8");
     const ipfsResult = await ipfs.add(buffer);
     const ipfsHash = ipfsResult[0]?.hash || ipfsResult.path;
-
     await medicalDataRegistry.methods.setHash(patientAddr, ipfsHash).send({ from: doctorAddr });
-
     const statusEl = document.getElementById(`aiTriageStatus${patientAddr}`);
     const updatedEl = document.getElementById(`aiTriageUpdated${patientAddr}`);
     if (statusEl) statusEl.textContent = "final";
@@ -384,8 +400,8 @@ async function saveTriageReport(patientAddr, reportId) {
     alert("Failed to save triage report: " + (err.message || err));
   }
 }
-// Function to display the patients' medical records
-// Keep a cache of decrypted records per patient
+
+// function to display the patients' medical records
 async function showRecords(element) {
   var table = document.getElementById("viewPatient");
   var index = element.parentNode.parentNode.rowIndex;
@@ -396,7 +412,7 @@ async function showRecords(element) {
       const accounts = await ethereum.request({ method: "eth_requestAccounts" });
       const doctorAddr = accounts[0];
 
-      // Get encrypted AES key for doctor
+      // get encrypted AES key for doctor from the blockchain
       const wrappedRMKStr = await medicalDataRegistry.methods
         .getEncryptedAESKey(patientAddr)
         .call({ from: doctorAddr });
@@ -406,15 +422,17 @@ async function showRecords(element) {
         return;
       }
 
+      // derive the key for the doctor 
       const uak = await window.deriveUAKForDoctor(doctorAddr);
+      // unwrap the RMK to get the aes key for decrypting the record
       const rmk = await window.unwrapRMK(wrappedRMKStr, uak);
 
-      // Get record hash from blockchain
+      // get record hash from blockchain
       const recordHash = await medicalDataRegistry.methods
         .getHash(patientAddr)
         .call({ from: doctorAddr });
 
-      // Fetch encrypted record from IPFS
+      // fetch encrypted record from IPFS
       let payloadStr;
       try {
         const ipfsResp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
@@ -432,7 +450,7 @@ async function showRecords(element) {
         throw new Error("Invalid encrypted payload format (not JSON)");
       }
 
-      // Decrypt record
+      // decrypt record
       const decryptedRecordStr = await window.decryptAES(encryptedPayload, rmk);
 
       let decryptedRecord;
@@ -442,7 +460,7 @@ async function showRecords(element) {
         throw new Error("Decrypted record is not valid JSON");
       }
 
-      // Convert record to formatted HTML
+      // convert record to formatted HTML
       const formattedHtml = `
   <div class="medical-record-title">Medical Record</div>
 
@@ -479,7 +497,7 @@ async function showRecords(element) {
         class: "download-button-container",
       }).append(downloadButton);
 
-      // Create content including diagnosis & treatment forms
+      // create content including diagnosis & treatment forms
       const content = `
         <div class="tab-content">
           <div id="view${patientAddr}">
@@ -637,7 +655,7 @@ async function showRecords(element) {
 }
 
 
-// Function to get the current date and time
+// function to get the current date and time
 function getDateTime() {
   function AddZero(num) {
     return num >= 0 && num < 10 ? "0" + num : num + "";
@@ -656,13 +674,13 @@ function getDateTime() {
 }
 
 
-// ----- Submit Diagnosis -----
+// function for a doctor to submit a diagnosis for a specific appt 
 async function submitDiagnosis(element, index) {
   try {
     const table = document.getElementById("viewPatient");
     const patientAddress = table.rows[index].cells[1].innerHTML;
 
-    // Get form details
+    // get form details
     const diagnosisIndex = document.getElementById(`ailmentsList${patientAddress}`).value;
     const clinicalStatus = document.getElementById(`clinicalStatus${patientAddress}`).value;
     let severityInput = document.getElementById(`severity${patientAddress}`).value;
@@ -677,13 +695,13 @@ async function submitDiagnosis(element, index) {
     const accounts = await web3.eth.getAccounts();
     const doctorAddress = accounts[0];
 
-    // Get doctor's appointments
+    // get doctor's appointments
     const appointmentIds = await appointmentManager.methods
       .getDoctorAppointments(doctorAddress)
       .call({ from: doctorAddress });
 
     let foundAppointment = null;
-
+// check if there is an accepted appt for the patient
     for (let id of appointmentIds) {
       const appointment = await appointmentManager.methods.appointments(id).call();
       if (
@@ -703,6 +721,7 @@ async function submitDiagnosis(element, index) {
 
     const datetime = new Date().toISOString();
     const docNameStored = docName || "Unknown Doctor";
+    // map severity input to standardized codes for FHIR Condition resource
     const severityMap = {
       low: "mild",
       medium: "moderate",
@@ -732,10 +751,12 @@ async function submitDiagnosis(element, index) {
       diagnosed = ailmentsDict[parseInt(diagnosisIndex, 10)];
     }
 
+    // map the diagnosis entered by the doctor to a SNOMED code 
     const coding = typeof window.mapToSNOMED === "function"
       ? await window.mapToSNOMED(diagnosed)
       : [];
 
+// build the FHIR Condition resource
     const fhirConditionResource = {
       resourceType: "Condition",
       clinicalStatus: {
@@ -764,7 +785,7 @@ async function submitDiagnosis(element, index) {
       note: [{ text: otherDetails }],
     };
 
-    // 1️⃣ Fetch existing record from IPFS
+    // fetch existing record from IPFS
     let existingRecord = {};
     try {
       const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call({ from: doctorAddress });
@@ -782,7 +803,7 @@ async function submitDiagnosis(element, index) {
 
     if (!existingRecord.diagnosis) existingRecord.diagnosis = [];
 
-    // 2️⃣ Append new diagnosis entry
+    // append new diagnosis to the record
     existingRecord.diagnosis.push({
       doctor: docNameStored,
       datetime,
@@ -794,24 +815,24 @@ async function submitDiagnosis(element, index) {
       fhirConditionResource
     });
 
-    // 3️⃣ Encrypt updated record
+    // encrypt updated record
     const aesKey = await getDoctorAESKeyForPatient(patientAddress);
     const updatedRecordStr = JSON.stringify(existingRecord);
     const encryptedPayload = await window.encryptAES(updatedRecordStr, aesKey);
 
-    // 4️⃣ Upload to IPFS
+    // upload to IPFS
     const buffer = Buffer.from(JSON.stringify(encryptedPayload), "utf-8");
     const ipfsResult = await ipfs.add(buffer);
     const ipfsHash = ipfsResult[0]?.hash || ipfsResult.path;
 
-    // 5️⃣ Submit diagnosis on-chain
+    // submit diagnosis on-chain
     await diagnosisAndTreatment.methods
       .submitDiagnosis(foundAppointment.id, ipfsHash)
       .send({ from: doctorAddress, gas: 1000000 });
 
     alert("Diagnosis successfully submitted.");
 
-    // Reload data
+    // reload data
     loadDoctorData();
     $("#appointmentRequests tr:gt(0)").remove();
     $("#appointmentHistory tr:gt(0)").remove();
@@ -825,7 +846,7 @@ async function submitDiagnosis(element, index) {
 }
 
 
-// ----- Submit Treatment Plan -----
+// function to submit a treatment plan
 async function submitTreatmentPlan(element, index) {
   try {
     const table = document.getElementById("viewPatient");
@@ -846,7 +867,7 @@ async function submitTreatmentPlan(element, index) {
     const datetime = new Date().toISOString();
     const docNameStored = docName || "Unknown Doctor";
 
-    // Fetch existing record
+    // fetch existing record
     let existingRecord = {};
     try {
       const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call({ from: doctorAddr });
@@ -864,7 +885,7 @@ async function submitTreatmentPlan(element, index) {
 
     if (!existingRecord.treatmentPlan) existingRecord.treatmentPlan = [];
 
-    // Append new treatment
+    // append new treatment
     existingRecord.treatmentPlan.push({
       datetime,
       doctor: docNameStored,
@@ -890,16 +911,16 @@ async function submitTreatmentPlan(element, index) {
       },
     });
 
-    // Encrypt updated record
+    // encrypt updated record
     const aesKey = await getDoctorAESKeyForPatient(patientAddress);
     const encryptedPayload = await window.encryptAES(JSON.stringify(existingRecord), aesKey);
 
-    // Upload to IPFS
+    // upload to IPFS
     const buffer = Buffer.from(JSON.stringify(encryptedPayload), "utf-8");
     const ipfsResult = await ipfs.add(buffer);
     const ipfsHash = ipfsResult[0]?.hash || ipfsResult.path;
 
-    // Submit on-chain
+    // submit on-chain
     const appointmentIds = await appointmentManager.methods.getDoctorAppointments(doctorAddr).call({ from: doctorAddr });
     let foundAppointmentId = null;
 
@@ -927,7 +948,7 @@ async function submitTreatmentPlan(element, index) {
 
     alert("Treatment plan successfully submitted.");
 
-    // Refresh UI
+    // refresh UI
     loadDoctorData();
     loadAppointmentRequests();
     loadAppointmentHistory();
@@ -940,10 +961,11 @@ async function submitTreatmentPlan(element, index) {
 
 
 
-
+// function to fetch the appts from IPFS and decrypt them for display in the UI
 async function decryptEntries(entries, aesKey) {
   const results = [];
 
+// loop through the entries and decrypt each one if it's encrypted
   for (const entry of entries || []) {
     if (entry.encrypted && entry.payload) {
       const decrypted = await window.decryptAES(entry.payload, aesKey);
@@ -956,8 +978,7 @@ async function decryptEntries(entries, aesKey) {
   return results;
 }
 
-
-// Function to load appointment requsts rceived from patients
+// function to load appointment requsts rceived from patients
 function loadAppointmentRequests() {
   web3.eth.getAccounts().then(async function (accounts) {
     const doctorAddress = accounts[0].toLowerCase();
@@ -968,7 +989,7 @@ function loadAppointmentRequests() {
       for (const id of appointmentIds) {
         const appointment = await appointmentManager.methods.appointments(id).call();
 
-        // Only show pending appointments
+        // only show pending appointments
         if (!appointment.isAccepted && !appointment.isRejected) {
           try {
             const appointmentData = await fetchAndDecryptAppointment(appointment.ipfsHash);
@@ -986,7 +1007,7 @@ function loadAppointmentRequests() {
 
 
 
-// Function to display the requests
+// function to display the requests
 function displayAppointmentRequest(id, appointment) {
   if (!appointment || !Array.isArray(appointment.participant)) {
     console.error("Invalid appointment object:", appointment);
@@ -1042,7 +1063,7 @@ function displayAppointmentRequest(id, appointment) {
 }
 
 
-// Function to load the history of appointments accepted so far
+// function to load the history of appointments accepted so far
 function loadAppointmentHistory() {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
@@ -1077,7 +1098,7 @@ function loadAppointmentHistory() {
 }
 
 
-// Function to display the history of appointments
+// function to display the history of appointments
 function displayAppointmentHistory(id, appointment, status) {
   if (!appointment || !Array.isArray(appointment.participant)) return;
 
@@ -1123,7 +1144,7 @@ function normalizeAppointmentStatusLabel(status) {
   if (value === "rejected" || value === "cancelled" || value === "canceled") return "Rejected";
   return "Unknown";
 }
-
+ 
 function buildStatusBadgeMarkup(status) {
   const normalizedStatus = normalizeAppointmentStatusLabel(status);
   const className = normalizedStatus.toLowerCase() + "-status";
@@ -1131,17 +1152,17 @@ function buildStatusBadgeMarkup(status) {
 }
 
 
-// Function to accept an appointment
+// function to accept an appointment
 function acceptAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
-    // Get the appointment's id
+    // get the appointment's id
     appointmentManager.methods
       .appointments(appointmentId)
       .call()
       .then(function (appointmentToAccept) {
-        // Fetch all appointments for the doctor and check for conflicts
 
+        // fetch all appointments for the doctor and check for conflicts
         appointmentManager.methods
           .getDoctorAppointments(doctorAddress)
           .call()
@@ -1152,7 +1173,7 @@ function acceptAppointment(appointmentId) {
                 .appointments(id)
                 .call()
                 .then((otherAppointment) => {
-                  // Check if any appointment is at the same time and is already accepted
+                  // check if any appointment is at the same time and is already accepted
                   if (
                     otherAppointment.date === appointmentToAccept.date &&
                     otherAppointment.hour === appointmentToAccept.hour &&
@@ -1169,8 +1190,7 @@ function acceptAppointment(appointmentId) {
               if (conflict) {
                 alert("An appointment is already booked for this time slot.");
               } else {
-                // If no conflict, proceed to accept the appointment
-
+                // if no conflict, proceed to accept the appointment
                 appointmentManager.methods
                   .acceptAppointment(appointmentId)
                   .send({ from: doctorAddress })
@@ -1194,7 +1214,7 @@ function acceptAppointment(appointmentId) {
   });
 }
 
-// Function to reject an appointment
+// function to reject an appointment
 function rejectAppointment(appointmentId) {
   web3.eth.getAccounts().then(function (accounts) {
     const doctorAddress = accounts[0];
@@ -1202,8 +1222,7 @@ function rejectAppointment(appointmentId) {
       .appointments(appointmentId)
       .call()
       .then(function (appointment) {
-        // Notify the patient before the appointment is deleted
-
+        // notify the patient before the appointment is deleted
         notifyPatient(appointmentId, "Rejected", appointment.patientAddress);
         return appointmentManager.methods
           .rejectAppointment(appointmentId)
@@ -1221,13 +1240,12 @@ function rejectAppointment(appointmentId) {
   });
 }
 
-// Function to send a notification email to patient when an appointment has been accepted or rejected
-// Function to send a notification email to patient when an appointment has been accepted or rejected
+// function to send a notification email to patient when an appointment has been accepted or rejected
 async function notifyPatient(appointmentId, status) {
   try {
     console.log(`📧 Notify patient | Appointment ${appointmentId} | ${status}`);
 
-    // 1️⃣ Get appointment info from blockchain
+    // get appointment info from blockchain
     const appointment = await appointmentManager.methods
       .appointments(appointmentId)
       .call();
@@ -1235,11 +1253,11 @@ async function notifyPatient(appointmentId, status) {
     const patientAddress = appointment.patientAddress;
     if (!patientAddress) throw new Error("Patient address missing");
 
-    // 2️⃣ Fetch & decrypt appointment data from IPFS
+    // fetch and decrypt appointment data from IPFS
     const appointmentData = await fetchAndDecryptAppointment(appointment.ipfsHash);
     console.log("Raw appointment start:", appointmentData.start);
 
-    // 2a️⃣ Parse appointment start date
+    // parse appointment start date
     let dateObj;
     const startRaw = appointmentData.start;
     if (/^\d{8}T\d{2}:\d{2}:\d{2}Z$/.test(startRaw)) {
@@ -1257,17 +1275,17 @@ async function notifyPatient(appointmentId, status) {
     const appointmentDate = dateObj.toLocaleDateString("en-US", { timeZone: "UTC" });
     const appointmentTime = dateObj.toLocaleTimeString("en-US", { hour12: false, timeZone: "UTC" });
 
-    // 3️⃣ Get patient record hash
+    // get patient record hash
     const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call();
     if (!recordHash) throw new Error("Patient record hash not found");
 
-    // 4️⃣ Fetch patient record from IPFS
+    // fetch patient record from IPFS
     const recordResp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
     let payload = await recordResp.json(); // Can be encrypted or plaintext
 
     let patientRecord, patientEmail, patientName;
 
-    // 5️⃣ Try AES decryption if needed
+    // try AES decryption if needed
     try {
       if (payload.iv && payload.data) {
         const aesKey = await getDoctorAESKeyForPatient(patientAddress);
@@ -1282,7 +1300,7 @@ async function notifyPatient(appointmentId, status) {
       console.warn("⚠️ AES decryption failed or missing structure:", err);
     }
 
-    // 6️⃣ Fallback: parse raw IPFS text if email not found
+    // fallback: parse raw IPFS text if email not found
     if (!patientEmail) {
       console.log("⚠️ Falling back to raw IPFS text parsing");
       const lines = typeof payload === "string" ? payload.split("\n") : JSON.stringify(payload).split("\n");
@@ -1302,7 +1320,7 @@ async function notifyPatient(appointmentId, status) {
       patientName = `${firstName} ${lastName}`.trim() || "Patient";
     }
 
-    // 7️⃣ Prepare email template
+    // prepare email template
     const templateParams = {
       doctor_name: docName,
       patient_name: patientName,
@@ -1314,7 +1332,7 @@ async function notifyPatient(appointmentId, status) {
 
     console.log("📤 Sending email:", templateParams);
 
-    // 8️⃣ Send email via emailjs
+    // send email via emailjs
     await emailjs.send("service_f9n994l", "template_wxamyw8", templateParams);
 
     console.log("✅ Notification sent");
@@ -1324,7 +1342,7 @@ async function notifyPatient(appointmentId, status) {
   }
 }
 
-// Clendar initialisation
+// calendar initialisation
 $(document).ready(function () {
   var calendarEl = document.getElementById("calendar");
   var calendar = new FullCalendar.Calendar(calendarEl, {
@@ -1355,7 +1373,7 @@ $(document).ready(function () {
     }
   }
 
-  // MutationObserver Configuration
+  // mutationObserver Configuration
   const config = { attributes: true, childList: true, subtree: true };
   const observer = new MutationObserver(function (mutations) {
     mutations.forEach(function (mutation) {
@@ -1379,8 +1397,7 @@ $(document).ready(function () {
   }, 1000);
 });
 
-// Function to load acceptd appointmnets for calndar
-// Load accepted appointments and display them in calendar
+// function to load acceptd appointmnets for calndar
 async function loadAcceptedAppointments(calendar) {
   try {
     const accounts = await ethereum.request({ method: "eth_accounts" });
@@ -1415,7 +1432,7 @@ async function loadAcceptedAppointments(calendar) {
 }
 
 
-// Function to display the time of the appointment and name of patient in the calendar
+// function to display the time of the appointment and name of patient in the calendar
 function addEventToCalendar(appointmentData, calendar) {
   if (!calendar) {
     console.error("Calendar not defined");
@@ -1455,10 +1472,10 @@ function addEventToCalendar(appointmentData, calendar) {
 }
 
 $(window).on("load", function () {
-  // Hide all panels
+  // hide all panels
   $(".panel").hide();
 
-  // Show Personal Info panel by default
+  // show Personal Info panel by default
   $("#personalInfoPanel").show();
 
   // Load default panel data
@@ -1497,36 +1514,38 @@ $(".list-group-item").on("click", function (e) {
   }
 });
 
-
+// function to fetch the appointment details from IPFS and decrypt them for display in the UI
 async function fetchAndDecryptAppointment(ipfsHash) {
   try {
     const accounts = await ethereum.request({ method: "eth_accounts" });
     const doctorAddress = accounts[0].toLowerCase();
 
+    // fetch appointment data from IPFS
     const resp = await fetch(`http://localhost:8080/ipfs/${ipfsHash}`);
     if (!resp.ok) {
       throw new Error("Failed to fetch appointment from IPFS");
     }
 
+    // parse JSON response
     const payload = await resp.json();
 
     console.log("📦 Appointment IPFS payload:", payload);
 
-    // ✅ NEW VALIDATION (matches patient.js)
+    // validate payload structure
     if (!payload.iv || !payload.data || !payload.aesKeyWrappedForDoctor) {
       throw new Error("Invalid encrypted appointment payload format");
     }
 
-    // 1️⃣ Doctor derives UAK
+    // doctor derives UAK
     const uak = await window.deriveUAKForDoctor(doctorAddress);
 
-    // 2️⃣ Doctor unwraps appointment AES key
+    // doctor unwraps appointment AES key
     const aesKey = await window.unwrapRMK(
       payload.aesKeyWrappedForDoctor,
       uak
     );
 
-    // 3️⃣ Decrypt appointment
+    // decrypt appointment
     const decrypted = await window.decryptAES(
       {
         iv: payload.iv,

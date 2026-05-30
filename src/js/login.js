@@ -2,7 +2,7 @@ async function login() {
   $(".alert-warning").hide();
 
   // Ensure contracts are loaded
-  const connected = await connect(); // <-- call connect here
+  const connected = await connect(); 
   if (!connected) {
     alert("Unable to connect to Ethereum. Please check your wallet.");
     return;
@@ -129,7 +129,7 @@ $(document).ready(function () {
           window.location.hash = hash;
         }
       );
-    } // End if
+    } 
   });
 });
 

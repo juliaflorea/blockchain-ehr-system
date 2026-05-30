@@ -4,7 +4,7 @@ var url = new URL(url_string);
 var key;
 var ipfs = null;
 var Buffer = null;
-let sessionAESKey = null; // <-- cache AES key for session
+let sessionAESKey = null; // cache AES key for session
 
 if (window.IpfsApi) {
   ipfs = window.IpfsApi("localhost", "5001");
@@ -34,12 +34,15 @@ let draftTriageReports = {};
 const DEFAULT_THREAD_TITLE = "New conversation";
 const pendingThreadTitleIds = new Set();
 
+// function to initialize the chat history storage key based on the patient's Ethereum address, which is used to store and retrieve the patient's AI chat conversations from localStorage. It attempts to get the user's Ethereum accounts and sets the chatStorageKey to a unique value that includes the patient's address, allowing for personalized chat history storage. If it fails to get the accounts, it falls back to a default key. 
 async function initChatHistoryStorageKey() {
   try {
+    // gets accounts
     let accounts = await ethereum.request({ method: "eth_accounts" });
     if (!accounts || accounts.length === 0) {
       accounts = await ethereum.request({ method: "eth_requestAccounts" });
     }
+    // sets chat storage key to include patient's Ethereum address for personalized chat history storage
     if (accounts && accounts[0]) {
       chatStorageKey = `aiChatThreads:${accounts[0].toLowerCase()}`;
     }
@@ -48,8 +51,9 @@ async function initChatHistoryStorageKey() {
   }
 }
 
+// functions to load and save chat threads from localStorage, which allow the application to persist the patient's AI chat conversations across sessions
 function loadChatThreadsFromStorage() {
-  const raw = localStorage.getItem(chatStorageKey);
+  const raw = localStorage.getItem(chatStorageKey); // gets the chat storsge key for the patient 
   if (!raw) return;
 
   try {
@@ -61,6 +65,7 @@ function loadChatThreadsFromStorage() {
   }
 }
 
+// function to save ther current chat thread to local storage 
 function saveChatThreadsToStorage() {
   localStorage.setItem(
     chatStorageKey,
@@ -68,6 +73,7 @@ function saveChatThreadsToStorage() {
   );
 }
 
+// function to create a new conversation with an optional title
 function createNewThread(title) {
   const id = `t_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
   const thread = {
@@ -76,6 +82,7 @@ function createNewThread(title) {
     updatedAt: Date.now(),
     messages: []
   };
+  // adds the new thread to the beginning of the list
   chatThreads.unshift(thread);
   activeThreadId = id;
   saveChatThreadsToStorage();
@@ -83,6 +90,7 @@ function createNewThread(title) {
   renderActiveThread();
 }
 
+// function to set the active thread by its ID and save the updated thread to local storage
 function setActiveThread(id) {
   activeThreadId = id;
   saveChatThreadsToStorage();
@@ -90,6 +98,7 @@ function setActiveThread(id) {
   renderActiveThread();
 }
 
+// function to delete a conversation
 function deleteThreadById(id) {
   if (!id) return;
   const wasActive = id === activeThreadId;
@@ -106,6 +115,7 @@ function deleteThreadById(id) {
   renderChatThreadsList();
 }
 
+// function to rename a conversation by its id 
 function renameThreadById(id) {
   const thread = chatThreads.find(t => t.id === id);
   if (!thread) return;
@@ -117,15 +127,18 @@ function renameThreadById(id) {
   renderChatThreadsList();
 }
 
+// function to get the active thread
 function getActiveThread() {
   return chatThreads.find(t => t.id === activeThreadId) || null;
 }
 
+// function to render the list of chat threads
 function renderChatThreadsList() {
   const list = document.getElementById("aiChatList");
   if (!list) return;
   list.innerHTML = "";
 
+  // filter and sort threads based on search query and last updated time, then render each thread in the UI with options to rename or delete the conversation. The active thread is highlighted for better user experience.
   const search = document.getElementById("aiChatSearch");
   const query = search ? search.value.trim().toLowerCase() : "";
   const sorted = [...chatThreads].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -160,6 +173,7 @@ function renderChatThreadsList() {
   });
 }
 
+// function to to toggle the chat menu
 function toggleChatMenu(menuRoot) {
   const open = menuRoot.querySelector(".ai-chat-item-dropdown");
   if (open) {
@@ -218,6 +232,7 @@ function renderActiveThread() {
   refreshTriageReportForActiveThread();
 }
 
+// function to append a message to the UI, which takes in the role (either "assistant" or "user") and the text of the message, creates a chat bubble element with appropriate styling based on the role, and appends it to the chat window in the UI. It also includes a copy button for each message that allows users to easily copy the content of the message to their clipboard. The function returns the span element containing the message content for further manipulation if needed.
 function appendMessageToUI(role, text) {
   const chatWindow = document.getElementById("chatWindow");
   if (!chatWindow) return;
@@ -250,6 +265,7 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;");
 }
 
+// function to format the risk level from the assistant's response
 function formatRiskLevelMarkup(escapedText) {
   return escapedText
     .replace(/Risk level:\s*(LOW|MODERATE|HIGH)/gi, (_match, level) => {
@@ -263,6 +279,7 @@ function formatRiskLevelMarkup(escapedText) {
     });
 }
 
+// function to deduplicate the assistant's response by removing consecutive duplicate sentences, which takes in the raw text of the assistant's message, splits it into blocks based on double newlines, and then processes each block to remove consecutive duplicate lines while preserving the original formatting. The function returns the cleaned and deduplicated text that can be rendered in the UI without redundant information. This helps improve the clarity and readability of the assistant's responses for the patient.
 function dedupeConsecutiveSentences(text) {
   const blocks = String(text || "").replace(/\r\n/g, "\n").split(/\n{2,}/);
   const dedupedBlocks = blocks.map((block) => {
@@ -285,6 +302,7 @@ function dedupeConsecutiveSentences(text) {
   return dedupedBlocks.join("\n\n");
 }
 
+
 function addSectionSpacing(text) {
   return text
     .replace(/\r\n/g, "\n")
@@ -299,6 +317,7 @@ function addSectionSpacing(text) {
     .replace(/^\n+/, "");
 }
 
+// function to render the assistant's message in the UI, which takes in the raw text of the assistant's response, processes it to add appropriate spacing between sections, deduplicates consecutive sentences to remove redundancy, and then escapes any HTML characters to ensure safe rendering in the UI. The function also formats any risk level information included in the assistant's response with specific styling for better visibility. The final output is a clean and well-formatted HTML string that can be directly inserted into the chat bubble for the assistant's message.
 function renderAssistantMessage(text) {
   const formattedText = addSectionSpacing(dedupeConsecutiveSentences(text || "")).trim();
   const escaped = escapeHtml(formattedText);
@@ -339,6 +358,7 @@ function renderAssistantMessage(text) {
   return formatRiskLevelMarkup(html);
 }
 
+// function to render the list of chat threads
 function appendTypingIndicator() {
   const chatWindow = document.getElementById("chatWindow");
   if (!chatWindow) return null;
@@ -357,12 +377,14 @@ function appendTypingIndicator() {
   return bubble;
 }
 
+// function to remove the typing indicator from the chat window once the assistant has finished generating a response, which takes in the chat bubble element that contains the typing indicator and removes it from the DOM. This function is typically called after the assistant's response has been fully rendered in the UI, ensuring that the typing indicator is only visible while the assistant is actively generating a response, providing a better user experience by indicating when the assistant is processing and when it has completed its response.
 function removeTypingIndicator(bubble) {
   if (bubble && bubble.parentNode) {
     bubble.parentNode.removeChild(bubble);
   }
 }
 
+// function to get the active thread, which retrieves the currently active conversation thread from the list of chat threads based on the activeThreadId. This function is used throughout the application to access the current conversation context, allowing for operations such as adding new messages, rendering the conversation history, and generating triage reports specific to the active thread. If no active thread is found, it returns null.
 function addMessageToActiveThread(role, text) {
   const thread = getActiveThread();
   if (!thread) return;
@@ -391,6 +413,7 @@ function toTitleCase(text) {
     .join(" ");
 }
 
+// function to create a fallback conversation titlebased on the first message sent by the user
 function buildFallbackConversationTitle(messages) {
   const firstUserMessage = (messages || []).find((msg) => msg && msg.role === "user" && msg.text);
   const source = String(firstUserMessage?.text || "")
@@ -413,6 +436,7 @@ function buildFallbackConversationTitle(messages) {
   return compact ? toTitleCase(compact) : "Conversation";
 }
 
+// function to sanitize the conversation title generated by the assistant, which takes in the raw title text and the list of messages in the conversation, and processes the title to remove any unwanted characters, trim whitespace, and ensure it is concise and suitable for display in the UI. If the sanitized title is empty or invalid, it falls back to generating a title based on the conversation history using the buildFallbackConversationTitle function. This ensures that every conversation has a meaningful and user-friendly title, even if the assistant's generated title is not ideal.
 function sanitizeConversationTitle(title, messages) {
   const cleaned = String(title || "")
     .replace(/^["'`]+|["'`]+$/g, "")
@@ -425,6 +449,7 @@ function sanitizeConversationTitle(title, messages) {
   return cleaned || buildFallbackConversationTitle(messages);
 }
 
+// function to generate a conversation title using the assistant's response, which sends a request to the backend API with the recent messages from the conversation to generate a meaningful title for the conversation thread. The function handles the API response and updates the thread title accordingly, while also implementing error handling to ensure that if the title generation fails, it falls back to a title based on the conversation history. This enhances the user experience by providing relevant titles for each conversation thread, making it easier for patients to navigate their chat history with the assistant.
 async function maybeGenerateThreadTitle(threadId) {
   const thread = chatThreads.find((t) => t.id === threadId);
   if (!thread || !isDefaultThreadTitle(thread.title) || pendingThreadTitleIds.has(threadId)) {
@@ -476,24 +501,27 @@ async function maybeGenerateThreadTitle(threadId) {
   }
 }
 
-
+// function to get the session AES key for decrypting the patient's medical records
 async function getSessionAESKey() {
   if (sessionAESKey) return sessionAESKey;
 
   const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-  const patientAddress = accounts[0].toLowerCase(); // ✅ lowercase
+  const patientAddress = accounts[0].toLowerCase(); 
 
-  // Only 1 param: patientAddress
+  // retrieve the wrapped RMK from blockchain
   const wrappedRMK = await medicalDataRegistry.methods
     .getEncryptedAESKey(patientAddress)
     .call({ from: patientAddress });
 
+// check if wrapped RMK exists
   if (!wrappedRMK || wrappedRMK === "0x") {
     throw new Error("No encryption key found for patient");
   }
 
+  // prompt the user for the password to derive the RMK
   let passwordError = "";
 
+  // loop until we get a valid AES key or the user cancels
   while (!sessionAESKey) {
     const password = await requestPassword(passwordError);
     if (!password) {
@@ -501,11 +529,12 @@ async function getSessionAESKey() {
     }
 
     try {
-      // Derive UAK with lowercase address
-      const uak = await window.deriveUAK(password, patientAddress);
+      // derive UAK with lowercase address
+      const uak = await window.deriveUAK(password, patientAddress)
+      // unwrap RMK to get session AES key
       sessionAESKey = await window.unwrapRMK(wrappedRMK, uak);
 
-      // Cache for session
+      // cache for session
       window.sessionAESKey = sessionAESKey;
       return sessionAESKey;
     } catch (err) {
@@ -536,9 +565,7 @@ async function loadPatientData() {
     const accounts = await web3.eth.getAccounts();
     key = accounts[0].toLowerCase();
 
-    /* =======================
-       Fetch patient info
-    ======================== */
+    // fetch patient info
     const patient = await userRegistry.methods
       .getPatient(key)
       .call({ gas: 1000000 });
@@ -554,9 +581,7 @@ async function loadPatientData() {
 
     recordHash = patient.record;
 
-    /* =======================
-       Handle proxy info
-    ======================== */
+    // handle proxy info
     await checkAndHandleProxy(key);
 
      // Print out the available  doctors to share emr
@@ -684,7 +709,7 @@ window.addEventListener("contractsReady", async () => {
 
 document.getElementById("viewRecordsButton")?.addEventListener("click", async function() {
   
-  await showRecords(this);   // 'this' is the button
+  await showRecords(this);   
 });
 
 // ==================== Load Sent Appointments Button ====================
@@ -706,13 +731,16 @@ async function showRecords(element) {
   }
 
   try {
+    // get patient address
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
     console.log("Patient address:", patientAddress);
 
+    // get session AES key (cached or prompt)
     const patientAESKey = await getSessionAESKey();
     console.log("Patient AES key:", patientAESKey);
 
+    // get record hash from blockchain
     const recordHash = await medicalDataRegistry.methods
       .getHash(patientAddress)
       .call({ from: patientAddress });
@@ -725,7 +753,7 @@ async function showRecords(element) {
     const encryptedJson = await resp.text();
     const encryptedPayload = JSON.parse(encryptedJson);
 
-    // Decrypt
+    // Decrypt the record using the session AES key
     const decryptedString = await window.decryptAES(encryptedPayload, patientAESKey);
     const record = JSON.parse(decryptedString);
     console.log("Decrypted record:", record);
@@ -766,6 +794,7 @@ async function showRecords(element) {
   }
 }
 
+// function to download the patient's record as a text file, which takes in the plain text representation of the medical record and a file name, creates a Blob object with the appropriate MIME type, and triggers a download in the user's browser. This allows patients to easily save a copy of their medical records to their local device for offline access or sharing with healthcare providers.
 function downloadJsonFile(filename, data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/fhir+json" });
   const url = URL.createObjectURL(blob);
@@ -782,6 +811,7 @@ function getApiBaseUrl() {
   return window.__API_BASE_URL__ || "http://localhost:3000";
 }
 
+// Helper function to read and parse JSON from API responses, with enhanced error handling to detect when the API returns an HTML page instead of JSON (which can happen if the server is misconfigured or not running). The function takes in the API response and a fallback message to provide more context in case of errors, improving the debugging experience for developers and users alike.
 async function readApiJson(response, fallbackMessage) {
   const rawText = await response.text();
 
@@ -796,10 +826,12 @@ async function readApiJson(response, fallbackMessage) {
   }
 }
 
+// function to export the patient's record in FHIR format
 async function exportFHIRMedicalRecord() {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
+    // get selected FHIR version from dropdown
     const selectedVersion = document.getElementById("fhirExportVersion")?.value || "R4";
 
     // Ensure session key exists
@@ -824,11 +856,13 @@ async function exportFHIRMedicalRecord() {
       },
     });
 
+    // Handle non-OK responses and parse JSON with enhanced error handling
     const payload = await readApiJson(response, "FHIR export failed.");
     if (!response.ok) {
       throw new Error(payload.error || "FHIR export failed.");
     }
 
+    // Extract Patient resource from FHIR Bundle (handle both direct resource and wrapped in .bundle)
     const bundle = payload?.bundle || payload;
 
     const patientResource = bundle?.entry?.find(
@@ -846,6 +880,7 @@ async function exportFHIRMedicalRecord() {
       fileName = "MedicalRecord_Patient.json";
     }
 
+    // Create a Blob from the JSON data and trigger a download in the browser
     const blob = new Blob([JSON.stringify(bundle, null, 2)], {
       type: "application/json"
     });
@@ -920,7 +955,6 @@ function getPatientName(record) {
 }
 
 // Convert a record to plain text for PDF download
-// Convert a record to plain text for download
 function recordToPlainText(record) {
   if (typeof window.medicalRecordToPlainText === "function") {
     return window.medicalRecordToPlainText(record);
@@ -929,14 +963,12 @@ function recordToPlainText(record) {
 }
 
 // Render a resource to HTML for browser display
-// Render a resource to HTML for browser display (patient page)
 function renderResource(r) {
   if (typeof window.renderMedicalRecord === "function") {
     return window.renderMedicalRecord(r);
   }
   return "";
 }
-
 
 // Function to grant access to doctor
 async function giveAccess() {
@@ -954,7 +986,7 @@ async function giveAccess() {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0];
 
-    // 1️⃣ Grant logical access
+    //  Grant logical access
     await accessControl.methods
       .grantDoctorAccess(doctorAddress)
       .send({
@@ -963,17 +995,17 @@ async function giveAccess() {
         value: web3.utils.toWei("2", "ether"),
       });
 
-    // 2️⃣ Get Record Master Key
+    // Get Record Master Key
     const rmk = await getSessionAESKey();
     if (!rmk) throw new Error("Session AES key missing");
 
-    // 3️⃣ Derive doctor-specific key
+    //  Derive doctor-specific key
     const doctorUAK = await window.deriveUAKForDoctor(doctorAddress);
 
-    // 4️⃣ Wrap RMK for doctor
+    //  Wrap RMK for doctor
     const wrappedRMK = await window.wrapRMK(rmk, doctorUAK);
 
-    // 5️⃣ Store encrypted key on-chain
+    //  Store encrypted key on-chain
     await medicalDataRegistry.methods
       .setEncryptedAESKey(
         patientAddress,
@@ -995,7 +1027,6 @@ async function giveAccess() {
 }
 
 // Function to revoke access to doctor
-
 function revokeAccess(element) {
   rowNo = element.parentNode.parentNode.rowIndex;
   Row = element.parentNode.parentNode;
@@ -1236,38 +1267,34 @@ async function scheduleAppointment() {
       ]
     };
 
-    /* ============================
-       🔐 CORRECT ENCRYPTION FLOW
-    ============================ */
-
-    // 1️⃣ Generate per-appointment AES key
+    //  Generate per-appointment AES key
     const appointmentAESKey = await window.generateAESKey();
 
-    // 2️⃣ Encrypt appointment
+    //  Encrypt appointment
     const encrypted = await window.encryptAES(
       JSON.stringify(appointment),
       appointmentAESKey
     );
 
-    // 3️⃣ Wrap AES key for doctor
+    //  Wrap AES key for doctor
     const doctorUAK = await window.deriveUAKForDoctor(doctorId);
     const wrappedKeyForDoctor = await window.wrapRMK(
       appointmentAESKey,
       doctorUAK
     );
 
-    // 4️⃣ Wrap AES key for patient
+    //  Wrap AES key for patient
     const patientSessionKey = await getSessionAESKey();
     const wrappedKeyForPatient = await window.wrapRMK(
       appointmentAESKey,
       patientSessionKey
     );
 
-    // 4.1️⃣ Wrap AES key for proxy (if patient has a proxy)
+    //  Wrap AES key for proxy (if patient has a proxy)
     let wrappedKeyForProxy = null;
     try {
       const proxyDetails = await userRegistry.methods.getProxyByPatient(patientAddress).call();
-      const proxyAddress = proxyDetails[0]; // adjust based on your contract return
+      const proxyAddress = proxyDetails[0]; 
       if (proxyAddress && proxyAddress !== "0x0000000000000000000000000000000000000000") {
         const proxyUAK = await window.deriveUAKForDoctor(proxyAddress);
         wrappedKeyForProxy = await window.wrapRMK(appointmentAESKey, proxyUAK);
@@ -1277,20 +1304,20 @@ async function scheduleAppointment() {
       console.warn("No proxy detected for patient, skipping proxy wrap.", e);
     }
 
-    // 5️⃣ Store payload in IPFS
+    //  Store payload in IPFS
     const ipfsPayload = {
       iv: encrypted.iv,
       data: encrypted.data,
       aesKeyWrappedForDoctor: wrappedKeyForDoctor,
       aesKeyWrappedForPatient: wrappedKeyForPatient,
-      aesKeyWrappedForProxy: wrappedKeyForProxy // ✅ new field
+      aesKeyWrappedForProxy: wrappedKeyForProxy 
     };
 
     const buffer = ipfs.Buffer.from(JSON.stringify(ipfsPayload), "utf8");
     const result = await ipfs.files.add(buffer);
     const ipfsHash = result[0].hash;
 
-    // 6️⃣ Store appointment reference on-chain
+    //  Store appointment reference on-chain
     await appointmentManager.methods
       .requestAppointment(
         doctorId,
@@ -1308,8 +1335,6 @@ async function scheduleAppointment() {
     alert(err.message || "Failed to schedule appointment.");
   }
 }
-
-
 
 // Function to load  appointment requests sent to doctors
 async function loadSentAppointmentRequests() {
@@ -1367,7 +1392,6 @@ async function loadSentAppointmentRequests() {
   }
 }
 
-
 // Function to display the requests
 function displaySentAppointmentRequest(id, appointment, status, doctorName) {
   console.log(`Full Appointment ${id} Data:`, appointment);
@@ -1417,7 +1441,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var dayOfWeek = selectedDate.getDay();
 
     // Check if the selected day is Saturday (6) or Sunday (0)
-    // TRestrict patient to schedule appointment only on weekdays
+    // Restrict patient to schedule appointment only on weekdays
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       alert(
         "Appointments cannot be scheduled on weekends. Please select a weekday."
@@ -1443,8 +1467,6 @@ document.addEventListener("DOMContentLoaded", function () {
     // Pass the button itself and the proxy address
     revokeProxyAccess(proxyAddress);
   });
-
- 
 
   // initialize views
   var panels = document.querySelectorAll(".panel");
@@ -1501,7 +1523,6 @@ sidebarLinks.forEach(function (link) {
   }
 
   //calendar initialization
-
   var calendarEl = document.getElementById("calendar");
   var calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: "dayGridMonth",
@@ -1556,7 +1577,7 @@ sidebarLinks.forEach(function (link) {
   }, 1000);
 });
 
-// Function to load accepted appointments (patient view)
+// Function to load accepted appointments 
 async function loadAcceptedAppointments(calendar) {
   try {
     const accounts = await ethereum.request({ method: "eth_accounts" });
@@ -1781,7 +1802,7 @@ function populateHoursDropdown() {
 // Function to designate proxy
 async function designateProxy() {
   try {
-    // ---------- Get patient address FIRST ----------
+    // ---------- Get patient address ----------
     const accounts = await web3.eth.getAccounts();
     const patientAddress = accounts[0];
 
@@ -1841,7 +1862,6 @@ async function designateProxy() {
   }
 }
 
-
 // Function to generate token to send to proxy's email
 function generateTokenForProxy() {
   // Create a random string of 16 characters (letters and numbers)
@@ -1852,7 +1872,6 @@ function generateTokenForProxy() {
   for (let i = 0; i < 16; i++) {
     token += characters.charAt(Math.floor(Math.random() * charactersLength));
   }
-
   // Append a timestamp for added uniqueness
   token += "-" + new Date().getTime().toString(36);
 
@@ -1860,32 +1879,31 @@ function generateTokenForProxy() {
 }
 
 // Function to send tpken to proxy's email
-// ✅ FIXED: Send token to proxy's email (handles encrypted FHIR record)
 async function sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLastName) {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
 
-    // 1️⃣ Get patient's AES key (already cached after login)
+    //  Get patient's AES key (already cached after login)
     const patientAESKey = await getSessionAESKey();
     if (!patientAESKey) throw new Error("Patient AES key not available");
 
-    // 2️⃣ Get patient record hash
+    //  Get patient record hash
     const recordHash = await medicalDataRegistry.methods
       .getHash(patientAddress)
       .call();
 
     if (!recordHash) throw new Error("Patient record hash not found");
 
-    // 3️⃣ Fetch encrypted record from IPFS
+    // Fetch encrypted record from IPFS
     const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
     const encryptedPayload = await resp.json(); // { iv, data }
 
-    // 4️⃣ Decrypt record
+    //  Decrypt record
     const decryptedStr = await window.decryptAES(encryptedPayload, patientAESKey);
     const record = JSON.parse(decryptedStr);
 
-    // 5️⃣ Extract patient name from FHIR record
+    //  Extract patient name from FHIR record
     let patientName = "Patient";
 
     if (record.resourceType === "Bundle" && Array.isArray(record.entry)) {
@@ -1902,7 +1920,7 @@ async function sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLas
       patientName = `${n.given.join(" ")} ${n.family}`;
     }
 
-    // 6️⃣ Prepare EmailJS template params
+    //  Prepare EmailJS template params
     const templateParams = {
       proxy_email: proxyEmail,
       proxy_name: `${proxyFirstName} ${proxyLastName}`,
@@ -1913,7 +1931,7 @@ async function sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLas
 
     console.log("📤 Sending proxy token email:", templateParams);
 
-    // 7️⃣ Send email
+    //  Send email
     await emailjs.send(
       "service_f9n994l",
       "template_bwpjgsk",
@@ -1927,7 +1945,6 @@ async function sendTokenToProxyEmail(proxyEmail, token, proxyFirstName, proxyLas
     alert("Failed to send token email to proxy.");
   }
 }
-
 
 // Function to display the proxies that have access
 function displayProxiesWithAccess() {
@@ -2128,6 +2145,7 @@ async function addPatientAllergy() {
       return;
     }
 
+    // Decrypt existing record
     const encryptedJson = new TextDecoder().decode(file.content);
     const encryptedPayload = JSON.parse(encryptedJson);
     const decrypted = await window.decryptAES(encryptedPayload, patientAESKey);
@@ -2148,7 +2166,7 @@ async function addPatientAllergy() {
     const result = await ipfs.files.add(buffer);
     const newHash = result[0].hash;
 
-    // Update blockchain pointer
+    // Update blockchain hash
     await medicalDataRegistry.methods.setHash(patientAddress, newHash).send({ from: patientAddress });
 
     // Clear cache so records are refreshed
@@ -2165,8 +2183,8 @@ async function addPatientAllergy() {
   }
 }
 
-
 // Function to check the age of patient and handle the display of data and proxy designation
+// if patient is under 16 and does not have a proxy, show only the option to designate a proxy and hide all other data, if patient is under 16 and has a proxy, show all data, if patient is 16 or older, show all data regardless of proxy status
 function checkAndHandleProxy(key) {
   userRegistry.methods
     .getPatient(key)
@@ -2297,7 +2315,6 @@ function textToHtml(text) {
   );
 }
 
-
 // Toggle the eye icon for password visibility
 function toggleModalPasswordVisibility() {
   const input = document.getElementById("modalPassword");
@@ -2402,6 +2419,7 @@ function getPasswordConstraintsMsg() {
   `;
 }
 
+// function for requesting new password during recovery flow,if patient forgot passeord
 function requestNewPassword() {
   return new Promise((resolve) => {
     $("#newPasswordInput").val("");
@@ -2443,13 +2461,13 @@ function requestNewPassword() {
   });
 }
 
-
-
+// function to handle recovery flow
 async function openRecoveryFlow() {
   try {
     const accounts = await ethereum.request({ method: "eth_requestAccounts" });
     const patientAddress = accounts[0].toLowerCase();
 
+    // get wrapped recovery key from blockchain
     const wrappedRecoveryRMK =
       await medicalDataRegistry.methods.getRecoveryEncryptedAESKey(patientAddress).call({ from: patientAddress });
 
@@ -2466,6 +2484,7 @@ async function openRecoveryFlow() {
     const newPassword = await requestNewPassword();
     if (!newPassword) return;
 
+    // Derive new UAK and rewrap RMK with it, then update on chain
     const newUAK = await window.deriveUAK(newPassword, patientAddress);
     const newWrappedRMK = await window.wrapRMK(recoveredRMK, newUAK);
 
@@ -2473,6 +2492,7 @@ async function openRecoveryFlow() {
       .setEncryptedAESKey(patientAddress, patientAddress, newWrappedRMK)
       .send({ from: patientAddress });
 
+      // Update session AES key to the recovered RMK so user doesn't get logged out immediately
     sessionAESKey = recoveredRMK;
     alert("Password successfully reset!");
 
@@ -2481,8 +2501,6 @@ async function openRecoveryFlow() {
     alert("Recovery failed.");
   }
 }
-
-
 
 function toggleRecoveryVisibility() {
   const input = document.getElementById("recoveryKeyInput");
@@ -2510,7 +2528,7 @@ function toggleNewPasswordVisibility(inputId) {
   }
 }
 
-
+// Show modal to request recovery key and return the decrypted RMK, or null if cancelled/failed
 function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
   return new Promise((resolve) => {
     $("#recoveryKeyInput").val("");
@@ -2539,6 +2557,7 @@ function requestRecoveryKey(patientAddress, wrappedRecoveryRMK) {
       finish(null);
     }
 
+    // When user submits recovery key, attempt to derive UAK and decrypt RMK. If it fails, show error and let them try again.
     async function handle() {
       const recoveryKey = $("#recoveryKeyInput").val();
       if (!recoveryKey) return;
@@ -2565,6 +2584,7 @@ function showRecoveryError(msg) {
   $("#recoveryError").text(msg).show();
 }
 
+// funcgion to build patient context for LLM by fetching from blockchain and decrypting, with caching to optimize repeated accesses
 async function buildPatientLLMContext() {
   // Use existing wallet session when available to avoid repeated prompts.
   let accounts = await ethereum.request({ method: "eth_accounts" });
@@ -2573,6 +2593,7 @@ async function buildPatientLLMContext() {
   }
   const patientAddress = accounts[0].toLowerCase();
 
+  // get hash of rcord
   const recordHash = await medicalDataRegistry.methods
     .getHash(patientAddress)
     .call();
@@ -2582,11 +2603,13 @@ async function buildPatientLLMContext() {
     return cachedLLMContext;
   }
 
+// if no cached context, fetch key and record, decrypt, build context, and cache it for future use
   const patientAESKey = await getSessionAESKey();
 
   const resp = await fetch(`http://localhost:8080/ipfs/${recordHash}`);
   const encryptedPayload = await resp.json();
 
+  // decrypt record and extract relevant info to build LLM context
   const decryptedString = await window.decryptAES(encryptedPayload, patientAESKey);
   const record = JSON.parse(decryptedString);
 
@@ -2660,7 +2683,9 @@ async function buildPatientLLMContext() {
   return cachedLLMContext;
 }
 
+// function to handle sending symptom message
 async function sendSymptomMessage() {
+  // grab input and display in UI
   const input = document.getElementById("symptomInput");
   const chatWindow = document.getElementById("chatWindow");
 
@@ -2706,6 +2731,7 @@ async function sendSymptomMessage() {
       const { value, done } = await reader.read();
       if (done) break;
 
+      // Decode the incoming chunk and append to the AI reply
       const chunk = decoder.decode(value, { stream: true });
       // Append chunk to AI reply progressively
       if (!typingRemoved) {
@@ -2746,6 +2772,7 @@ async function sendSymptomMessage() {
   }
 }
 
+// Helper function to get recent messages from active thread for context or export
 function getRecentChatMessages(limit = 12) {
   const thread = getActiveThread();
   if (!thread || !Array.isArray(thread.messages)) return [];
@@ -2756,6 +2783,7 @@ function getRecentChatMessages(limit = 12) {
   }));
 }
 
+// Function to prepare conversation export with metadata and formatting
 function getActiveConversationExport(thread) {
   if (!thread) return null;
   const messages = Array.isArray(thread.messages) ? thread.messages : [];
@@ -2853,6 +2881,7 @@ function setSectionText(bundle, title, text) {
   if (section) section.text = text || "Not provided";
 }
 
+// Function to update the triage report UI with data from the report object, or reset if no report
 function updateTriageReportUI(report) {
   const setValue = (id, value, placeholder) => {
     const el = document.getElementById(id);
@@ -2891,6 +2920,7 @@ function updateTriageReportUI(report) {
   }
 }
 
+// Caching mechanism for triage reports to optimize performance and reduce redundant blockchain/IPFS calls
 function getTriageReportFromCache(threadId) {
   if (!threadId || !Array.isArray(cachedTriageReports)) return null;
   return cachedTriageReports.find((r) => r && r.id === threadId) || null;
@@ -2913,15 +2943,19 @@ function refreshTriageReportForActiveThread() {
   updateTriageReportUI(report);
 }
 
+// Load the triage report for the current patient from blockchain/IPFS, with caching to optimize performance. If the report for the active thread is already in cache, use it to update the UI immediately.
 async function loadStoredTriageReport() {
   try {
     const accounts = await ethereum.request({ method: "eth_accounts" });
     const patientAddress = accounts && accounts[0] ? accounts[0].toLowerCase() : null;
     if (!patientAddress) return;
 
+    // get key for session
     const patientAESKey = await getSessionAESKey();
+    // get record
     const recordHash = await medicalDataRegistry.methods.getHash(patientAddress).call();
     if (!recordHash) return;
+    // if report for active thread is already in cache, use it 
     if (cachedTriageReportsHash && cachedTriageReportsHash === recordHash) {
       refreshTriageReportForActiveThread();
       return;
@@ -2947,6 +2981,7 @@ async function loadStoredTriageReport() {
   }
 }
 
+// Function to export the active conversation to PDF using jsPDF library, with formatting and metadata. Alerts user if no conversation or if PDF export is unavailable.
 async function exportActiveConversationToPDF() {
   const thread = getActiveThread();
   const exportData = getActiveConversationExport(thread);
@@ -2980,6 +3015,7 @@ async function exportActiveConversationToPDF() {
   doc.save(`Conversation_${filenameSafe}.pdf`);
 }
 
+// Function to generate AI triage report by sending patient context and recent conversation to server, then updating the UI with the generated report. Handles loading state, errors, and caching of the generated report for the active thread.
 async function generateTriageReport() {
   const generateBtn = document.getElementById("aiGenerateReportBtn");
   const shareBtn = document.getElementById("aiShareReportBtn");
@@ -3067,6 +3103,7 @@ async function generateTriageReport() {
   }
 }
 
+// Function to share the generated triage report by encrypting it and updating the patient's medical record on IPFS and blockchain. Handles wallet access, doctor access control, encryption, and caching of the shared report. Alerts user of any issues during the process.
 async function shareTriageReport() {
   const warning = document.getElementById("aiShareWarning");
   if (warning) warning.style.display = "none";
@@ -3222,6 +3259,7 @@ function exportTriageReportToPDF() {
   doc.save(`AI_Triage_Report_${filenameSafe}.pdf`);
 }
 
+// Function to share the active conversation by attaching it to the patient's medical record on IPFS and updating the blockchain reference. Checks for wallet access, doctor access control, and handles encryption and caching of the shared conversation. Alerts user of any issues during the process.
 async function shareActiveConversation() {
   const warning = document.getElementById("aiShareWarning");
   if (warning) warning.style.display = "none";
@@ -3316,6 +3354,7 @@ async function shareActiveConversation() {
   }
 }
 
+// Function to check if the patient has any doctors with access and update the UI to enable/disable sharing features accordingly. This is called on page load and after generating a report to ensure the share button state is accurate based on current access control settings.
 async function refreshShareAvailability() {
   const warning = document.getElementById("aiShareWarning");
   const shareBtn = document.getElementById("aiShareReportBtn");
@@ -3345,6 +3384,7 @@ async function refreshShareAvailability() {
   }
 }
 
+// Function to generate a visit summary by sending patient context and recent conversation to the server, then displaying the streaming response in the UI. Handles loading state, errors, and enables copying the generated summary to clipboard.
 async function generateVisitSummary() {
   const output = document.getElementById("aiVisitSummaryOutput");
   const generateBtn = document.getElementById("aiGenerateSummaryBtn");
@@ -3359,6 +3399,7 @@ async function generateVisitSummary() {
     const patientContext = await buildPatientLLMContext();
     const messages = getRecentChatMessages(16);
 
+    // Fetch streaming response from server
     const response = await fetch("http://localhost:3000/api/visit-summary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3375,6 +3416,7 @@ async function generateVisitSummary() {
       })
     });
 
+    // Read the streaming response and update the output textarea progressively as chunks arrive
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let summary = "";
@@ -3396,6 +3438,7 @@ async function generateVisitSummary() {
   }
 }
 
+// Set up event listeners for DOM elements after the page has loaded, including handling clicks for copying messages, generating reports, exporting conversations, and sharing reports. This ensures that the interactive features of the patient interface are functional and responsive to user actions.
 document.addEventListener("DOMContentLoaded", () => {
   const chatWindow = document.getElementById("chatWindow");
   if (chatWindow) {

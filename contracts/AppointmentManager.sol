@@ -11,7 +11,7 @@ contract AppointmentManager {
 
 
     struct Appointment {
-        string ipfsHash;
+        string ipfsHash; 
         bool isAccepted;
         address patientAddress;
         address doctorAddress;
@@ -27,12 +27,12 @@ contract AppointmentManager {
         bool isAvailable;
     }
 
-    uint public nextAppointmentId = 0;
+    uint public nextAppointmentId = 0; // every new appointment gets a new id
 
-    mapping(uint => Appointment) public appointments;
-    mapping(address => uint[]) internal doctorAppointments;
-    mapping(address => uint[]) internal patientAppointments;
-    mapping(address => mapping(uint256 => mapping(uint8 => bool))) private doctorAvailability;
+    mapping(uint => Appointment) public appointments; // maps appointment id to appointment data
+    mapping(address => uint[]) internal doctorAppointments; // maps a doctor address to a list of appointment ids
+    mapping(address => uint[]) internal patientAppointments; // mas a patient address to a list of appointment ids
+    mapping(address => mapping(uint256 => mapping(uint8 => bool))) private doctorAvailability; // maps a doctor address to a time slot (date and time) and a bool for checking if a slot is available or not
 
     // ===== Events =====
     event AppointmentRequested(uint indexed appointmentId, address indexed patient, address indexed doctor);
@@ -54,7 +54,7 @@ contract AppointmentManager {
         uint8 _appointmentHour
     ) public {
         bool accessGiven = false;
-        address[] memory doctors = userRegistry.getDoctorAccessList(msg.sender);
+        address[] memory doctors = userRegistry.getDoctorAccessList(msg.sender); // get the doctors that have acceess
         for (uint i = 0; i < doctors.length; i++) {
             if (doctors[i] == _doctor) {
                 accessGiven = true;
@@ -74,8 +74,8 @@ contract AppointmentManager {
             isTimeSlotAvailable(_doctor, _appointmentDate, _appointmentHour),
             "Time slot not available."
         );
-        uint appointmentId = nextAppointmentId++;
-        appointments[appointmentId] = Appointment({
+        uint appointmentId = nextAppointmentId++; // creates new incremented id for appointment
+        appointments[appointmentId] = Appointment({. // creates struct for appointment and stores it on blockchain
             ipfsHash: _appointmentIPFSHash,
             isAccepted: false,
             patientAddress: msg.sender,
@@ -86,7 +86,7 @@ contract AppointmentManager {
             treatmentPlanSubmitted: false
         });
 
-        doctorAppointments[_doctor].push(appointmentId);
+        doctorAppointments[_doctor].push(appointmentId); // push appointment to doctor's and patient's history
         patientAppointments[msg.sender].push(appointmentId);
 
         // Also push for the proxy if exists
@@ -111,7 +111,7 @@ if (p.hasDesignatedProxy) {
        require(userRegistry.getPatient(_patient).proxyAddress == msg.sender, "Caller is not the proxy for this patient");
 
 
-        bool accessGranted = false;
+        bool accessGranted = false; // check if proxy has access
         address[] memory doctors = userRegistry.getDoctorAccessList(_patient);
         for (uint i = 0; i < doctors.length; i++) {
             if (doctors[i] == _doctor) {
@@ -163,11 +163,12 @@ if (p.hasDesignatedProxy) {
     // Accept/Reject Appointments
     // ---------------------------------------------
     function acceptAppointment(uint _appointmentId) public {
-        Appointment storage appointment = appointments[_appointmentId];
+        Appointment storage appointment = appointments[_appointmentId]; // direct blockchain reference  
 
-        require(!appointment.isAccepted, "Appointment is already processed");
+        require(!appointment.isAccepted, "Appointment is already processed"); // check if appt is already accepted
 
         uint[] memory docAppointments = doctorAppointments[appointment.doctorAddress];
+        // iterate through doctor appts and check if the time slot is already booked
         for (uint i = 0; i < docAppointments.length; i++) {
             Appointment storage otherAppointment = appointments[docAppointments[i]];
              if (
@@ -179,8 +180,8 @@ if (p.hasDesignatedProxy) {
             }
         }
 
-        appointment.isAccepted = true;
-        doctorAvailability[appointment.doctorAddress][appointment.date][appointment.hour] = true;
+        appointment.isAccepted = true; // mark appt as accepted
+        doctorAvailability[appointment.doctorAddress][appointment.date][appointment.hour] = true; // mark time slot as booked
 
         emit AppointmentAccepted(_appointmentId, appointment.doctorAddress, appointment.patientAddress);
     }
@@ -189,8 +190,8 @@ if (p.hasDesignatedProxy) {
         Appointment storage appointment = appointments[_appointmentId];
         require(!appointment.isAccepted, "Appointment is already processed");
 
-        delete appointments[_appointmentId];
-        doctorAvailability[appointment.doctorAddress][appointment.date][appointment.hour] = false;
+        delete appointments[_appointmentId]; // remove appt struct from blockchain storage
+        doctorAvailability[appointment.doctorAddress][appointment.date][appointment.hour] = false; // mark the time slot as free
 
         emit AppointmentRejected(_appointmentId, appointment.doctorAddress, appointment.patientAddress);
     }
@@ -199,10 +200,10 @@ if (p.hasDesignatedProxy) {
     // Availability management
     // ---------------------------------------------
     function updateAvailability(address _doctor, uint256 _date, uint8 _hour, bool _isAvailable) public {
-        require(msg.sender == _doctor, "Unauthorized access");
-        require(_hour >= 8 && _hour <= 19, "Invalid appointment hour.");
+        require(msg.sender == _doctor, "Unauthorized access"); // only doctor can update slots
+        require(_hour >= 8 && _hour <= 19, "Invalid appointment hour."); 
 
-        doctorAvailability[_doctor][_date][_hour] = _isAvailable;
+        doctorAvailability[_doctor][_date][_hour] = _isAvailable; // stores slot state
 
         emit AvailabilityUpdated(_doctor, _date, _hour, _isAvailable);
     }
@@ -212,10 +213,10 @@ if (p.hasDesignatedProxy) {
     }
 
     function setDiagnosisSubmitted(uint _appointmentId) public {
-    Appointment storage appointment = appointments[_appointmentId];
+    Appointment storage appointment = appointments[_appointmentId]; 
 
-    require(appointment.isAccepted, "Appointment not accepted");
-    require(!appointment.diagnosisSubmitted, "Diagnosis already submitted");
+    require(appointment.isAccepted, "Appointment not accepted"); // an appointment has to be accepted to submit the diagnosis
+    require(!appointment.diagnosisSubmitted, "Diagnosis already submitted"); // prevents resubmission for an appt
 
     // Only doctor or diagnosisContract can call
     require(
@@ -268,10 +269,10 @@ function setTreatmentPlanSubmitted(uint _appointmentId) public {
         appointment.treatmentPlanSubmitted
     );
 }
-
+    // set linked diagnosis contract
     function setDiagnosisContract(address _addr) external {
     require(diagnosisContract == address(0), "Already set");
-    diagnosisContract = _addr;
+    diagnosisContract = _addr; // can only be set once
 }
 
 
