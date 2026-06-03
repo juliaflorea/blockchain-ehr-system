@@ -75,7 +75,7 @@ contract AppointmentManager {
             "Time slot not available."
         );
         uint appointmentId = nextAppointmentId++; // creates new incremented id for appointment
-        appointments[appointmentId] = Appointment({. // creates struct for appointment and stores it on blockchain
+        appointments[appointmentId] = Appointment({ // creates struct for appointment and stores it on blockchain
             ipfsHash: _appointmentIPFSHash,
             isAccepted: false,
             patientAddress: msg.sender,
