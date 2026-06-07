@@ -112,6 +112,7 @@ window.deriveUAKForDoctor = async function (doctorAddress) {
 
 // function to wrap the record master key (RMK) with the user access key (UAK) so that the RMK can be stored on the blockchain and only decrypted by someone with the correct UAK
 window.wrapRMK = async function (rmk, uak) {
+  const iv = crypto.getRandomValues(new Uint8Array(12)); // generates a random initialization vector of 12 bytes
   const rawRMK = new Uint8Array(await crypto.subtle.exportKey("raw", rmk)); // convertsthe Rmk from a CryptoKey object into raw bytes that can be encrypted
 
   const wrapped = await crypto.subtle.encrypt( // encrypts the raw RMK with the UAK and a random IV
